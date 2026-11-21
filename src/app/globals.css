@@ -1,0 +1,78 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-parchment: #E8DDC7;
+    --color-obsidian: #101014;
+    --color-gold: #C6A46A;
+    --color-bronze: #9A7048;
+    --color-burgundy: #5A2433;
+  }
+
+  body {
+    background-color: #101014;
+    color: #E8DDC7;
+    font-family: var(--font-inter), sans-serif;
+    overflow-x: hidden;
+    selection-background-color: #C6A46A;
+    selection-color: #101014;
+  }
+
+  ::selection {
+    background: #C6A46A;
+    color: #101014;
+  }
+}
+
+/* Antique Parchment Grain Texture */
+.bg-grain {
+  background-image: radial-gradient(rgba(198, 164, 106, 0.08) 1px, transparent 0);
+  background-size: 24px 24px;
+}
+
+.parchment-paper {
+  background-color: #E8DDC7;
+  color: #101014;
+  background-image: radial-gradient(rgba(154, 112, 72, 0.12) 1px, transparent 0);
+  background-size: 28px 28px;
+}
+
+/* Classical Gold Borders */
+.gold-border {
+  border-color: rgba(198, 164, 106, 0.3);
+}
+
+.gold-border-glow {
+  border: 1px solid rgba(198, 164, 106, 0.35);
+  box-shadow: 0 0 20px rgba(198, 164, 106, 0.08);
+}
+
+/* Classical Typography Helpers */
+.font-cinzel {
+  font-family: var(--font-cinzel), serif;
+  letter-spacing: 0.05em;
+}
+
+.font-cormorant {
+  font-family: var(--font-cormorant), serif;
+}
+
+/* Subtle Smooth Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #101014;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #2D261C;
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #C6A46A;
+}
