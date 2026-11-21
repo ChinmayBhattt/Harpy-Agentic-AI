@@ -184,61 +184,10 @@ const CONNECTORS = [
 
 const INITIAL_SESSIONS: ChatSession[] = [
   {
-    id: "session-1",
-    title: "Sync client bug from Gmail to Notion & Patch",
-    timestamp: "10:42 AM",
-    messages: [
-      {
-        id: "m-1",
-        sender: "user",
-        text: "Check my unread Gmail for client bug reports, log the ticket into our Notion Sprint 24 board, and create a reproduction patch in my AI code editor.",
-        timestamp: "10:42 AM",
-      },
-      {
-        id: "m-2",
-        sender: "harpy",
-        text: "I have reviewed your connected applications: verified client bug report in Gmail, logged ticket #NOT-442 into Notion Sprint 24, and created reproduction patch on branch fix/token-refresh in your code editor.",
-        timestamp: "10:43 AM",
-      },
-    ],
-  },
-  {
-    id: "session-2",
-    title: "Discord alert & WhatsApp daily digest",
-    timestamp: "Yesterday",
-    messages: [
-      {
-        id: "m-3",
-        sender: "user",
-        text: "Scan Discord #announcements and send a curated digest to our WhatsApp channel.",
-        timestamp: "Yesterday",
-      },
-      {
-        id: "m-4",
-        sender: "harpy",
-        text: "Digest prepared and dispatched across Discord and WhatsApp channels seamlessly.",
-        timestamp: "Yesterday",
-      },
-    ],
-  },
-  {
-    id: "session-3",
-    title: "Chrome competitor analysis into Notion table",
-    timestamp: "3 days ago",
-    messages: [
-      {
-        id: "m-5",
-        sender: "user",
-        text: "Navigate to competitor pricing pages in Chrome and extract tier changes into Notion.",
-        timestamp: "3 days ago",
-      },
-      {
-        id: "m-6",
-        sender: "harpy",
-        text: "Autonomous web scan complete. Notion database updated with 3 competitor tier comparisons.",
-        timestamp: "3 days ago",
-      },
-    ],
+    id: "session-init",
+    title: "New Autonomous Mission",
+    timestamp: "Just now",
+    messages: [],
   },
 ];
 
@@ -267,7 +216,7 @@ const SUGGESTIONS = [
 
 export default function DashboardPage() {
   const [sessions, setSessions] = useState<ChatSession[]>(INITIAL_SESSIONS);
-  const [currentSessionId, setCurrentSessionId] = useState<string>("session-1");
+  const [currentSessionId, setCurrentSessionId] = useState<string>("session-init");
   const [inputValue, setInputValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -295,9 +244,31 @@ export default function DashboardPage() {
   const currentSession =
     sessions.find((s) => s.id === currentSessionId) || sessions[0];
 
-  // Load saved key and model from localStorage on mount (with auto-migration away from 404 models)
+  // Load saved key, model, and real user chat sessions from localStorage on mount
   useEffect(() => {
     try {
+      // Clear legacy dummy sessions and load real user chats if present
+      const savedSessionsRaw = localStorage.getItem("harpy_chat_sessions");
+      if (savedSessionsRaw) {
+        const parsed = JSON.parse(savedSessionsRaw);
+        if (Array.isArray(parsed)) {
+          const validSessions = parsed.filter(
+            (s: ChatSession) =>
+              s.id !== "session-1" &&
+              s.id !== "session-2" &&
+              s.id !== "session-3" &&
+              Array.isArray(s.messages) &&
+              s.messages.length > 0
+          );
+          if (validSessions.length > 0) {
+            setSessions(validSessions);
+            setCurrentSessionId(validSessions[0].id);
+          } else {
+            localStorage.removeItem("harpy_chat_sessions");
+          }
+        }
+      }
+
       const savedKey = localStorage.getItem("harpy_user_api_key") || "";
       let savedModelId = localStorage.getItem("harpy_user_model_id") || "";
       let savedModelName = localStorage.getItem("harpy_user_model_name") || "";
@@ -420,6 +391,13 @@ export default function DashboardPage() {
   };
 
   const handleNewChat = () => {
+    if (currentSession && currentSession.messages.length === 0) {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+      return;
+    }
+
     const newId = `session-${Date.now()}`;
     const newSession: ChatSession = {
       id: newId,
@@ -427,9 +405,13 @@ export default function DashboardPage() {
       timestamp: "Just now",
       messages: [],
     };
-    setSessions([newSession, ...sessions]);
+    const updated = [newSession, ...sessions.filter((s) => s.messages.length > 0)];
+    setSessions(updated);
     setCurrentSessionId(newId);
     setAttachedFile(null);
+    try {
+      localStorage.setItem("harpy_chat_sessions", JSON.stringify(updated.filter((s) => s.messages.length > 0)));
+    } catch {}
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.overflowY = "hidden";
@@ -457,13 +439,17 @@ export default function DashboardPage() {
       ? textToSend.slice(0, 36) + (textToSend.length > 36 ? "..." : "")
       : currentSession.title;
 
-    setSessions((prev) =>
-      prev.map((s) =>
+    setSessions((prev) => {
+      const next = prev.map((s) =>
         s.id === currentSessionId
           ? { ...s, title: newTitle, messages: updatedMessages }
           : s
-      )
-    );
+      );
+      try {
+        localStorage.setItem("harpy_chat_sessions", JSON.stringify(next.filter((s) => s.messages.length > 0)));
+      } catch {}
+      return next;
+    });
 
     setInputValue("");
     setAttachedFile(null);
@@ -544,13 +530,17 @@ export default function DashboardPage() {
         timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
       };
 
-      setSessions((prev) =>
-        prev.map((s) =>
+      setSessions((prev) => {
+        const next = prev.map((s) =>
           s.id === currentSessionId
             ? { ...s, messages: [...updatedMessages, harpyMsg] }
             : s
-        )
-      );
+        );
+        try {
+          localStorage.setItem("harpy_chat_sessions", JSON.stringify(next.filter((s) => s.messages.length > 0)));
+        } catch {}
+        return next;
+      });
     } catch (err: unknown) {
       const errMsg = err instanceof Error ? err.message : "Inference connection error";
       const errorMsg: Message = {
