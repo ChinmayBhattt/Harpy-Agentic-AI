@@ -182,14 +182,7 @@ const CONNECTORS = [
   },
 ];
 
-const INITIAL_SESSIONS: ChatSession[] = [
-  {
-    id: "session-init",
-    title: "New Autonomous Mission",
-    timestamp: "Just now",
-    messages: [],
-  },
-];
+const INITIAL_SESSIONS: ChatSession[] = [];
 
 const SUGGESTIONS = [
   {
@@ -215,7 +208,7 @@ const SUGGESTIONS = [
 ];
 
 export default function DashboardPage() {
-  const [sessions, setSessions] = useState<ChatSession[]>(INITIAL_SESSIONS);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>("session-init");
   const [inputValue, setInputValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
@@ -242,12 +235,17 @@ export default function DashboardPage() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const currentSession =
-    sessions.find((s) => s.id === currentSessionId) || sessions[0];
+    sessions.find((s) => s.id === currentSessionId) || {
+      id: currentSessionId,
+      title: "New Autonomous Mission",
+      timestamp: "Just now",
+      messages: [],
+    };
 
   // Load saved key, model, and real user chat sessions from localStorage on mount
   useEffect(() => {
     try {
-      // Clear legacy dummy sessions and load real user chats if present
+      // Purge any legacy mock/dummy sessions and load only authentic user conversations
       const savedSessionsRaw = localStorage.getItem("harpy_chat_sessions");
       if (savedSessionsRaw) {
         const parsed = JSON.parse(savedSessionsRaw);
@@ -257,16 +255,33 @@ export default function DashboardPage() {
               s.id !== "session-1" &&
               s.id !== "session-2" &&
               s.id !== "session-3" &&
+              s.id !== "session-init" &&
+              !s.title?.toLowerCase().includes("sync client bug") &&
+              !s.title?.toLowerCase().includes("discord alert") &&
+              !s.title?.toLowerCase().includes("chrome competitor") &&
               Array.isArray(s.messages) &&
-              s.messages.length > 0
+              s.messages.length > 0 &&
+              !s.messages.some(
+                (m) =>
+                  m.text?.includes("Check my unread Gmail") ||
+                  m.text?.includes("I have reviewed your connected applications") ||
+                  m.text?.includes("Scan Discord #announcements") ||
+                  m.text?.includes("Navigate to competitor pricing")
+              )
           );
           if (validSessions.length > 0) {
             setSessions(validSessions);
             setCurrentSessionId(validSessions[0].id);
+            localStorage.setItem("harpy_chat_sessions", JSON.stringify(validSessions));
           } else {
             localStorage.removeItem("harpy_chat_sessions");
+            setSessions([]);
+            setCurrentSessionId(`session-${Date.now()}`);
           }
         }
+      } else {
+        setSessions([]);
+        setCurrentSessionId(`session-${Date.now()}`);
       }
 
       const savedKey = localStorage.getItem("harpy_user_api_key") || "";
@@ -399,19 +414,9 @@ export default function DashboardPage() {
     }
 
     const newId = `session-${Date.now()}`;
-    const newSession: ChatSession = {
-      id: newId,
-      title: "New Autonomous Mission",
-      timestamp: "Just now",
-      messages: [],
-    };
-    const updated = [newSession, ...sessions.filter((s) => s.messages.length > 0)];
-    setSessions(updated);
     setCurrentSessionId(newId);
     setAttachedFile(null);
-    try {
-      localStorage.setItem("harpy_chat_sessions", JSON.stringify(updated.filter((s) => s.messages.length > 0)));
-    } catch {}
+    setInputValue("");
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
       textareaRef.current.style.overflowY = "hidden";
@@ -440,13 +445,28 @@ export default function DashboardPage() {
       : currentSession.title;
 
     setSessions((prev) => {
-      const next = prev.map((s) =>
-        s.id === currentSessionId
-          ? { ...s, title: newTitle, messages: updatedMessages }
-          : s
-      );
+      const exists = prev.some((s) => s.id === currentSessionId);
+      let next: ChatSession[];
+      if (exists) {
+        next = prev.map((s) =>
+          s.id === currentSessionId
+            ? { ...s, title: newTitle, messages: updatedMessages }
+            : s
+        );
+      } else {
+        const newSessionItem: ChatSession = {
+          id: currentSessionId,
+          title: newTitle,
+          timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          messages: updatedMessages,
+        };
+        next = [newSessionItem, ...prev];
+      }
       try {
-        localStorage.setItem("harpy_chat_sessions", JSON.stringify(next.filter((s) => s.messages.length > 0)));
+        localStorage.setItem(
+          "harpy_chat_sessions",
+          JSON.stringify(next.filter((s) => s.messages.length > 0))
+        );
       } catch {}
       return next;
     });
@@ -604,20 +624,27 @@ export default function DashboardPage() {
     const remaining = sessions.filter((s) => s.id !== id);
     if (remaining.length === 0) {
       const freshId = `session-${Date.now()}`;
-      setSessions([
+      const fresh: ChatSession[] = [
         {
           id: freshId,
           title: "New Autonomous Mission",
           timestamp: "Just now",
           messages: [],
         },
-      ]);
+      ];
+      setSessions(fresh);
       setCurrentSessionId(freshId);
+      try {
+        localStorage.removeItem("harpy_chat_sessions");
+      } catch {}
     } else {
       setSessions(remaining);
       if (currentSessionId === id) {
         setCurrentSessionId(remaining[0].id);
       }
+      try {
+        localStorage.setItem("harpy_chat_sessions", JSON.stringify(remaining.filter((s) => s.messages.length > 0)));
+      } catch {}
     }
   };
 
@@ -716,34 +743,42 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-1 pt-1">
-            {sessions.map((s) => {
-              const isActive = s.id === currentSessionId;
-              return (
-                <div
-                  key={s.id}
-                  onClick={() => setCurrentSessionId(s.id)}
-                  className={`group relative flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 border ${
-                    isActive
-                      ? "bg-[#101018] border-[#C6A46A]/45 border-l-2 border-l-[#C6A46A] text-[#E8DDC7] shadow-sm"
-                      : "border-transparent text-[#E8DDC7]/60 hover:bg-[#0E0E14] hover:text-[#E8DDC7]"
-                  }`}
-                >
-                  <div className="flex items-center gap-2 min-w-0 pr-2">
-                    <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? "text-[#C6A46A]" : "text-[#E8DDC7]/30"}`} />
-                    <span className="text-xs truncate font-light font-inter">
-                      {s.title}
-                    </span>
-                  </div>
-                  <button
-                    onClick={(e) => deleteSession(s.id, e)}
-                    className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-1 text-[#E8DDC7]/40 transition-opacity flex-shrink-0"
-                    title="Delete Mission"
-                  >
-                    <Trash2 className="w-3 h-3" />
-                  </button>
-                </div>
-              );
-            })}
+            {sessions.filter((s) => s.messages && s.messages.length > 0).length === 0 ? (
+              <div className="px-3 py-6 text-center text-xs text-[#E8DDC7]/30 font-light font-cinzel tracking-wider">
+                No Previous Missions
+              </div>
+            ) : (
+              sessions
+                .filter((s) => s.messages && s.messages.length > 0)
+                .map((s) => {
+                  const isActive = s.id === currentSessionId;
+                  return (
+                    <div
+                      key={s.id}
+                      onClick={() => setCurrentSessionId(s.id)}
+                      className={`group relative flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 border ${
+                        isActive
+                          ? "bg-[#101018] border-[#C6A46A]/45 border-l-2 border-l-[#C6A46A] text-[#E8DDC7] shadow-sm"
+                          : "border-transparent text-[#E8DDC7]/60 hover:bg-[#0E0E14] hover:text-[#E8DDC7]"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0 pr-2">
+                        <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? "text-[#C6A46A]" : "text-[#E8DDC7]/30"}`} />
+                        <span className="text-xs truncate font-light font-inter">
+                          {s.title}
+                        </span>
+                      </div>
+                      <button
+                        onClick={(e) => deleteSession(s.id, e)}
+                        className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-1 text-[#E8DDC7]/40 transition-opacity flex-shrink-0"
+                        title="Delete Mission"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })
+            )}
           </div>
         </div>
 

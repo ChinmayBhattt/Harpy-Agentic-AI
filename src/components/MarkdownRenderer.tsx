@@ -7,8 +7,8 @@ interface MarkdownRendererProps {
   content: string;
 }
 
-// Inline token renderer (bold, italic, inline code, links)
-function renderInlineText(text: string): React.ReactNode {
+// Inline token renderer (bold, italic, inline code, links, strikethrough)
+export function renderInlineText(text: string): React.ReactNode {
   if (!text) return null;
 
   // Regex tokens: inline code, bold-italic, bold, italic, links, strikethrough
@@ -101,12 +101,12 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
   };
 
   return (
-    <div className="my-3 rounded-xl border border-[#1E1E28] bg-[#07070B] overflow-hidden shadow-lg">
+    <div className="my-3.5 rounded-xl border border-[#1E1E28] bg-[#07070B] overflow-hidden shadow-xl">
       <div className="flex items-center justify-between px-3.5 py-1.5 bg-[#0E0E16] border-b border-[#1A1A24] text-[11px] font-mono text-[#E8DDC7]/60">
         <span className="uppercase text-[#C6A46A] font-semibold">{language || "Code"}</span>
         <button
           onClick={handleCopy}
-          className="hover:text-[#C6A46A] transition-colors flex items-center gap-1"
+          className="hover:text-[#C6A46A] transition-colors flex items-center gap-1.5 text-xs"
         >
           {copied ? (
             <>
@@ -121,10 +121,33 @@ function CodeBlock({ code, language }: { code: string; language?: string }) {
           )}
         </button>
       </div>
-      <pre className="p-3.5 overflow-x-auto text-xs font-mono text-[#E8DDC7]/90 leading-relaxed [scrollbar-width:none]">
+      <pre className="p-4 overflow-x-auto text-xs font-mono text-[#E8DDC7]/90 leading-relaxed [scrollbar-width:none]">
         <code>{code}</code>
       </pre>
     </div>
+  );
+}
+
+function parseTableRow(line: string): string[] {
+  let trimmed = line.trim();
+  if (trimmed.startsWith("|")) trimmed = trimmed.slice(1);
+  if (trimmed.endsWith("|")) trimmed = trimmed.slice(0, -1);
+  return trimmed.split("|").map((cell) => cell.trim());
+}
+
+function isTableDivider(line: string): boolean {
+  const cells = parseTableRow(line);
+  if (cells.length === 0) return false;
+  return cells.every((c) => /^:?-+:?$/.test(c.trim()));
+}
+
+function isTableLine(line: string): boolean {
+  const trimmed = line.trim();
+  if (!trimmed.includes("|")) return false;
+  return (
+    trimmed.startsWith("|") ||
+    trimmed.endsWith("|") ||
+    trimmed.split("|").length >= 3
   );
 }
 
@@ -132,7 +155,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
   if (!content) return null;
 
   // Split lines
-  const lines = content.split("\n");
+  const lines = content.split(/\r?\n/);
   const elements: React.ReactNode[] = [];
   let i = 0;
 
@@ -164,64 +187,51 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     // ──────────────────────────────────────────────────────────
     // 2. TABLES: | col 1 | col 2 |
     // ──────────────────────────────────────────────────────────
-    if (line.trim().startsWith("|") && line.trim().endsWith("|")) {
-      // Collect table lines
+    if (isTableLine(line)) {
       const tableLines: string[] = [];
-      while (
-        i < lines.length &&
-        lines[i].trim().startsWith("|") &&
-        lines[i].trim().endsWith("|")
-      ) {
-        tableLines.push(lines[i].trim());
+      while (i < lines.length && isTableLine(lines[i])) {
+        tableLines.push(lines[i]);
         i++;
       }
 
       if (tableLines.length >= 2) {
-        // Parse header
-        const rawHeaders = tableLines[0]
-          .split("|")
-          .map((c) => c.trim())
-          .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1);
+        // First line is header
+        const rawHeaders = parseTableRow(tableLines[0]);
 
-        // Check if second line is divider |---|---|
-        const hasDivider = tableLines[1].includes("---") || tableLines[1].includes("-|-");
+        // Check if second line is a markdown divider
+        const hasDivider = isTableDivider(tableLines[1]);
         const bodyStart = hasDivider ? 2 : 1;
 
-        const bodyRows = tableLines.slice(bodyStart).map((rowLine) =>
-          rowLine
-            .split("|")
-            .map((c) => c.trim())
-            .filter((_, idx, arr) => idx > 0 && idx < arr.length - 1)
-        );
+        const bodyRows = tableLines.slice(bodyStart).map((rowLine) => parseTableRow(rowLine));
 
         elements.push(
           <div
             key={`table-${i}`}
-            className="my-3.5 overflow-x-auto rounded-xl border border-[#1E1E28] bg-[#07070B] shadow-xl"
+            className="my-4 overflow-x-auto rounded-xl border border-[#C6A46A]/25 bg-[#07070B] shadow-2xl"
           >
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-[#0E0E16] border-b border-[#1E1E28] text-[#C6A46A] font-cinzel">
+              <thead className="bg-[#0E0E16] border-b border-[#C6A46A]/30 text-[#C6A46A] font-cinzel">
                 <tr>
                   {rawHeaders.map((headerText, hIdx) => (
                     <th
                       key={hIdx}
-                      className="py-2.5 px-3.5 font-semibold uppercase tracking-wider text-[11px]"
+                      className="py-3 px-4 font-semibold uppercase tracking-wider text-[11px] border-r border-[#1C1C28] last:border-r-0 whitespace-nowrap"
                     >
                       {renderInlineText(headerText)}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#14141C]">
+              <tbody className="divide-y divide-[#171722]">
                 {bodyRows.map((row, rIdx) => (
                   <tr
                     key={rIdx}
-                    className="hover:bg-[#0D0D14] transition-colors"
+                    className="hover:bg-[#0E0E17]/80 transition-colors odd:bg-transparent even:bg-[#0A0A0F]/50"
                   >
                     {row.map((cellText, cIdx) => (
                       <td
                         key={cIdx}
-                        className="py-2.5 px-3.5 text-[#E8DDC7]/85 font-light leading-relaxed align-top"
+                        className="py-3 px-4 text-[#E8DDC7]/85 font-light leading-relaxed align-top border-r border-[#171722]/60 last:border-r-0"
                       >
                         {renderInlineText(cellText)}
                       </td>
@@ -237,7 +247,30 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 3. HEADINGS: #, ##, ###, ####
+    // 3. STANDALONE BOLD SECTION HEADER: **Header Title**
+    // ──────────────────────────────────────────────────────────
+    const trimmedLine = line.trim();
+    if (
+      trimmedLine.startsWith("**") &&
+      trimmedLine.endsWith("**") &&
+      trimmedLine.length >= 4 &&
+      !trimmedLine.slice(2, -2).includes("**")
+    ) {
+      elements.push(
+        <h3
+          key={`bold-title-${i}`}
+          className="font-cinzel text-base sm:text-lg text-[#F2E8D5] font-semibold mt-4 mb-2 tracking-wide flex items-center gap-2"
+        >
+          <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
+          <span>{trimmedLine.slice(2, -2)}</span>
+        </h3>
+      );
+      i++;
+      continue;
+    }
+
+    // ──────────────────────────────────────────────────────────
+    // 4. HEADINGS: #, ##, ###, ####
     // ──────────────────────────────────────────────────────────
     if (line.startsWith("#")) {
       const match = line.match(/^(#{1,4})\s+(.+)$/);
@@ -287,7 +320,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 4. BLOCKQUOTES: > quote
+    // 5. BLOCKQUOTES: > quote
     // ──────────────────────────────────────────────────────────
     if (line.trim().startsWith(">")) {
       const quoteText = line.trim().replace(/^>\s*/, "");
@@ -304,7 +337,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 5. HORIZONTAL RULES: --- or ***
+    // 6. HORIZONTAL RULES: --- or ***
     // ──────────────────────────────────────────────────────────
     if (line.trim() === "---" || line.trim() === "***") {
       elements.push(<hr key={`hr-${i}`} className="border-[#1E1E28] my-3.5" />);
@@ -313,10 +346,10 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 6. LISTS: Bullet (- / *) or Numbered (1. / 2.)
+    // 7. LISTS: Bullet (- / * / •) or Numbered (1. / 2.)
     // ──────────────────────────────────────────────────────────
-    const bulletMatch = line.match(/^(\s*)([-*])\s+(.+)$/);
-    const numberMatch = line.match(/^(\s*)(\d+)\.\s+(.+)$/);
+    const bulletMatch = line.match(/^(\s*)([-*•])\s+(.+)$/);
+    const numberMatch = line.match(/^(\s*)(\d+)[.)]\s+(.+)$/);
 
     if (bulletMatch) {
       const indent = bulletMatch[1].length;
@@ -356,7 +389,7 @@ export default function MarkdownRenderer({ content }: MarkdownRendererProps) {
     }
 
     // ──────────────────────────────────────────────────────────
-    // 7. EMPTY LINES & REGULAR PARAGRAPHS
+    // 8. EMPTY LINES & REGULAR PARAGRAPHS
     // ──────────────────────────────────────────────────────────
     if (line.trim() === "") {
       elements.push(<div key={`space-${i}`} className="h-2" />);
