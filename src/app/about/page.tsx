@@ -145,45 +145,64 @@ export default function AboutPage() {
               </p>
             </div>
 
-            {/* Classical Painting Inset */}
-            <div className="lg:col-span-6 space-y-4">
-              <div className="border border-bronze/40 p-2 bg-[#FAF5EC] shadow-md">
+            {/* Classical Painting & Sculpture Insets */}
+            <div className="lg:col-span-6 space-y-6">
+              {/* Harpy Tomb Detail */}
+              <div className="border border-bronze/40 p-3 bg-[#FAF5EC] shadow-md space-y-2">
                 <div className="relative aspect-[16/10] w-full overflow-hidden bg-black">
                   <Image
-                    src="/images/waterhouse-mythology.jpg"
-                    alt="John William Waterhouse - Ulysses and the Sirens (1891)"
+                    src="/images/harpy-tomb-north.jpg"
+                    alt="Harpy Tomb North Frieze, British Museum"
                     fill
                     className="object-cover hover:scale-105 transition-transform duration-700"
                   />
                 </div>
-                <div className="pt-3 pb-1 px-2 text-center">
+                <div className="pt-2 text-center">
                   <p className="font-cinzel text-xs text-obsidian tracking-wider font-semibold">
-                    ULYSSES AND THE WINGED SPIRITS
+                    THE HARPY CARRYING THE SOUL
                   </p>
                   <p className="font-cormorant italic text-xs text-bronze-dark">
-                    John William Waterhouse · 1891 · National Gallery of Victoria
+                    North Frieze of the Harpy Tomb · Xanthos, c. 480 BC · British Museum
                   </p>
                 </div>
               </div>
 
-              {/* Temple Architectural Detail */}
-              <div className="border border-bronze/30 p-4 bg-[#FAF5EC] flex items-center gap-4">
-                <div className="w-16 h-16 relative flex-shrink-0 border border-bronze/40 overflow-hidden">
-                  <Image
-                    src="/images/delphi-temple.jpg"
-                    alt="Tholos of Delphi Temple"
-                    fill
-                    className="object-cover"
-                  />
+              {/* Dual Artwork Mini-Grid */}
+              <div className="grid grid-cols-2 gap-4">
+                {/* Waterhouse */}
+                <div className="border border-bronze/35 p-2 bg-[#FAF5EC] shadow-sm">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                    <Image
+                      src="/images/waterhouse-mythology.jpg"
+                      alt="John William Waterhouse - Ulysses and the Sirens"
+                      fill
+                      className="object-cover hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
+                  <div className="pt-2 text-center">
+                    <p className="font-cinzel text-[10px] text-obsidian font-semibold truncate">
+                      Waterhouse Mythos
+                    </p>
+                    <p className="font-cormorant italic text-[11px] text-bronze-dark">1891 Canvas</p>
+                  </div>
                 </div>
-                <div>
-                  <h4 className="font-cinzel text-xs text-obsidian font-semibold tracking-wider">
-                    THE SANCTUARY OF DELPHI
-                  </h4>
-                  <p className="font-inter text-xs text-obsidian/70 leading-normal">
-                    Where ancient oracles prophesied outcomes that winged messengers brought into
-                    reality.
-                  </p>
+
+                {/* Andrea del Sarto Detail */}
+                <div className="border border-bronze/35 p-2 bg-[#FAF5EC] shadow-sm">
+                  <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                    <Image
+                      src="/images/harpy-del-sarto.jpg"
+                      alt="Andrea del Sarto - Pedestal Harpy Detail"
+                      fill
+                      className="object-cover hover:scale-105 transition-transform duration-500"
+                    />
+                  </div>
+                  <div className="pt-2 text-center">
+                    <p className="font-cinzel text-[10px] text-obsidian font-semibold truncate">
+                      Del Sarto&apos;s Harpy
+                    </p>
+                    <p className="font-cormorant italic text-[11px] text-bronze-dark">Florence, 1517</p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -256,6 +275,97 @@ export default function AboutPage() {
               <span>Witness How It Works</span>
               <ArrowUpRight className="w-4 h-4" />
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────────────────────
+          SECTION 4: SANCTUARIES OF REASON & CLASSICAL ARCHITECTURE
+         ────────────────────────────────────────────────────────── */}
+      <section className="py-24 px-6 lg:px-12 parchment-paper text-obsidian border-t border-bronze/30">
+        <div className="max-w-6xl mx-auto space-y-16">
+          <div className="text-center max-w-2xl mx-auto space-y-4">
+            <span className="font-cinzel text-xs tracking-[0.3em] uppercase text-bronze-dark font-bold">
+              Architectural Sanctuaries
+            </span>
+            <h2 className="font-cinzel text-3xl sm:text-4xl text-obsidian font-medium">
+              Cradles of Dialectic &amp; Geometry
+            </h2>
+            <div className="w-16 h-0.5 bg-bronze/60 mx-auto" />
+            <p className="font-cormorant italic text-xl text-obsidian/75 leading-relaxed">
+              The physical geometry that inspires our cognitive architecture: permanence, mathematical rigor, and timeless grace.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            {/* Sanctuary 1: Tholos of Delphi */}
+            <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-sm space-y-3 group hover:border-bronze-dark transition-colors duration-300">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/delphi-tholos.jpg"
+                  alt="Tholos of Athena Pronaia at Delphi"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
+              <div className="p-2 space-y-1">
+                <span className="font-cinzel text-[10px] text-bronze-dark uppercase tracking-widest block">
+                  Delphi Sanctuary · 380 BC
+                </span>
+                <h4 className="font-cinzel text-base text-obsidian font-semibold">
+                  The Tholos of Athena Pronaia
+                </h4>
+                <p className="font-inter text-xs text-obsidian/70 font-light leading-relaxed">
+                  The quintessential Greek circular temple where sacred geometry unified mathematics and cosmological contemplation.
+                </p>
+              </div>
+            </div>
+
+            {/* Sanctuary 2: Cape Sounion */}
+            <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-sm space-y-3 group hover:border-bronze-dark transition-colors duration-300">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/sounion-temple.jpg"
+                  alt="Temple of Poseidon at Cape Sounion"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
+              <div className="p-2 space-y-1">
+                <span className="font-cinzel text-[10px] text-bronze-dark uppercase tracking-widest block">
+                  Cape Sounion · 444 BC
+                </span>
+                <h4 className="font-cinzel text-base text-obsidian font-semibold">
+                  Temple of Poseidon
+                </h4>
+                <p className="font-inter text-xs text-obsidian/70 font-light leading-relaxed">
+                  Standing guard above the Aegean Sea, charting clear flight lines and guiding voyagers across boundless waters.
+                </p>
+              </div>
+            </div>
+
+            {/* Sanctuary 3: The Parthenon */}
+            <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-sm space-y-3 group hover:border-bronze-dark transition-colors duration-300">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/parthenon.jpg"
+                  alt="The Parthenon, Acropolis of Athens"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
+              <div className="p-2 space-y-1">
+                <span className="font-cinzel text-[10px] text-bronze-dark uppercase tracking-widest block">
+                  Athenian Acropolis · 447 BC
+                </span>
+                <h4 className="font-cinzel text-base text-obsidian font-semibold">
+                  The Parthenon
+                </h4>
+                <p className="font-inter text-xs text-obsidian/70 font-light leading-relaxed">
+                  The pinnacle of classical Doric order, whose subtle optical entasis proves that supreme intelligence values harmony over rigid mechanization.
+                </p>
+              </div>
+            </div>
           </div>
         </div>
       </section>

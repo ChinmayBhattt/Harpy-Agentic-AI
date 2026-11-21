@@ -58,7 +58,23 @@ export default function ContactPage() {
       <section className="py-20 px-6 lg:px-12 relative z-10">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-16 items-start">
           {/* Left Column: Classical Sidebar / Office Presence */}
-          <div className="lg:col-span-5 space-y-10">
+          <div className="lg:col-span-5 space-y-8">
+            {/* Architectural Visual Showcase */}
+            <div className="border border-gold/30 p-2.5 bg-obsidian-light/70 shadow-xl relative">
+              <div className="relative aspect-[16/9] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/parthenon.jpg"
+                  alt="The Parthenon, Acropolis of Athens"
+                  fill
+                  className="object-cover hover:scale-105 transition-transform duration-700"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-transparent to-transparent opacity-60" />
+                <span className="absolute bottom-2 left-3 font-cinzel text-[10px] tracking-widest text-gold uppercase">
+                  Athenian Acropolis · Seat of Deliberation
+                </span>
+              </div>
+            </div>
+
             <div className="border border-gold/30 p-8 bg-obsidian-light/60 space-y-8 relative">
               {/* Corner Accents */}
               <span className="absolute top-0 left-0 w-2.5 h-2.5 border-t border-l border-gold" />

@@ -255,23 +255,43 @@ export default function HomePage() {
       <section className="relative py-28 px-6 lg:px-12 bg-obsidian text-parchment">
         <div className="max-w-7xl mx-auto">
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
-            {/* Engraving Artwork */}
-            <div className="lg:col-span-6 relative">
-              <div className="border border-gold/30 p-3 bg-obsidian-light">
-                <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
-                  <Image
-                    src="/images/harpy-dore.jpg"
-                    alt="Gustave Doré classical engraving of Harpies in Dante's Inferno"
-                    fill
-                    className="object-cover filter contrast-[1.15] brightness-90 hover:scale-105 transition-transform duration-700"
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-transparent to-transparent opacity-50" />
+            {/* Engraving Artwork Dual Plates */}
+            <div className="lg:col-span-6 space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="border border-gold/30 p-2.5 bg-obsidian-light">
+                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
+                    <Image
+                      src="/images/harpy-dore.jpg"
+                      alt="Gustave Doré classical engraving of Harpies in Dante's Inferno"
+                      fill
+                      className="object-cover filter contrast-[1.15] brightness-90 hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-transparent to-transparent opacity-50" />
+                  </div>
+                  <div className="pt-2.5 px-1 text-center">
+                    <span className="font-cinzel text-gold text-[10px] tracking-wider block">
+                      PLATE I · CANTO XIII
+                    </span>
+                    <span className="italic font-cormorant text-xs text-parchment/60">Gustave Doré · The Harpies</span>
+                  </div>
                 </div>
-                <div className="pt-3 px-2 flex items-center justify-between text-xs text-parchment/60 font-inter">
-                  <span className="font-cinzel text-gold text-[11px] tracking-wider">
-                    GUSTAVE DORÉ · THE HARPIES
-                  </span>
-                  <span className="italic font-cormorant text-sm">Divine Comedy, Canto XIII</span>
+
+                <div className="border border-gold/30 p-2.5 bg-obsidian-light">
+                  <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
+                    <Image
+                      src="/images/harpy-dore-inferno.jpg"
+                      alt="Gustave Doré wood engraving of the Wood of Suicides in Dante's Inferno"
+                      fill
+                      className="object-cover filter contrast-[1.15] brightness-90 hover:scale-105 transition-transform duration-700"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-transparent to-transparent opacity-50" />
+                  </div>
+                  <div className="pt-2.5 px-1 text-center">
+                    <span className="font-cinzel text-gold text-[10px] tracking-wider block">
+                      PLATE II · CANTO XIII
+                    </span>
+                    <span className="italic font-cormorant text-xs text-parchment/60">The Wood of the Suicides</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -305,6 +325,120 @@ export default function HomePage() {
                   <span>Explore the Mythological Vision</span>
                   <ArrowUpRight className="w-3.5 h-3.5" />
                 </Link>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ──────────────────────────────────────────────────────────
+          SECTION 4: CLASSICAL ARTIFACTS & MYTHOLOGICAL ARCHETYPES
+         ────────────────────────────────────────────────────────── */}
+      <section className="relative py-28 px-6 lg:px-12 parchment-paper text-obsidian border-t border-bronze/30">
+        <div className="max-w-7xl mx-auto space-y-16">
+          <div className="text-center max-w-3xl mx-auto space-y-4">
+            <span className="font-cinzel text-xs uppercase tracking-[0.3em] text-bronze-dark font-bold">
+              The Classical Treasury
+            </span>
+            <h2 className="font-cinzel text-3xl sm:text-5xl font-medium tracking-tight text-obsidian">
+              Artifacts of the Winged Mythos
+            </h2>
+            <div className="w-16 h-0.5 bg-bronze/60 mx-auto my-3" />
+            <p className="font-cormorant italic text-xl text-obsidian/75 leading-relaxed">
+              Explore the timeless sculptures, friezes, and engravings that inform the philosophical design of HARPY AI.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            {/* Artifact 1: Harpy Tomb Relief */}
+            <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/harpy-tomb-relief.jpg"
+                  alt="Lycian Harpy Tomb Reliefs, Xanthos, British Museum"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
+              <div className="p-2 space-y-1">
+                <span className="font-cinzel text-[10px] text-bronze-dark tracking-widest block uppercase">
+                  c. 480 BC · British Museum
+                </span>
+                <h4 className="font-cinzel text-base text-obsidian font-semibold">
+                  The Harpy Tomb of Xanthos
+                </h4>
+                <p className="font-inter text-xs text-obsidian/70 font-light leading-relaxed">
+                  Monumental Lycian marble friezes depicting winged spirits carrying souls with divine gentleness.
+                </p>
+              </div>
+            </div>
+
+            {/* Artifact 2: Greek Kylix Vase */}
+            <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/harpy-greek-vase.jpg"
+                  alt="Attic Red-Figure Cup with Phineus and Harpies, Musée du Louvre"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
+              <div className="p-2 space-y-1">
+                <span className="font-cinzel text-[10px] text-bronze-dark tracking-widest block uppercase">
+                  Classical Attic · Louvre
+                </span>
+                <h4 className="font-cinzel text-base text-obsidian font-semibold">
+                  Attic Red-Figure Cup
+                </h4>
+                <p className="font-inter text-xs text-obsidian/70 font-light leading-relaxed">
+                  Ancient Greek ceramic depicting the Boreads pursuing swift Harpies across the heavens.
+                </p>
+              </div>
+            </div>
+
+            {/* Artifact 3: Nike of Samothrace */}
+            <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/nike-samothrace.jpg"
+                  alt="Winged Victory of Samothrace, Musée du Louvre"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
+              <div className="p-2 space-y-1">
+                <span className="font-cinzel text-[10px] text-bronze-dark tracking-widest block uppercase">
+                  Hellenistic Marble · Louvre
+                </span>
+                <h4 className="font-cinzel text-base text-obsidian font-semibold">
+                  Winged Victory of Samothrace
+                </h4>
+                <p className="font-inter text-xs text-obsidian/70 font-light leading-relaxed">
+                  The crowning achievement of Greek Hellenistic sculpture, embodying soaring triumph and poise.
+                </p>
+              </div>
+            </div>
+
+            {/* Artifact 4: Aldrovandi Woodcut */}
+            <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
+              <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
+                <Image
+                  src="/images/harpy-aldrovandi.jpg"
+                  alt="Ulisse Aldrovandi Harpy woodcut engraving (1642)"
+                  fill
+                  className="object-cover group-hover:scale-105 transition-transform duration-700"
+                />
+              </div>
+              <div className="p-2 space-y-1">
+                <span className="font-cinzel text-[10px] text-bronze-dark tracking-widest block uppercase">
+                  Bologna, 1642 · Monstrorum
+                </span>
+                <h4 className="font-cinzel text-base text-obsidian font-semibold">
+                  Aldrovandi&apos;s Engraving
+                </h4>
+                <p className="font-inter text-xs text-obsidian/70 font-light leading-relaxed">
+                  Early modern natural philosopher Ulisse Aldrovandi&apos;s classical cataloging of winged folklore.
+                </p>
               </div>
             </div>
           </div>

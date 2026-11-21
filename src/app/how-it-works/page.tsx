@@ -25,6 +25,9 @@ const steps = [
     title: "Describe Your Goal",
     subtitle: "Articulate your raw intent in natural human language.",
     icon: MessageSquare,
+    image: "/images/delphi-tholos.jpg",
+    imageAlt: "Tholos of Athena Pronaia at the Sanctuary of Delphi",
+    imageCaption: "Sanctuary of Delphi · Where human intent seeks oracular direction",
     description:
       "Speak without syntactic constraints or micro-instructions. Whether it is conducting comprehensive competitive intelligence, orchestrating a multi-service technical migration, or synthesizing an academic treatise, state your desired end-state. HARPY AI immediately extracts semantic objectives, boundary conditions, and unspoken context.",
     quote: "“The voice speaks the intention; the intellect grasps the infinite horizon.”",
@@ -35,6 +38,9 @@ const steps = [
     title: "AI Plans",
     subtitle: "Sophisticated deliberation and trajectory graph synthesis.",
     icon: GitBranch,
+    image: "/images/sounion-temple.jpg",
+    imageAlt: "Temple of Poseidon at Cape Sounion at sunset",
+    imageCaption: "Cape Sounion · Charting sovereign paths across uncharted waters",
     description:
       "HARPY AI does not blindly act. The cognitive engine constructs a multi-branched deliberation tree, modeling contingencies, evaluating tool pathways, and establishing checkpoints. It drafts a precise flight path—a verifiable execution graph that balances velocity with total mathematical precision.",
     quote: "“Before the wings unfold, the currents of the winds are already charted.”",
@@ -45,6 +51,9 @@ const steps = [
     title: "AI Executes",
     subtitle: "Autonomous winged action across digital environments.",
     icon: Zap,
+    image: "/images/harpy-greek-vase.jpg",
+    imageAlt: "Attic red-figure vase depicting the winged Boreads and Harpies in flight",
+    imageCaption: "Attic Kylix (Louvre) · Swift winged agents traversing digital space",
     description:
       "With the plan established, the agent takes flight. HARPY AI independently interfaces with APIs, traverses cloud infrastructure, runs computations, parses literature, and handles unexpected obstacles in real-time without requiring human hand-holding or micro-management.",
     quote: "“Swift as the gale, the agent moves between systems with sovereign autonomy.”",
@@ -55,6 +64,9 @@ const steps = [
     title: "Task Completed",
     subtitle: "Rigorously verified outcomes with complete auditable provenance.",
     icon: CheckCircle2,
+    image: "/images/nike-samothrace.jpg",
+    imageAlt: "The Winged Victory of Samothrace, Louvre Museum",
+    imageCaption: "Nike of Samothrace (Louvre) · The crowning verified triumph",
     description:
       "The mission reaches completion. Every artifact, metric, and analytical insight produced during the flight is cross-validated against your original intent. You receive pristine deliverables alongside an auditable cognitive log detailing every decision made along the way.",
     quote: "“The quarry is brought home, flawless and beyond expectation.”",
@@ -130,15 +142,31 @@ export default function HowItWorksPage() {
               >
                 {/* Visual Plaque / Monolith Card */}
                 <div className={`lg:col-span-5 ${isEven ? "lg:order-2" : "lg:order-1"}`}>
-                  <div className="border border-gold/35 bg-obsidian-light/70 p-6 relative overflow-hidden group hover:border-gold transition-colors duration-300">
-                    {/* Watermark Roman Numeral */}
-                    <span className="absolute -top-4 -right-2 font-cinzel text-8xl text-gold/5 pointer-events-none select-none group-hover:text-gold/10 transition-colors duration-300">
-                      {step.roman}
-                    </span>
+                  <div className="border border-gold/35 bg-obsidian-light/70 p-5 relative overflow-hidden group hover:border-gold transition-colors duration-300">
+                    {/* Classical Artwork Inset */}
+                    <div className="relative aspect-[16/10] w-full overflow-hidden border border-gold/25 bg-black mb-5">
+                      <Image
+                        src={step.image}
+                        alt={step.imageAlt}
+                        fill
+                        className="object-cover filter contrast-[1.05] brightness-95 group-hover:scale-105 transition-transform duration-700"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-obsidian via-transparent to-transparent opacity-60" />
+                      <div className="absolute bottom-2 left-2 right-2 text-center">
+                        <p className="font-cormorant italic text-[11px] text-parchment/85 drop-shadow">
+                          {step.imageCaption}
+                        </p>
+                      </div>
+                    </div>
 
                     <div className="space-y-4 relative z-10">
-                      <div className="w-12 h-12 border border-gold/40 flex items-center justify-center bg-obsidian text-gold">
-                        <Icon className="w-6 h-6 stroke-[1.5]" />
+                      <div className="flex items-center justify-between">
+                        <div className="w-10 h-10 border border-gold/40 flex items-center justify-center bg-obsidian text-gold">
+                          <Icon className="w-5 h-5 stroke-[1.5]" />
+                        </div>
+                        <span className="font-cinzel text-xs text-gold/70 border border-gold/25 px-2.5 py-0.5">
+                          PHASE {step.roman}
+                        </span>
                       </div>
 
                       <div className="flex items-center gap-3">
@@ -147,11 +175,9 @@ export default function HowItWorksPage() {
                         </span>
                         <span className="h-px w-8 bg-gold/30" />
                         <span className="font-cormorant italic text-sm text-parchment/60">
-                          Phase {step.roman}
+                          {step.title}
                         </span>
                       </div>
-
-                      <h3 className="font-cinzel text-2xl text-parchment">{step.title}</h3>
 
                       <p className="font-cormorant italic text-base text-gold/80 leading-snug">
                         {step.quote}
@@ -252,18 +278,33 @@ export default function HowItWorksPage() {
                 </div>
               </div>
 
-              {/* Terminal / System Log Preview */}
-              <div className="lg:col-span-5 bg-obsidian text-parchment p-5 border border-gold/30 font-mono text-xs space-y-2 rounded-none shadow-inner">
-                <div className="flex items-center justify-between pb-2 border-b border-gold/20 text-[10px] text-gold/70">
-                  <span>harpy-agent-kernel · v2.6.4</span>
-                  <span className="text-emerald-400">● FLIGHT ACTIVE</span>
+              {/* Classical Visual & System Log Preview */}
+              <div className="lg:col-span-5 space-y-4">
+                <div className="relative aspect-[16/9] w-full overflow-hidden border border-gold/40 bg-obsidian shadow-md">
+                  <Image
+                    src={steps[activeStep].image}
+                    alt={steps[activeStep].imageAlt}
+                    fill
+                    className="object-cover"
+                  />
+                  <div className="absolute inset-0 bg-gradient-to-t from-obsidian/80 via-transparent to-transparent" />
+                  <span className="absolute bottom-2 left-3 font-cormorant italic text-xs text-parchment/90 drop-shadow">
+                    {steps[activeStep].imageCaption}
+                  </span>
                 </div>
-                <div className="space-y-1 text-parchment/80 pt-1">
-                  <p className="text-gold/90">&gt; intent: &quot;Audit Q3 regulatory risk &amp; sync&quot;</p>
-                  <p className="text-parchment/60">&gt; resolving dependency DAG (14 nodes)...</p>
-                  <p className="text-parchment/60">&gt; dispatching aerial worker: finance-crawler</p>
-                  <p className="text-parchment/60">&gt; verifying cross-system invariants: PASS</p>
-                  <p className="text-emerald-400">&gt; outcome synthesized in 1.48s</p>
+
+                <div className="bg-obsidian text-parchment p-5 border border-gold/30 font-mono text-xs space-y-2 rounded-none shadow-inner">
+                  <div className="flex items-center justify-between pb-2 border-b border-gold/20 text-[10px] text-gold/70">
+                    <span>harpy-agent-kernel · v2.6.4</span>
+                    <span className="text-emerald-400">● FLIGHT ACTIVE</span>
+                  </div>
+                  <div className="space-y-1 text-parchment/80 pt-1">
+                    <p className="text-gold/90">&gt; intent: &quot;Audit Q3 regulatory risk &amp; sync&quot;</p>
+                    <p className="text-parchment/60">&gt; resolving dependency DAG (14 nodes)...</p>
+                    <p className="text-parchment/60">&gt; dispatching aerial worker: finance-crawler</p>
+                    <p className="text-parchment/60">&gt; verifying cross-system invariants: PASS</p>
+                    <p className="text-emerald-400">&gt; outcome synthesized in 1.48s</p>
+                  </div>
                 </div>
               </div>
             </div>
