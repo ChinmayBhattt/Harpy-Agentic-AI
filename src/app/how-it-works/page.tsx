@@ -22,54 +22,54 @@ const steps = [
   {
     roman: "I",
     phase: "STEP 01",
-    title: "Describe Your Goal",
-    subtitle: "Articulate your raw intent in natural human language.",
+    title: "Authenticate Your Apps",
+    subtitle: "1-Click connection to Gmail, Notion, WhatsApp, Discord, Code Editors & Chrome.",
     icon: MessageSquare,
     image: "/images/delphi-tholos.jpg",
     imageAlt: "Tholos of Athena Pronaia at the Sanctuary of Delphi",
-    imageCaption: "Sanctuary of Delphi · Where human intent seeks oracular direction",
+    imageCaption: "Sanctuary of Delphi · Connecting fragmented tools into one unified gateway",
     description:
-      "Speak without syntactic constraints or micro-instructions. Whether it is conducting comprehensive competitive intelligence, orchestrating a multi-service technical migration, or synthesizing an academic treatise, state your desired end-state. HARPY AI immediately extracts semantic objectives, boundary conditions, and unspoken context.",
-    quote: "“The voice speaks the intention; the intellect grasps the infinite horizon.”",
+      "Connect your complete software ecosystem in seconds. Through secure 1-click authentication, HARPY AI seamlessly interfaces with your daily tools—Gmail, Notion, WhatsApp, Instagram, Discord, AI code editors, and Google Chrome. No manual scripts, fragile APIs, or technical overhead required.",
+    quote: "“A single authentication key opens the gateway to your entire digital realm.”",
   },
   {
     roman: "II",
     phase: "STEP 02",
-    title: "AI Plans",
-    subtitle: "Sophisticated deliberation and trajectory graph synthesis.",
+    title: "State Any Goal",
+    subtitle: "Articulate your objective in natural, everyday human language.",
     icon: GitBranch,
     image: "/images/sounion-temple.jpg",
     imageAlt: "Temple of Poseidon at Cape Sounion at sunset",
     imageCaption: "Cape Sounion · Charting sovereign paths across uncharted waters",
     description:
-      "HARPY AI does not blindly act. The cognitive engine constructs a multi-branched deliberation tree, modeling contingencies, evaluating tool pathways, and establishing checkpoints. It drafts a precise flight path—a verifiable execution graph that balances velocity with total mathematical precision.",
-    quote: "“Before the wings unfold, the currents of the winds are already charted.”",
+      "Speak without syntactic constraints or micro-instructions: 'Review unread Gmail threads from client X, create task tickets in Notion, alert our engineering channel on WhatsApp and Discord, and prepare the fix in our AI code editor.' HARPY AI immediately deconstructs your intent into a multi-app flight path.",
+    quote: "“The voice speaks the intention; the agent charts the multi-app horizon.”",
   },
   {
     roman: "III",
     phase: "STEP 03",
-    title: "AI Executes",
-    subtitle: "Autonomous winged action across digital environments.",
+    title: "Autonomous In-App Action",
+    subtitle: "The agent enters your tools and completes tasks directly inside them.",
     icon: Zap,
     image: "/images/harpy-greek-vase.jpg",
     imageAlt: "Attic red-figure vase depicting the winged Boreads and Harpies in flight",
-    imageCaption: "Attic Kylix (Louvre) · Swift winged agents traversing digital space",
+    imageCaption: "Attic Kylix (Louvre) · Swift winged agents executing inside your software",
     description:
-      "With the plan established, the agent takes flight. HARPY AI independently interfaces with APIs, traverses cloud infrastructure, runs computations, parses literature, and handles unexpected obstacles in real-time without requiring human hand-holding or micro-management.",
-    quote: "“Swift as the gale, the agent moves between systems with sovereign autonomy.”",
+      "With the plan established, HARPY AI takes flight inside your software. It reads, composes, and dispatches in Gmail, manages databases in Notion, sends messages on WhatsApp and Discord, navigates the web in Chrome, and commits code in your AI editor—operating fully autonomously from start to finish.",
+    quote: "“Swift as the gale, the agent moves between applications with sovereign autonomy.”",
   },
   {
     roman: "IV",
     phase: "STEP 04",
-    title: "Task Completed",
-    subtitle: "Rigorously verified outcomes with complete auditable provenance.",
+    title: "Task Completed & Verified",
+    subtitle: "Rigorously confirmed outcomes across all connected applications.",
     icon: CheckCircle2,
     image: "/images/nike-samothrace.jpg",
     imageAlt: "The Winged Victory of Samothrace, Louvre Museum",
     imageCaption: "Nike of Samothrace (Louvre) · The crowning verified triumph",
     description:
-      "The mission reaches completion. Every artifact, metric, and analytical insight produced during the flight is cross-validated against your original intent. You receive pristine deliverables alongside an auditable cognitive log detailing every decision made along the way.",
-    quote: "“The quarry is brought home, flawless and beyond expectation.”",
+      "The mission reaches completion. Every email sent, Notion document updated, WhatsApp message delivered, and code file modified during the flight is cross-checked against your original instruction. You receive pristine deliverables alongside a transparent, auditable cognitive log.",
+    quote: "“The mission is accomplished across all your tools, flawless and beyond expectation.”",
   },
 ];
 
@@ -98,8 +98,7 @@ export default function HowItWorksPage() {
             </h1>
 
             <p className="font-cormorant italic text-xl sm:text-2xl text-parchment/80 font-light max-w-2xl mx-auto leading-relaxed">
-              A four-fold symphony of intent, deliberation, autonomous execution, and verified
-              triumph.
+              Authenticate your apps, articulate your goal, watch autonomous cross-app execution, and receive verified results.
             </p>
           </motion.div>
 
@@ -107,11 +106,11 @@ export default function HowItWorksPage() {
 
           {/* Core Formula Banner */}
           <div className="inline-flex flex-wrap items-center justify-center gap-2 sm:gap-4 p-4 border border-gold/30 bg-obsidian-light/80 text-xs sm:text-sm font-cinzel text-parchment">
-            <span className="text-gold font-medium">Describe Your Goal</span>
+            <span className="text-gold font-medium">Authenticate Apps</span>
             <span className="text-gold/50">→</span>
-            <span className="text-gold font-medium">AI Plans</span>
+            <span className="text-gold font-medium">State Any Goal</span>
             <span className="text-gold/50">→</span>
-            <span className="text-gold font-medium">AI Executes</span>
+            <span className="text-gold font-medium">Autonomous In-App Action</span>
             <span className="text-gold/50">→</span>
             <span className="text-gold font-semibold underline decoration-gold/60 underline-offset-4">
               Task Completed
@@ -296,14 +295,16 @@ export default function HowItWorksPage() {
                 <div className="bg-obsidian text-parchment p-5 border border-gold/30 font-mono text-xs space-y-2 rounded-none shadow-inner">
                   <div className="flex items-center justify-between pb-2 border-b border-gold/20 text-[10px] text-gold/70">
                     <span>harpy-agent-kernel · v2.6.4</span>
-                    <span className="text-emerald-400">● FLIGHT ACTIVE</span>
+                    <span className="text-emerald-400">● 7 APPS CONNECTED</span>
                   </div>
                   <div className="space-y-1 text-parchment/80 pt-1">
-                    <p className="text-gold/90">&gt; intent: &quot;Audit Q3 regulatory risk &amp; sync&quot;</p>
-                    <p className="text-parchment/60">&gt; resolving dependency DAG (14 nodes)...</p>
-                    <p className="text-parchment/60">&gt; dispatching aerial worker: finance-crawler</p>
-                    <p className="text-parchment/60">&gt; verifying cross-system invariants: PASS</p>
-                    <p className="text-emerald-400">&gt; outcome synthesized in 1.48s</p>
+                    <p className="text-gold/90">&gt; intent: &quot;Process client request across all tools&quot;</p>
+                    <p className="text-parchment/60">&gt; [Gmail] parsed urgent feedback thread from Enterprise partner</p>
+                    <p className="text-parchment/60">&gt; [Notion] created sprint ticket #842 with reproduction notes</p>
+                    <p className="text-parchment/60">&gt; [AI Editor] patched auth_handler.ts &amp; verified unit tests (14/14 PASS)</p>
+                    <p className="text-parchment/60">&gt; [WhatsApp] sent status report to engineering group</p>
+                    <p className="text-parchment/60">&gt; [Discord] posted deployment alert in #announcements</p>
+                    <p className="text-emerald-400">&gt; cross-app mission completed autonomously in 3.14s</p>
                   </div>
                 </div>
               </div>
@@ -318,17 +319,17 @@ export default function HowItWorksPage() {
       <section className="py-24 px-6 lg:px-12 bg-obsidian text-center border-t border-gold/20">
         <div className="max-w-3xl mx-auto space-y-6">
           <h2 className="font-cinzel text-3xl sm:text-4xl text-parchment">
-            Ready to Unleash Winged Intelligence?
+            Ready to Connect Your Applications?
           </h2>
           <p className="font-cormorant italic text-xl text-parchment/75">
-            Your intentions are the compass. HARPY AI provides the flight.
+            Authenticate your apps. State your goal. Let HARPY AI execute the rest.
           </p>
           <div className="pt-4">
             <Link
               href="/contact"
               className="inline-flex items-center gap-3 px-8 py-4 bg-gold text-obsidian font-cinzel text-xs tracking-[0.2em] uppercase font-semibold hover:bg-[#E2C99A] transition-all duration-300"
             >
-              <span>Commence Conversation</span>
+              <span>Connect Your Ecosystem</span>
               <ArrowUpRight className="w-4 h-4" />
             </Link>
           </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { motion } from "framer-motion";
 
 interface Feather {
@@ -13,6 +14,7 @@ interface Feather {
 }
 
 export function FloatingFeathers() {
+  const pathname = usePathname();
   const [feathers, setFeathers] = useState<Feather[]>([]);
 
   useEffect(() => {
@@ -27,6 +29,10 @@ export function FloatingFeathers() {
     }));
     setFeathers(initialFeathers);
   }, []);
+
+  if (pathname?.startsWith("/dashbord") || pathname?.startsWith("/dashboard")) {
+    return null;
+  }
 
   return (
     <div className="fixed inset-0 pointer-events-none z-10 overflow-hidden" aria-hidden="true">

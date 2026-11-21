@@ -1,8 +1,17 @@
+"use client";
+
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
+import { usePathname } from "next/navigation";
 import { GreekDivider } from "./GreekDivider";
 
 export function Footer() {
+  const pathname = usePathname();
+
+  if (pathname?.startsWith("/dashbord") || pathname?.startsWith("/dashboard")) {
+    return null;
+  }
   return (
     <footer className="w-full bg-[#0A0A0D] border-t border-gold/20 text-parchment relative overflow-hidden">
       {/* Subtle background ambient glow */}
@@ -14,14 +23,24 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-12 gap-12 pb-16 border-b border-gold/15">
           {/* Brand & Epigraph */}
           <div className="md:col-span-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <span className="font-cinzel text-xl tracking-[0.25em] text-parchment">
-                HARPY AI
-              </span>
-              <span className="text-gold/50 text-xs">◆</span>
-              <span className="font-inter text-xs tracking-widest uppercase text-gold/70">
-                Autonomous Intelligence
-              </span>
+            <div className="flex items-center gap-3.5">
+              <div className="relative w-10 h-10 rounded-full border border-gold/40 flex items-center justify-center bg-obsidian-light/80 p-1.5 shadow-[0_0_15px_rgba(198,164,106,0.15)]">
+                <Image
+                  src="/images/harpy-logo-light.png"
+                  alt="HARPY AI Logo"
+                  width={34}
+                  height={34}
+                  className="object-contain"
+                />
+              </div>
+              <div className="flex flex-col">
+                <span className="font-cinzel text-xl tracking-[0.25em] text-parchment font-medium">
+                  HARPY AI
+                </span>
+                <span className="font-inter text-[9px] tracking-widest uppercase text-gold/70">
+                  Universal Autonomous Agent
+                </span>
+              </div>
             </div>
 
             <p className="font-cormorant italic text-lg text-parchment/70 max-w-lg leading-relaxed">
@@ -69,16 +88,16 @@ export function Footer() {
             </h4>
             <ul className="space-y-2 font-inter text-xs tracking-wider text-parchment/60">
               <li className="flex items-center gap-2">
-                <span className="text-gold">I.</span> Unconstrained Reasoning
+                <span className="text-gold">I.</span> 1-Click App Connect
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-gold">II.</span> Autonomous Execution
+                <span className="text-gold">II.</span> Deep In-App Action
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-gold">III.</span> Classical Precision
+                <span className="text-gold">III.</span> Cross-App Harmony
               </li>
               <li className="flex items-center gap-2">
-                <span className="text-gold">IV.</span> Boundless Reach
+                <span className="text-gold">IV.</span> Verified Transparency
               </li>
             </ul>
           </div>

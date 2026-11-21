@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X } from "lucide-react";
@@ -17,6 +18,10 @@ export function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
+  if (pathname?.startsWith("/dashbord") || pathname?.startsWith("/dashboard")) {
+    return null;
+  }
+
   return (
     <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-obsidian/85 border-b border-gold/15 transition-all duration-300">
       <div className="max-w-7xl mx-auto px-6 lg:px-12 h-20 flex items-center justify-between">
@@ -25,20 +30,16 @@ export function Navigation() {
           href="/"
           className="group flex items-center gap-3.5 focus:outline-none focus-visible:ring-1 focus-visible:ring-gold"
         >
-          {/* Harpy Crest Icon */}
-          <div className="relative w-9 h-9 rounded-full border border-gold/40 flex items-center justify-center bg-obsidian-light/60 group-hover:border-gold transition-colors duration-300">
-            <svg
-              className="w-5 h-5 text-gold transition-transform duration-500 group-hover:scale-110"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="1.5"
-            >
-              {/* Winged Crest / Harpy Motif */}
-              <path d="M12 2C8 6 3 9 3 14a9 9 0 0 0 18 0c0-5-5-8-9-12z" strokeOpacity="0.4" />
-              <path d="M12 5c-3 3-6 5-6 9a6 6 0 0 0 12 0c0-4-3-6-6-9z" />
-              <circle cx="12" cy="14" r="1.5" fill="currentColor" />
-            </svg>
+          {/* Harpy Official Logo */}
+          <div className="relative w-10 h-10 rounded-full border border-gold/40 flex items-center justify-center bg-obsidian-light/80 p-1.5 group-hover:border-gold transition-colors duration-300 shadow-[0_0_15px_rgba(198,164,106,0.15)]">
+            <Image
+              src="/images/harpy-logo-light.png"
+              alt="HARPY AI Logo"
+              width={34}
+              height={34}
+              className="object-contain transition-transform duration-500 group-hover:scale-110 drop-shadow-[0_2px_8px_rgba(198,164,106,0.3)]"
+              priority
+            />
             <div className="absolute inset-0 rounded-full border border-gold/20 scale-125 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           </div>
 

@@ -21,8 +21,16 @@ export default function AboutPage() {
             transition={{ duration: 0.8 }}
             className="space-y-4"
           >
-            <div className="inline-flex items-center gap-2 px-3 py-1 border border-gold/30 text-gold font-cinzel text-xs tracking-[0.3em] uppercase">
-              TREATISE · VOLUME I
+            <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 border border-gold/30 text-gold font-cinzel text-xs tracking-[0.3em] uppercase bg-obsidian-light/60">
+              <div className="relative w-4 h-4 flex-shrink-0">
+                <Image
+                  src="/images/harpy-logo-light.png"
+                  alt="Harpy Official Emblem"
+                  fill
+                  className="object-contain"
+                />
+              </div>
+              <span>TREATISE · VOLUME I</span>
             </div>
 
             <h1 className="font-cinzel text-4xl sm:text-6xl font-normal tracking-tight text-parchment max-w-4xl mx-auto leading-tight">
@@ -57,19 +65,20 @@ export default function AboutPage() {
             <div className="space-y-4 font-inter text-sm sm:text-base text-parchment/75 leading-relaxed font-light">
               <p>
                 For decades, computational intelligence has been trapped behind conversational
-                dialogue boxes—passive tools that speak only when spoken to, incapable of taking
-                flight across the vast digital landscapes where real work occurs.
+                dialogue boxes—passive chatbots that speak only when spoken to, incapable of taking
+                action inside the actual applications where real work occurs.
               </p>
               <p>
                 <strong className="text-gold font-normal">HARPY AI</strong> was conceived to break
-                this paradigm. Inspired by the swift winged entities of ancient antiquity, we built
-                an autonomous agent architecture capable of transforming human intent into complete,
-                flawlessly realized outcomes.
+                this paradigm. Inspired by the swift winged entities of ancient antiquity who moved
+                effortlessly between realms, we built a universal autonomous agent designed to connect
+                to your entire software suite—Gmail, Notion, WhatsApp, Instagram, Discord, AI code
+                editors, and Google Chrome—through simple, frictionless authentication.
               </p>
               <p>
-                Our agents do not merely suggest next steps. They perceive the horizon, formulate
-                comprehensive strategies, interface with complex external systems, and carry out
-                intricate multi-step journeys while preserving total human alignment.
+                Our agent does not merely suggest answers or offer advice. It logs into your digital tools,
+                understands your intentions, navigates complex interfaces, and executes your tasks
+                directly inside each application—delivering complete, fully autonomous results.
               </p>
             </div>
           </div>
@@ -228,41 +237,41 @@ export default function AboutPage() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
             <div className="border border-gold/25 p-8 bg-obsidian-light/50 space-y-4 hover:border-gold/60 transition-colors duration-300">
               <span className="font-cinzel text-gold text-lg">01 / I</span>
-              <h3 className="font-cinzel text-xl text-parchment">Unbounded Reasoning</h3>
+              <h3 className="font-cinzel text-xl text-parchment">Universal App Sovereignty</h3>
               <p className="font-inter text-sm text-parchment/70 leading-relaxed font-light">
-                We design our models to reason without preconceived shortcuts. Before taking action,
-                HARPY AI evaluates probabilistic futures, models counterfactuals, and ensures every
-                decision aligns with the overarching human objective.
+                An agent must live where your real work lives. HARPY AI connects with Gmail,
+                Notion, WhatsApp, Instagram, Discord, AI code editors, and Chrome through simple
+                1-click authentication—dismantling isolated software boundaries.
               </p>
             </div>
 
             <div className="border border-gold/25 p-8 bg-obsidian-light/50 space-y-4 hover:border-gold/60 transition-colors duration-300">
               <span className="font-cinzel text-gold text-lg">02 / II</span>
-              <h3 className="font-cinzel text-xl text-parchment">Autonomous Velocity</h3>
+              <h3 className="font-cinzel text-xl text-parchment">Deep In-App Action</h3>
               <p className="font-inter text-sm text-parchment/70 leading-relaxed font-light">
-                Speed without direction is chaos; direction without speed is paralysis. True to its
-                namesake, HARPY AI acts with aerial speed across APIs, databases, software systems,
-                and analytical tasks.
+                Chat is not the end goal; autonomous execution is. HARPY AI enters directly inside
+                your tools to compose emails, update workspaces, coordinate messages, and write code
+                without requiring human micro-management.
               </p>
             </div>
 
             <div className="border border-gold/25 p-8 bg-obsidian-light/50 space-y-4 hover:border-gold/60 transition-colors duration-300">
               <span className="font-cinzel text-gold text-lg">03 / III</span>
-              <h3 className="font-cinzel text-xl text-parchment">Harmonic Alignment</h3>
+              <h3 className="font-cinzel text-xl text-parchment">Autonomous Velocity</h3>
               <p className="font-inter text-sm text-parchment/70 leading-relaxed font-light">
-                Autonomy requires trust. HARPY AI incorporates verifiable chain-of-deliberation
-                safeguards, ensuring every winged step is traceable, inspectable, and safely bounded
-                by human intent.
+                Speed without direction is chaos; direction without speed is paralysis. True to its
+                namesake, HARPY AI acts with aerial speed across APIs, databases, software interfaces,
+                and complex multi-application workflows.
               </p>
             </div>
 
             <div className="border border-gold/25 p-8 bg-obsidian-light/50 space-y-4 hover:border-gold/60 transition-colors duration-300">
               <span className="font-cinzel text-gold text-lg">04 / IV</span>
-              <h3 className="font-cinzel text-xl text-parchment">Classical Aesthetics</h3>
+              <h3 className="font-cinzel text-xl text-parchment">Harmonic Alignment</h3>
               <p className="font-inter text-sm text-parchment/70 leading-relaxed font-light">
-                We believe that the tools of the mind should possess dignity, clarity, and beauty.
-                Technology should not feel cold and disposable; it should evoke the enduring grace
-                of classical sculpture and mathematical harmony.
+                Autonomy requires uncompromising trust. HARPY AI incorporates verifiable chain-of-action
+                safeguards, ensuring every step taken inside your software is traceable, auditable,
+                and securely aligned with your intent.
               </p>
             </div>
           </div>

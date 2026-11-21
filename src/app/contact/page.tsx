@@ -46,8 +46,8 @@ export default function ContactPage() {
           </h1>
 
           <p className="font-cormorant italic text-xl text-parchment/80 font-light max-w-xl mx-auto leading-relaxed">
-            Dispatch your intentions to the council of HARPY AI. We answer with precision and
-            swiftness.
+            Connect your applications or inquire about custom workflows. Tell us what tasks your team
+            wants HARPY AI to execute autonomously.
           </p>
         </div>
       </section>
@@ -224,7 +224,7 @@ export default function ContactPage() {
                           required
                           value={formState.message}
                           onChange={(e) => setFormState({ ...formState, message: e.target.value })}
-                          placeholder="Describe the nature of your objective, domain, or inquiry..."
+                          placeholder="Describe the applications you wish to connect (e.g. Gmail, Notion, WhatsApp, Discord, AI Code Editor, Chrome) and the tasks you want automated..."
                           className="w-full px-4 py-3 bg-obsidian border border-gold/30 text-parchment placeholder-parchment/30 text-sm focus:outline-none focus:border-gold transition-colors duration-200 resize-none"
                         />
                       </div>

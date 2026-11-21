@@ -27,37 +27,37 @@ export default function HomePage() {
           >
             {/* Classical Eyebrow Badge */}
             <div className="inline-flex items-center gap-3 px-3.5 py-1.5 border border-gold/30 rounded-none bg-obsidian-light/60 backdrop-blur-sm">
-              <span className="w-1.5 h-1.5 rounded-full bg-gold animate-pulse" />
               <span className="font-cinzel text-[11px] tracking-[0.28em] uppercase text-gold">
-                Autonomous Cognitive System · MMXXVI
+                Universal Autonomous Agent · All Applications Connected
               </span>
             </div>
 
             {/* Main Editorial Hero Heading */}
             <h1 className="font-cinzel text-4xl sm:text-6xl xl:text-7xl font-normal tracking-[0.03em] leading-[1.08] text-parchment">
-              Intelligence <br />
+              One Agent. <br />
               <span className="italic font-cormorant font-light text-gold text-5xl sm:text-7xl xl:text-8xl">
-                Beyond
+                Every
               </span>{" "}
-              Imagination.
+              Application.
             </h1>
 
             {/* Subtitle */}
             <p className="font-cormorant italic text-xl sm:text-2xl text-parchment/80 font-light max-w-xl leading-relaxed">
-              &ldquo;Your intentions. Our intelligence. Endless possibilities.&rdquo;
+              &ldquo;Authenticate your tools. State any goal. Watch Harpy execute inside your apps with total autonomy.&rdquo;
             </p>
 
             {/* Short Introduction to Autonomous AI Concept */}
             <p className="font-inter text-sm sm:text-base text-parchment/65 leading-relaxed max-w-xl font-light">
-              Named after the legendary swift-winged spirits of ancient Greek myth, HARPY AI is an
-              autonomous agent architecture engineered to perceive complex human goals, deliberate
-              through sophisticated multi-stage reasoning, and execute with relentless precision.
+              Named after the legendary swift-winged spirits of ancient Greek myth, HARPY AI connects
+              seamlessly to all your essential applications—Gmail, Notion, WhatsApp, Instagram,
+              Discord, AI code editors, and Chrome—through simple authentication. Give it any task,
+              and Harpy enters your tools to execute it completely automatically from start to finish.
             </p>
 
             {/* Dual Classical CTAs */}
             <div className="pt-2 flex flex-wrap items-center gap-5">
               <Link
-                href="/how-it-works"
+                href="/dashbord"
                 className="group px-7 py-3.5 bg-gold text-obsidian font-cinzel text-xs tracking-[0.2em] uppercase font-semibold transition-all duration-300 hover:bg-[#E2C99A] hover:shadow-[0_0_25px_rgba(198,164,106,0.3)] flex items-center gap-3"
               >
                 <span>Discover the System</span>
@@ -68,25 +68,25 @@ export default function HomePage() {
                 href="/about"
                 className="px-7 py-3.5 border border-gold/40 text-parchment font-cinzel text-xs tracking-[0.2em] uppercase transition-all duration-300 hover:border-gold hover:text-gold hover:bg-gold/5"
               >
-                The Mythology & Vision
+                The Mythology &amp; Vision
               </Link>
             </div>
 
             {/* Subtle Metadata bar */}
             <div className="pt-6 border-t border-gold/15 flex items-center gap-8 text-xs font-inter text-parchment/45">
               <div>
-                <span className="font-cinzel text-gold text-xs block">01 / REASON</span>
-                <span>Deconstruct Intent</span>
+                <span className="font-cinzel text-gold text-xs block">01 / AUTHENTICATE</span>
+                <span>1-Click App Connect</span>
               </div>
               <div className="h-6 w-px bg-gold/15" />
               <div>
-                <span className="font-cinzel text-gold text-xs block">02 / FLIGHT</span>
-                <span>Autonomous Action</span>
+                <span className="font-cinzel text-gold text-xs block">02 / COMMAND</span>
+                <span>Plain Language Goal</span>
               </div>
               <div className="h-6 w-px bg-gold/15" />
               <div>
-                <span className="font-cinzel text-gold text-xs block">03 / HARVEST</span>
-                <span>Frictionless Outcome</span>
+                <span className="font-cinzel text-gold text-xs block">03 / EXECUTE</span>
+                <span>Fully Autonomous Action</span>
               </div>
             </div>
           </motion.div>
@@ -156,14 +156,14 @@ export default function HomePage() {
           {/* Section Header */}
           <div className="text-center max-w-3xl mx-auto space-y-4 mb-20">
             <span className="font-cinzel text-xs uppercase tracking-[0.3em] text-bronze-dark font-bold">
-              The Architecture of Agency
+              Universal Connected Autonomy
             </span>
             <h2 className="font-cinzel text-3xl sm:text-5xl font-medium tracking-tight text-obsidian">
-              Autonomous Intelligence in Motion
+              One Agent Inside All Your Tools
             </h2>
             <div className="w-16 h-0.5 bg-bronze/60 mx-auto my-3" />
             <p className="font-cormorant italic text-xl text-obsidian/75 leading-relaxed">
-              Traditional AI answers questions. HARPY AI undertakes journeys.
+              Traditional AI is trapped in a chat box. HARPY AI authenticates into your apps and completes tasks directly inside them.
             </p>
           </div>
 
@@ -179,15 +179,15 @@ export default function HomePage() {
                 <Compass className="w-6 h-6 stroke-[1.4]" />
               </div>
               <span className="font-cinzel text-xs text-bronze-dark tracking-[0.2em] block">
-                PHASE 01
+                CAPABILITY 01
               </span>
               <h3 className="font-cinzel text-2xl font-semibold text-obsidian">
-                Intent Deliberation
+                1-Click App Connect
               </h3>
               <p className="font-inter text-sm text-obsidian/75 leading-relaxed font-light">
-                Give HARPY AI high-level objectives rather than micro-instructions. The system
-                deconstructs intent, evaluates constraints, models potential branches, and formulates
-                an optimal trajectory before taking flight.
+                Connect your entire digital suite—Gmail, Notion, WhatsApp, Instagram, Discord,
+                AI code editors, and Chrome—simply through secure authentication. No manual scripts,
+                complex configurations, or custom API keys required.
               </p>
             </motion.div>
 
@@ -201,15 +201,15 @@ export default function HomePage() {
                 <Feather className="w-6 h-6 stroke-[1.4]" />
               </div>
               <span className="font-cinzel text-xs text-bronze-dark tracking-[0.2em] block">
-                PHASE 02
+                CAPABILITY 02
               </span>
               <h3 className="font-cinzel text-2xl font-semibold text-obsidian">
-                Swift Winged Action
+                Deep In-App Action
               </h3>
               <p className="font-inter text-sm text-obsidian/75 leading-relaxed font-light">
-                Just as the Harpies of myth swept through the skies to perform divine decrees, our
-                agents navigate complex digital environments, query APIs, synthesize data, and
-                execute multi-step workflows autonomously.
+                HARPY AI does not merely generate text; it acts inside your applications. It reads
+                and sends emails in Gmail, manages pages in Notion, messages on WhatsApp, navigates
+                the web in Chrome, and modifies code in your editor automatically.
               </p>
             </motion.div>
 
@@ -223,15 +223,15 @@ export default function HomePage() {
                 <Shield className="w-6 h-6 stroke-[1.4]" />
               </div>
               <span className="font-cinzel text-xs text-bronze-dark tracking-[0.2em] block">
-                PHASE 03
+                CAPABILITY 03
               </span>
               <h3 className="font-cinzel text-2xl font-semibold text-obsidian">
-                Verified Completion
+                Cross-App Workflows
               </h3>
               <p className="font-inter text-sm text-obsidian/75 leading-relaxed font-light">
-                Autonomous action demands rigorous validation. Every action taken by HARPY AI is
-                verified against the original human intent, ensuring flawless results with full
-                auditable transparency.
+                Stitch complex multi-application goals into a single autonomous flight. An incoming
+                message on WhatsApp triggers an update in Notion, an action in your AI code editor, and
+                a confirmation dispatch over Gmail—fully automated.
               </p>
             </motion.div>
           </div>
@@ -239,8 +239,8 @@ export default function HomePage() {
           {/* Editorial Pullquote on Parchment */}
           <div className="mt-20 border-t border-b border-bronze/30 py-12 px-6 text-center max-w-4xl mx-auto">
             <p className="font-cormorant italic text-2xl sm:text-3xl text-obsidian leading-snug">
-              &ldquo;We do not build tools that merely await commands. We summon intelligence that
-              carries intentions across the expanse of the digital world.&rdquo;
+              &ldquo;You should not have to manually copy-paste between fragmented tools. You authenticate once;
+              HARPY AI takes flight to accomplish the task across all your software.&rdquo;
             </p>
             <p className="font-cinzel text-xs tracking-[0.25em] text-bronze-dark uppercase mt-4">
               — The HARPY AI Architectural Manifesto
@@ -299,22 +299,22 @@ export default function HomePage() {
             {/* Classical Narrative */}
             <div className="lg:col-span-6 space-y-6">
               <span className="font-cinzel text-xs uppercase tracking-[0.3em] text-gold">
-                Mythological Genealogy
+                Mythological Archetype
               </span>
               <h2 className="font-cinzel text-3xl sm:text-4xl text-parchment leading-tight">
-                Daughters of Thaumas &amp; Electra: The Swift Spirits of the Wind
+                Swift Messengers Across Every Digital Sanctuary
               </h2>
               <div className="w-12 h-0.5 bg-gold/50" />
               <p className="font-cormorant italic text-lg sm:text-xl text-parchment/80 leading-relaxed font-light">
-                In the oldest traditions recorded by Hesiod, the Harpies were not foul monsters, but
-                radiant winged spirits—Aello (&ldquo;Storm Swift&rdquo;) and Ocypete (&ldquo;Swift
-                Winged&rdquo;)—beings whose flight was as effortless as the wind itself.
+                In ancient Greek myth, the Harpies were celebrated as the swift spirits of the wind—beings
+                entrusted by the gods to travel effortlessly between heaven and earth, executing divine
+                decrees without hesitation or fatigue.
               </p>
               <p className="font-inter text-sm text-parchment/65 leading-relaxed font-light">
-                They were entrusted by the Olympian gods with the sovereign duty of snatching away
-                what was ordained, moving between heaven and earth with unstoppable autonomy. In HARPY
-                AI, this classical archetype is resurrected as modern computation: agents that carry
-                out your will without friction or delay.
+                Today, our work is scattered across fragmented tools: Gmail, Notion, WhatsApp, Instagram,
+                Discord, AI code editors, and browsers. HARPY AI unites these digital islands. By
+                authenticating seamlessly into each application, our agent takes flight inside your software,
+                carrying out multi-step workflows and completing your tasks automatically.
               </p>
 
               <div className="pt-4">
@@ -453,16 +453,16 @@ export default function HomePage() {
           <GreekDivider variant="simple" className="max-w-md mx-auto" />
 
           <span className="font-cinzel text-xs tracking-[0.3em] uppercase text-gold">
-            Begin the Ascendance
+            Universal App Autonomy
           </span>
 
           <h2 className="font-cinzel text-3xl sm:text-5xl text-parchment font-normal tracking-wide">
-            Endless Possibilities Await Your Intent.
+            One Agent. Every Connected Application.
           </h2>
 
           <p className="font-cormorant italic text-xl text-parchment/75 max-w-xl mx-auto leading-relaxed">
-            Experience an autonomous system shaped by classical proportion and unyielding modern
-            ambition.
+            Authenticate Gmail, Notion, WhatsApp, Discord, AI code editors, and Chrome.
+            Experience fully autonomous task execution today.
           </p>
 
           <div className="pt-4 flex flex-wrap justify-center gap-5">

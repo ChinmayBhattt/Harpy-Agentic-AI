@@ -28,9 +28,14 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "HARPY AI — Intelligence Beyond Imagination",
+  title: "HARPY AI — The Autonomous Agent for All Your Applications",
   description:
-    "Your intentions. Our intelligence. Endless possibilities. An autonomous AI agent platform combining Anthropic editorial minimalism with ancient Greek mythological prowess.",
+    "An autonomous AI agent that connects to all your tools—Gmail, Notion, WhatsApp, Instagram, Discord, AI code editors, and Chrome—via simple authentication to execute tasks automatically.",
+  icons: {
+    icon: "/icon.png",
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 export default function RootLayout({
