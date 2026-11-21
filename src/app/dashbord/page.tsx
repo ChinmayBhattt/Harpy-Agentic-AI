@@ -34,6 +34,11 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  Pin,
+  PinOff,
+  Pencil,
+  Share2,
+  MoreHorizontal,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 
@@ -51,6 +56,7 @@ interface ChatSession {
   title: string;
   timestamp: string;
   messages: Message[];
+  isPinned?: boolean;
 }
 
 interface ModelItem {
@@ -229,10 +235,17 @@ export default function DashboardPage() {
   const [showKeySecret, setShowKeySecret] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
 
+  // Chat Options Menu State (Pin, Rename, Share, Delete)
+  const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState<string>("");
+  const [shareToast, setShareToast] = useState<string | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   const currentSession =
     sessions.find((s) => s.id === currentSessionId) || {
@@ -328,6 +341,9 @@ export default function DashboardPage() {
     const handleClickOutside = (e: MouseEvent) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
         setIsDropdownOpen(false);
+      }
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setActiveMenuSessionId(null);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -619,20 +635,73 @@ export default function DashboardPage() {
     setTimeout(() => setCopiedId(null), 1800);
   };
 
-  const deleteSession = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const togglePinSession = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === id ? { ...s, isPinned: !s.isPinned } : s
+      );
+      try {
+        localStorage.setItem(
+          "harpy_chat_sessions",
+          JSON.stringify(updated.filter((s) => s.messages.length > 0))
+        );
+      } catch {}
+      return updated;
+    });
+    setActiveMenuSessionId(null);
+  };
+
+  const startRenameSession = (s: ChatSession, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setEditingSessionId(s.id);
+    setEditingTitle(s.title);
+    setActiveMenuSessionId(null);
+  };
+
+  const saveRenameSession = (id: string) => {
+    if (!editingTitle.trim()) {
+      setEditingSessionId(null);
+      return;
+    }
+    setSessions((prev) => {
+      const updated = prev.map((s) =>
+        s.id === id ? { ...s, title: editingTitle.trim() } : s
+      );
+      try {
+        localStorage.setItem(
+          "harpy_chat_sessions",
+          JSON.stringify(updated.filter((s) => s.messages.length > 0))
+        );
+      } catch {}
+      return updated;
+    });
+    setEditingSessionId(null);
+  };
+
+  const shareSession = (s: ChatSession, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const conversationText =
+      `HARPY AI Mission: ${s.title}\n\n` +
+      s.messages
+        .map((m) => `[${m.sender === "user" ? "USER" : "HARPY"}] ${m.text}`)
+        .join("\n\n");
+
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(conversationText);
+      setShareToast("Mission transcript copied to clipboard!");
+      setTimeout(() => setShareToast(null), 2500);
+    }
+    setActiveMenuSessionId(null);
+  };
+
+  const deleteSession = (id: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setActiveMenuSessionId(null);
     const remaining = sessions.filter((s) => s.id !== id);
     if (remaining.length === 0) {
       const freshId = `session-${Date.now()}`;
-      const fresh: ChatSession[] = [
-        {
-          id: freshId,
-          title: "New Autonomous Mission",
-          timestamp: "Just now",
-          messages: [],
-        },
-      ];
-      setSessions(fresh);
+      setSessions([]);
       setCurrentSessionId(freshId);
       try {
         localStorage.removeItem("harpy_chat_sessions");
@@ -750,31 +819,189 @@ export default function DashboardPage() {
             ) : (
               sessions
                 .filter((s) => s.messages && s.messages.length > 0)
+                .sort((a, b) => {
+                  if (a.isPinned && !b.isPinned) return -1;
+                  if (!a.isPinned && b.isPinned) return 1;
+                  return 0;
+                })
                 .map((s) => {
                   const isActive = s.id === currentSessionId;
+                  const isMenuOpen = activeMenuSessionId === s.id;
+                  const isEditing = editingSessionId === s.id;
+
                   return (
                     <div
                       key={s.id}
-                      onClick={() => setCurrentSessionId(s.id)}
-                      className={`group relative flex items-center justify-between px-3 py-2.5 rounded-lg cursor-pointer transition-all duration-150 border ${
+                      onClick={() => {
+                        if (!isEditing) setCurrentSessionId(s.id);
+                      }}
+                      onKeyDown={(e) => {
+                        if (!isEditing) {
+                          if (e.key === "p" || e.key === "P") {
+                            e.preventDefault();
+                            togglePinSession(s.id);
+                          } else if (e.key === "r" || e.key === "R") {
+                            e.preventDefault();
+                            startRenameSession(s);
+                          }
+                        }
+                      }}
+                      tabIndex={0}
+                      className={`group relative flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 border outline-none ${
                         isActive
                           ? "bg-[#101018] border-[#C6A46A]/45 border-l-2 border-l-[#C6A46A] text-[#E8DDC7] shadow-sm"
-                          : "border-transparent text-[#E8DDC7]/60 hover:bg-[#0E0E14] hover:text-[#E8DDC7]"
+                          : "border-transparent text-[#E8DDC7]/65 hover:bg-[#0E0E14] hover:text-[#E8DDC7] focus:bg-[#0E0E14]"
                       }`}
                     >
-                      <div className="flex items-center gap-2 min-w-0 pr-2">
-                        <MessageSquare className={`w-3.5 h-3.5 flex-shrink-0 ${isActive ? "text-[#C6A46A]" : "text-[#E8DDC7]/30"}`} />
-                        <span className="text-xs truncate font-light font-inter">
-                          {s.title}
-                        </span>
+                      {/* Left: Icon & Title or Inline Edit */}
+                      <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
+                        {s.isPinned ? (
+                          <Pin className="w-3.5 h-3.5 flex-shrink-0 text-[#C6A46A] fill-[#C6A46A]/30" />
+                        ) : (
+                          <MessageSquare
+                            className={`w-3.5 h-3.5 flex-shrink-0 ${
+                              isActive ? "text-[#C6A46A]" : "text-[#E8DDC7]/30"
+                            }`}
+                          />
+                        )}
+
+                        {isEditing ? (
+                          <div
+                            className="flex items-center gap-1.5 flex-1 min-w-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <input
+                              type="text"
+                              autoFocus
+                              value={editingTitle}
+                              onChange={(e) => setEditingTitle(e.target.value)}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") saveRenameSession(s.id);
+                                if (e.key === "Escape") setEditingSessionId(null);
+                              }}
+                              className="bg-[#0A0A0F] border border-[#C6A46A]/70 rounded px-2 py-0.5 text-xs text-[#E8DDC7] w-full focus:outline-none focus:ring-1 focus:ring-[#C6A46A]"
+                            />
+                            <button
+                              onClick={() => saveRenameSession(s.id)}
+                              className="p-1 text-emerald-400 hover:text-emerald-300 flex-shrink-0"
+                              title="Save"
+                            >
+                              <Check className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => setEditingSessionId(null)}
+                              className="p-1 text-[#E8DDC7]/40 hover:text-[#E8DDC7] flex-shrink-0"
+                              title="Cancel"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <span className="text-xs truncate font-light font-inter">
+                            {s.title}
+                          </span>
+                        )}
                       </div>
-                      <button
-                        onClick={(e) => deleteSession(s.id, e)}
-                        className="opacity-0 group-hover:opacity-100 hover:text-red-400 p-1 text-[#E8DDC7]/40 transition-opacity flex-shrink-0"
-                        title="Delete Mission"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
+
+                      {/* Right: Actions (Pin Icon + ... Dropdown Menu) */}
+                      {!isEditing && (
+                        <div className="flex items-center gap-1 flex-shrink-0 relative">
+                          {/* Quick Pin Toggle button */}
+                          <button
+                            onClick={(e) => togglePinSession(s.id, e)}
+                            className={`p-1 rounded transition-colors ${
+                              s.isPinned
+                                ? "text-[#C6A46A] opacity-100 hover:text-[#E2C99A]"
+                                : "opacity-0 group-hover:opacity-100 text-[#E8DDC7]/40 hover:text-[#C6A46A]"
+                            }`}
+                            title={s.isPinned ? "Unpin (P)" : "Pin (P)"}
+                          >
+                            <Pin
+                              className={`w-3.5 h-3.5 ${
+                                s.isPinned ? "fill-[#C6A46A]/30 text-[#C6A46A]" : ""
+                              }`}
+                            />
+                          </button>
+
+                          {/* Three Dots Menu Button */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setActiveMenuSessionId(isMenuOpen ? null : s.id);
+                            }}
+                            className={`p-1 rounded-md transition-colors ${
+                              isMenuOpen
+                                ? "opacity-100 text-[#C6A46A] bg-[#1C1C26]"
+                                : "opacity-0 group-hover:opacity-100 text-[#E8DDC7]/40 hover:text-[#E8DDC7] hover:bg-[#1C1C26]"
+                            }`}
+                            title="More options"
+                          >
+                            <MoreHorizontal className="w-3.5 h-3.5" />
+                          </button>
+
+                          {/* Dropdown Popover */}
+                          {isMenuOpen && (
+                            <div
+                              ref={menuRef}
+                              onClick={(e) => e.stopPropagation()}
+                              className="absolute right-0 top-7 z-50 min-w-[185px] rounded-2xl bg-[#14141A] border border-[#262635] p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.85)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 space-y-0.5"
+                            >
+                              {/* Pin / Unpin */}
+                              <button
+                                onClick={(e) => togglePinSession(s.id, e)}
+                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:bg-[#1E1E28] hover:text-[#E8DDC7] transition-colors group/item"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  {s.isPinned ? (
+                                    <PinOff className="w-3.5 h-3.5 text-[#C6A46A]" />
+                                  ) : (
+                                    <Pin className="w-3.5 h-3.5 text-[#E8DDC7]/70 group-hover/item:text-[#C6A46A]" />
+                                  )}
+                                  <span>{s.isPinned ? "Unpin" : "Pin"}</span>
+                                </div>
+                                <span className="text-[11px] font-mono text-[#E8DDC7]/40">P</span>
+                              </button>
+
+                              {/* Rename */}
+                              <button
+                                onClick={(e) => startRenameSession(s, e)}
+                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:bg-[#1E1E28] hover:text-[#E8DDC7] transition-colors group/item"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <Pencil className="w-3.5 h-3.5 text-[#E8DDC7]/70 group-hover/item:text-[#C6A46A]" />
+                                  <span>Rename</span>
+                                </div>
+                                <span className="text-[11px] font-mono text-[#E8DDC7]/40">R</span>
+                              </button>
+
+                              {/* Share */}
+                              <button
+                                onClick={(e) => shareSession(s, e)}
+                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:bg-[#1E1E28] hover:text-[#E8DDC7] transition-colors group/item"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <Share2 className="w-3.5 h-3.5 text-[#E8DDC7]/70 group-hover/item:text-[#C6A46A]" />
+                                  <span>Share</span>
+                                </div>
+                              </button>
+
+                              {/* Divider */}
+                              <div className="my-1 border-t border-[#22222E]" />
+
+                              {/* Delete */}
+                              <button
+                                onClick={(e) => deleteSession(s.id, e)}
+                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
+                              >
+                                <div className="flex items-center gap-2.5">
+                                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
+                                  <span>Delete</span>
+                                </div>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
                   );
                 })
@@ -1448,6 +1675,21 @@ export default function DashboardPage() {
               </div>
             </motion.div>
           </div>
+        )}
+      </AnimatePresence>
+
+      {/* Floating Share Toast */}
+      <AnimatePresence>
+        {shareToast && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.95 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 16, scale: 0.95 }}
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#14141A] border border-[#C6A46A]/50 text-[#E8DDC7] text-xs shadow-2xl backdrop-blur-md"
+          >
+            <CheckCircle2 className="w-4 h-4 text-[#C6A46A]" />
+            <span className="font-inter font-light">{shareToast}</span>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>
