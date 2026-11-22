@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { cdn } from "@/lib/cdn";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
@@ -1090,7 +1091,7 @@ export default function DashboardPage() {
           >
             <div className="relative w-7 h-7 rounded-full border border-[#C6A46A]/35 flex items-center justify-center bg-[#050508] p-0.5 group-hover:border-[#C6A46A] transition-colors">
               <Image
-                src="/images/harpy-logo-light.png"
+                src={cdn("/images/harpy-logo-light.png")}
                 alt="HARPY AI Emblem"
                 width={22}
                 height={22}
@@ -1575,7 +1576,7 @@ export default function DashboardPage() {
                 >
                   <div className="w-14 h-14 rounded-full border border-[#C6A46A]/40 flex items-center justify-center mx-auto bg-[#0B0B0F] shadow-[0_0_24px_rgba(198,164,106,0.12)]">
                     <Image
-                      src="/images/harpy-logo-light.png"
+                      src={cdn("/images/harpy-logo-light.png")}
                       alt="Harpy AI"
                       width={38}
                       height={38}
@@ -1631,7 +1632,7 @@ export default function DashboardPage() {
                     {!isUser && (
                       <div className="w-7 h-7 rounded-full border border-[#C6A46A]/35 flex items-center justify-center bg-[#0B0B10] flex-shrink-0 mt-1 shadow-sm">
                         <Image
-                          src="/images/harpy-logo-light.png"
+                          src={cdn("/images/harpy-logo-light.png")}
                           alt="Harpy AI"
                           width={18}
                           height={18}

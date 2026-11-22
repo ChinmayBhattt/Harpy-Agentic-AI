@@ -2,6 +2,7 @@
 
 import React, { useState } from "react";
 import Image from "next/image";
+import { cdn } from "@/lib/cdn";
 import { motion, AnimatePresence } from "framer-motion";
 import { Send, CheckCircle2, Mail, MapPin, Sparkles, Feather } from "lucide-react";
 import { GreekDivider } from "@/components/GreekDivider";
@@ -63,7 +64,7 @@ export default function ContactPage() {
             <div className="border border-gold/30 p-2.5 bg-obsidian-light/70 shadow-xl relative">
               <div className="relative aspect-[16/9] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/parthenon.jpg"
+                  src={cdn("/images/parthenon.jpg")}
                   alt="The Parthenon, Acropolis of Athens"
                   fill
                   className="object-cover hover:scale-105 transition-transform duration-700"

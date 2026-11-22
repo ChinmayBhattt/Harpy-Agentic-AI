@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { cdn } from "@/lib/cdn";
 import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -255,7 +256,7 @@ export default function StartedPage() {
         <Link href="/" className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-full border border-[#C6A46A]/40 flex items-center justify-center bg-[#0B0B0F] shadow-sm">
             <Image
-              src="/images/harpy-logo-light.png"
+              src={cdn("/images/harpy-logo-light.png")}
               alt="HARPY"
               width={22}
               height={22}
@@ -288,7 +289,7 @@ export default function StartedPage() {
           <div className="text-center space-y-2">
             <div className="w-12 h-12 rounded-full border border-[#C6A46A]/40 flex items-center justify-center mx-auto bg-[#0E0E16] shadow-[0_0_20px_rgba(198,164,106,0.12)]">
               <Image
-                src="/images/harpy-logo-light.png"
+                src={cdn("/images/harpy-logo-light.png")}
                 alt="Harpy AI"
                 width={30}
                 height={30}

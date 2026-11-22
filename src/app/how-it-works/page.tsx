@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { cdn } from "@/lib/cdn";
 import { motion } from "framer-motion";
 import {
   MessageSquare,
@@ -25,7 +26,7 @@ const steps = [
     title: "Authenticate Your Apps",
     subtitle: "1-Click connection to Gmail, Notion, WhatsApp, Discord, Code Editors & Chrome.",
     icon: MessageSquare,
-    image: "/images/delphi-tholos.jpg",
+    image: cdn("/images/delphi-tholos.jpg"),
     imageAlt: "Tholos of Athena Pronaia at the Sanctuary of Delphi",
     imageCaption: "Sanctuary of Delphi · Connecting fragmented tools into one unified gateway",
     description:
@@ -38,7 +39,7 @@ const steps = [
     title: "State Any Goal",
     subtitle: "Articulate your objective in natural, everyday human language.",
     icon: GitBranch,
-    image: "/images/sounion-temple.jpg",
+    image: cdn("/images/sounion-temple.jpg"),
     imageAlt: "Temple of Poseidon at Cape Sounion at sunset",
     imageCaption: "Cape Sounion · Charting sovereign paths across uncharted waters",
     description:
@@ -51,7 +52,7 @@ const steps = [
     title: "Autonomous In-App Action",
     subtitle: "The agent enters your tools and completes tasks directly inside them.",
     icon: Zap,
-    image: "/images/harpy-greek-vase.jpg",
+    image: cdn("/images/harpy-greek-vase.jpg"),
     imageAlt: "Attic red-figure vase depicting the winged Boreads and Harpies in flight",
     imageCaption: "Attic Kylix (Louvre) · Swift winged agents executing inside your software",
     description:
@@ -64,7 +65,7 @@ const steps = [
     title: "Task Completed & Verified",
     subtitle: "Rigorously confirmed outcomes across all connected applications.",
     icon: CheckCircle2,
-    image: "/images/nike-samothrace.jpg",
+    image: cdn("/images/nike-samothrace.jpg"),
     imageAlt: "The Winged Victory of Samothrace, Louvre Museum",
     imageCaption: "Nike of Samothrace (Louvre) · The crowning verified triumph",
     description:

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { cdn } from "@/lib/cdn";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Menu, X, User } from "lucide-react";
@@ -58,7 +59,7 @@ export function Navigation() {
           {/* Harpy Official Logo */}
           <div className="relative w-10 h-10 rounded-full border border-gold/40 flex items-center justify-center bg-obsidian-light/80 p-1.5 group-hover:border-gold transition-colors duration-300 shadow-[0_0_15px_rgba(198,164,106,0.15)]">
             <Image
-              src="/images/harpy-logo-light.png"
+              src={cdn("/images/harpy-logo-light.png")}
               alt="HARPY AI Logo"
               width={34}
               height={34}

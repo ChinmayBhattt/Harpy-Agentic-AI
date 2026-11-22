@@ -3,6 +3,7 @@
 import React from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { cdn } from "@/lib/cdn";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Feather, Scroll, Compass, Eye } from "lucide-react";
 import { GreekDivider } from "@/components/GreekDivider";
@@ -24,7 +25,7 @@ export default function AboutPage() {
             <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 border border-gold/30 text-gold font-cinzel text-xs tracking-[0.3em] uppercase bg-obsidian-light/60">
               <div className="relative w-4 h-4 flex-shrink-0">
                 <Image
-                  src="/images/harpy-logo-light.png"
+                  src={cdn("/images/harpy-logo-light.png")}
                   alt="Harpy Official Emblem"
                   fill
                   className="object-contain"
@@ -88,7 +89,7 @@ export default function AboutPage() {
             <div className="border border-gold/35 p-3 bg-obsidian-light shadow-xl relative">
               <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/harpy-gold-pendant.jpg"
+                  src={cdn("/images/harpy-gold-pendant.jpg")}
                   alt="Italian Renaissance Harpy Pendant with Gold and Jewels, The Walters Art Museum"
                   fill
                   className="object-cover filter contrast-[1.1] hover:scale-105 transition-transform duration-700"
@@ -160,7 +161,7 @@ export default function AboutPage() {
               <div className="border border-bronze/40 p-3 bg-[#FAF5EC] shadow-md space-y-2">
                 <div className="relative aspect-[16/10] w-full overflow-hidden bg-black">
                   <Image
-                    src="/images/harpy-tomb-north.jpg"
+                    src={cdn("/images/harpy-tomb-north.jpg")}
                     alt="Harpy Tomb North Frieze, British Museum"
                     fill
                     className="object-cover hover:scale-105 transition-transform duration-700"
@@ -182,7 +183,7 @@ export default function AboutPage() {
                 <div className="border border-bronze/35 p-2 bg-[#FAF5EC] shadow-sm">
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                     <Image
-                      src="/images/waterhouse-mythology.jpg"
+                      src={cdn("/images/waterhouse-mythology.jpg")}
                       alt="John William Waterhouse - Ulysses and the Sirens"
                       fill
                       className="object-cover hover:scale-105 transition-transform duration-500"
@@ -200,7 +201,7 @@ export default function AboutPage() {
                 <div className="border border-bronze/35 p-2 bg-[#FAF5EC] shadow-sm">
                   <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                     <Image
-                      src="/images/harpy-del-sarto.jpg"
+                      src={cdn("/images/harpy-del-sarto.jpg")}
                       alt="Andrea del Sarto - Pedestal Harpy Detail"
                       fill
                       className="object-cover hover:scale-105 transition-transform duration-500"
@@ -311,7 +312,7 @@ export default function AboutPage() {
             <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-sm space-y-3 group hover:border-bronze-dark transition-colors duration-300">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/delphi-tholos.jpg"
+                  src={cdn("/images/delphi-tholos.jpg")}
                   alt="Tholos of Athena Pronaia at Delphi"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-700"
@@ -334,7 +335,7 @@ export default function AboutPage() {
             <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-sm space-y-3 group hover:border-bronze-dark transition-colors duration-300">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/sounion-temple.jpg"
+                  src={cdn("/images/sounion-temple.jpg")}
                   alt="Temple of Poseidon at Cape Sounion"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-700"
@@ -357,7 +358,7 @@ export default function AboutPage() {
             <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-sm space-y-3 group hover:border-bronze-dark transition-colors duration-300">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/parthenon.jpg"
+                  src={cdn("/images/parthenon.jpg")}
                   alt="The Parthenon, Acropolis of Athens"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-700"

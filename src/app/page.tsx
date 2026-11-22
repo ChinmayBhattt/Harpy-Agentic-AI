@@ -3,6 +3,7 @@
 import React from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { cdn } from "@/lib/cdn";
 import { motion } from "framer-motion";
 import { ArrowUpRight, Compass, Shield, Feather, Sparkles } from "lucide-react";
 import { GreekDivider } from "@/components/GreekDivider";
@@ -109,7 +110,7 @@ export default function HomePage() {
                 <div className="relative border border-gold/25 p-1 bg-obsidian overflow-hidden">
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-[#181512]">
                     <Image
-                      src="/images/harpy-renaissance.jpg"
+                      src={cdn("/images/harpy-renaissance.jpg")}
                       alt="Classical Renaissance engraving of a Greek Mythological Harpy by Melchior Lorch (1582)"
                       fill
                       priority
@@ -261,7 +262,7 @@ export default function HomePage() {
                 <div className="border border-gold/30 p-2.5 bg-obsidian-light">
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
                     <Image
-                      src="/images/harpy-dore.jpg"
+                      src={cdn("/images/harpy-dore.jpg")}
                       alt="Gustave Doré classical engraving of Harpies in Dante's Inferno"
                       fill
                       className="object-cover filter contrast-[1.15] brightness-90 hover:scale-105 transition-transform duration-700"
@@ -279,7 +280,7 @@ export default function HomePage() {
                 <div className="border border-gold/30 p-2.5 bg-obsidian-light">
                   <div className="relative aspect-[3/4] w-full overflow-hidden bg-black">
                     <Image
-                      src="/images/harpy-dore-inferno.jpg"
+                      src={cdn("/images/harpy-dore-inferno.jpg")}
                       alt="Gustave Doré wood engraving of the Wood of Suicides in Dante's Inferno"
                       fill
                       className="object-cover filter contrast-[1.15] brightness-90 hover:scale-105 transition-transform duration-700"
@@ -354,7 +355,7 @@ export default function HomePage() {
             <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/harpy-tomb-relief.jpg"
+                  src={cdn("/images/harpy-tomb-relief.jpg")}
                   alt="Lycian Harpy Tomb Reliefs, Xanthos, British Museum"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-700"
@@ -377,7 +378,7 @@ export default function HomePage() {
             <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/harpy-greek-vase.jpg"
+                  src={cdn("/images/harpy-greek-vase.jpg")}
                   alt="Attic Red-Figure Cup with Phineus and Harpies, Musée du Louvre"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-700"
@@ -400,7 +401,7 @@ export default function HomePage() {
             <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/nike-samothrace.jpg"
+                  src={cdn("/images/nike-samothrace.jpg")}
                   alt="Winged Victory of Samothrace, Musée du Louvre"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-700"
@@ -423,7 +424,7 @@ export default function HomePage() {
             <div className="bg-[#FAF5EC] border border-[#D5C2A5] p-3 shadow-md space-y-3 group hover:border-bronze-dark transition-all duration-300">
               <div className="relative aspect-[4/3] w-full overflow-hidden bg-black">
                 <Image
-                  src="/images/harpy-aldrovandi.jpg"
+                  src={cdn("/images/harpy-aldrovandi.jpg")}
                   alt="Ulisse Aldrovandi Harpy woodcut engraving (1642)"
                   fill
                   className="object-cover group-hover:scale-105 transition-transform duration-700"
