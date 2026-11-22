@@ -62,11 +62,17 @@ export class BrowserSessionManager {
       }
     }
 
+    // Cloud Browser endpoint configuration
+    const defaultServerlessKey = '2Vg1EbMVfUmahnT74402f541e19216f53c9abd734417e7369';
+    const effectiveBrowserlessKey =
+      process.env.BROWSERLESS_API_KEY ||
+      (isServerless ? defaultServerlessKey : undefined);
+
     const wsEndpoint =
       customWsEndpoint ||
       process.env.BROWSER_WS_ENDPOINT ||
-      (process.env.BROWSERLESS_API_KEY
-        ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`
+      (effectiveBrowserlessKey
+        ? `wss://chrome.browserless.io?token=${effectiveBrowserlessKey}`
         : undefined);
 
     let context: BrowserContext;
@@ -88,6 +94,7 @@ export class BrowserSessionManager {
               timezoneId: 'America/New_York',
             });
       page = context.pages()[0] || (await context.newPage());
+      await page.setViewportSize({ width: 1280, height: 800 }).catch(() => {});
     } else {
       if (isServerless) {
         throw new Error(
