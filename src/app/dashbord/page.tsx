@@ -44,6 +44,9 @@ import {
   User,
   LogOut,
   ShieldCheck,
+  Menu,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 
@@ -394,6 +397,18 @@ export default function DashboardPage() {
         authListener?.subscription.unsubscribe();
       };
     } catch {}
+  }, []);
+
+  // Keyboard shortcut: ⌘B / Ctrl+B to toggle sidebar
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+        e.preventDefault();
+        setSidebarOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
   const handleSignOut = async () => {
@@ -812,13 +827,13 @@ export default function DashboardPage() {
           METALLIC DEEP OBSIDIAN SIDEBAR
          ────────────────────────────────────────────────────────── */}
       <aside
-        className={`relative flex flex-col border-r border-[#14141C] bg-[#07070B] transition-all duration-300 z-30 shadow-2xl flex-shrink-0 ${
-          sidebarOpen ? "w-64 lg:w-72" : "w-0 -translate-x-full lg:translate-x-0 lg:w-0"
+        className={`relative flex flex-col border-r border-[#14141C] bg-[#07070B] transition-all duration-300 ease-in-out z-30 shadow-2xl flex-shrink-0 ${
+          sidebarOpen ? "w-64 lg:w-72 border-r" : "w-0 border-r-0 pointer-events-none opacity-0"
         } overflow-hidden`}
       >
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(198,164,106,0.025),_transparent_75%)] pointer-events-none" />
 
-        {/* Sidebar Header: Logo & Title */}
+        {/* Sidebar Header: Logo & Title + Close Toggle */}
         <div className="h-14 px-4 border-b border-[#14141C] flex items-center justify-between relative z-10 flex-shrink-0">
           <Link
             href="/"
@@ -844,12 +859,14 @@ export default function DashboardPage() {
             </div>
           </Link>
 
+          {/* Close Sidebar Button */}
           <button
             onClick={() => setSidebarOpen(false)}
-            className="lg:hidden p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors"
+            className="p-1.5 rounded-lg text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A] border border-transparent hover:border-[#1C1C26] transition-colors"
+            title="Close sidebar (⌘B)"
             aria-label="Close sidebar"
           >
-            <ChevronLeft className="w-4 h-4" />
+            <PanelLeftClose className="w-4 h-4 text-[#C6A46A]" />
           </button>
         </div>
 
@@ -881,7 +898,7 @@ export default function DashboardPage() {
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
               <Layers className="w-3.5 h-3.5 text-[#C6A46A]" />
               <span className="font-cinzel text-[11px] tracking-wider uppercase">
-                Connectors (7 Active)
+                Connectors
               </span>
             </div>
             <ExternalLink className="w-3 h-3 text-[#C6A46A]/50 group-hover:text-[#C6A46A] transition-colors" />
@@ -1240,15 +1257,19 @@ export default function DashboardPage() {
         {/* Top Operational Bar */}
         <header className="h-14 border-b border-[#14141C] bg-[#07070B]/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between z-20 flex-shrink-0">
           <div className="flex items-center gap-3">
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="p-1.5 text-[#E8DDC7]/70 hover:text-[#C6A46A] transition-colors border border-[#1C1C26] hover:border-[#C6A46A] bg-[#0B0B0F] rounded-md"
-                title="Open Sidebar"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            )}
+            {/* Sidebar Toggle Hamburger (Open / Close) */}
+            <button
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg text-[#E8DDC7]/75 hover:text-[#C6A46A] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] transition-all flex items-center justify-center shadow-sm group"
+              title={sidebarOpen ? "Collapse sidebar (⌘B)" : "Open sidebar (⌘B)"}
+              aria-label={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
+            >
+              {sidebarOpen ? (
+                <PanelLeftClose className="w-4 h-4 text-[#C6A46A] group-hover:scale-105 transition-transform" />
+              ) : (
+                <Menu className="w-4 h-4 text-[#C6A46A] group-hover:scale-105 transition-transform" />
+              )}
+            </button>
 
             {/* Model Badge */}
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#1C1C26] bg-[#0B0B0F]">
