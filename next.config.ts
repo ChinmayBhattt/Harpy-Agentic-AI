@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   serverExternalPackages: ["playwright", "playwright-core"],
   images: {
+    unoptimized: true,
     remotePatterns: [
       {
         protocol: "https",
