@@ -84,18 +84,19 @@ interface DetectedEngine {
 
 function detectEngineFromKey(key: string): DetectedEngine {
   const clean = key.trim();
-  if (clean.startsWith("gsk_")) {
+  if (clean.startsWith("gsk_") || !clean) {
     return {
       provider: "groq",
       providerName: "Groq Cloud",
-      defaultModelId: "llama-3.1-8b-instant",
-      defaultModelName: "Llama 3.1 8B",
+      defaultModelId: "openai/gpt-oss-120b",
+      defaultModelName: "GPT-OSS 120B",
       color: "#F55036",
       models: [
-        { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", speed: "Ultra-Fast (700+ tok/s)" },
-        { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", speed: "High Capacity" },
-        { id: "mixtral-8x7b-32768", name: "Mixtral 8x7B", speed: "Fast" },
-        { id: "gemma2-9b-it", name: "Gemma 2 9B", speed: "Fast" },
+        { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B (Best Model)", speed: "High Reasoning (Best)" },
+        { id: "qwen/qwen3.8-27b", name: "Qwen 3.8 27B", speed: "High Reasoning" },
+        { id: "openai/gpt-oss-20b", name: "GPT-OSS 20B (Fast)", speed: "Fast (300+ tok/s)" },
+        { id: "allam-2-7b", name: "ALLAM 2 7B", speed: "Fast" },
+        { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant", speed: "Ultra-Fast (700+ tok/s)" },
       ],
     };
   }
@@ -128,11 +129,12 @@ function detectEngineFromKey(key: string): DetectedEngine {
   return {
     provider: "groq",
     providerName: "Groq Cloud",
-    defaultModelId: "llama-3.1-8b-instant",
-    defaultModelName: "Llama 3.1 8B",
+    defaultModelId: "openai/gpt-oss-120b",
+    defaultModelName: "GPT-OSS 120B",
     color: "#C6A46A",
     models: [
-      { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B", speed: "Ultra-Fast" },
+      { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B (Best Model)", speed: "High Reasoning" },
+      { id: "qwen/qwen3.8-27b", name: "Qwen 3.8 27B", speed: "Fast" },
     ],
   };
 }
@@ -245,19 +247,21 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [connectorsModalOpen, setConnectorsModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<"models" | "system">("models");
   const [isExecuting, setIsExecuting] = useState(false);
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
   // Model & Auto-Detect API Key State
   const [apiKey, setApiKey] = useState<string>("");
-  const [selectedModelId, setSelectedModelId] = useState<string>("");
-  const [selectedModelName, setSelectedModelName] = useState<string>("Select Model");
+  const [selectedModelId, setSelectedModelId] = useState<string>("openai/gpt-oss-120b");
+  const [selectedModelName, setSelectedModelName] = useState<string>("GPT-OSS 120B");
   const [customModels, setCustomModels] = useState<ModelItem[]>([]);
-  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [tempKeyInput, setTempKeyInput] = useState("");
   const [showKeySecret, setShowKeySecret] = useState(false);
   const [isEditingKey, setIsEditingKey] = useState(false);
+  const [isValidatingKey, setIsValidatingKey] = useState(false);
+  const [keyError, setKeyError] = useState<string | null>(null);
 
   // Chat Options Menu State (Pin, Rename, Share, Delete)
   const [activeMenuSessionId, setActiveMenuSessionId] = useState<string | null>(null);
@@ -277,7 +281,6 @@ export default function DashboardPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
 
   const currentSession =
@@ -339,8 +342,7 @@ export default function DashboardPage() {
         setTempKeyInput(savedKey);
         const engine = detectEngineFromKey(savedKey);
 
-        // Auto-migrate if old deprecated 404 model was saved
-        if (savedModelId === "llama-3.3-70b-versatile" || !savedModelId) {
+        if (!savedModelId || savedModelId === "llama-3.3-70b-versatile") {
           savedModelId = engine.defaultModelId;
           savedModelName = engine.defaultModelName;
           try {
@@ -352,11 +354,34 @@ export default function DashboardPage() {
         setSelectedModelId(savedModelId);
         setSelectedModelName(savedModelName);
 
-        // Query live models in background
         fetch("/api/models", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ apiKey: savedKey, provider: engine.provider }),
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            if (Array.isArray(data?.models) && data.models.length > 0) {
+              setCustomModels(data.models);
+            }
+          })
+          .catch(() => {});
+      } else {
+        // No custom key -> Default to Groq key in .env with GPT-OSS 120B
+        const defaultModelId = savedModelId && savedModelId !== "llama-3.3-70b-versatile"
+          ? savedModelId
+          : "openai/gpt-oss-120b";
+        const defaultModelName = savedModelName && savedModelName !== "Select Model"
+          ? savedModelName
+          : "GPT-OSS 120B";
+
+        setSelectedModelId(defaultModelId);
+        setSelectedModelName(defaultModelName);
+
+        fetch("/api/models", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ apiKey: "" }),
         })
           .then((r) => r.json())
           .then((data) => {
@@ -441,12 +466,9 @@ export default function DashboardPage() {
     setIsSavingProfile(false);
   };
 
-  // Close dropdown when clicking outside
+  // Close menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setIsDropdownOpen(false);
-      }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setActiveMenuSessionId(null);
       }
@@ -462,30 +484,74 @@ export default function DashboardPage() {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [currentSession?.messages, isExecuting]);
 
-  // Save Key & Auto-Detect Model
+  // Save Key & Fetch Live Models for that provider
   const handleSaveKey = async () => {
     const clean = tempKeyInput.trim();
-    if (!clean) return;
+    if (!clean) {
+      handleResetToDefaultKey();
+      return;
+    }
 
+    setIsValidatingKey(true);
+    setKeyError(null);
     const engine = detectEngineFromKey(clean);
-    setApiKey(clean);
-    setSelectedModelId(engine.defaultModelId);
-    setSelectedModelName(engine.defaultModelName);
-    setIsEditingKey(false);
-    setIsDropdownOpen(false);
 
-    try {
-      localStorage.setItem("harpy_user_api_key", clean);
-      localStorage.setItem("harpy_user_model_id", engine.defaultModelId);
-      localStorage.setItem("harpy_user_model_name", engine.defaultModelName);
-    } catch {}
-
-    // Check live accessible models
     try {
       const res = await fetch("/api/models", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: clean, provider: engine.provider }),
+      });
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        setKeyError(errJson.error || "Failed to validate API key. Please check key credentials.");
+        setIsValidatingKey(false);
+        return;
+      }
+
+      const data = await res.json();
+      const models: ModelItem[] =
+        Array.isArray(data?.models) && data.models.length > 0 ? data.models : engine.models;
+      const initialModel = models[0];
+
+      setApiKey(clean);
+      setCustomModels(models);
+      setSelectedModelId(initialModel.id);
+      setSelectedModelName(initialModel.name);
+      setIsEditingKey(false);
+
+      try {
+        localStorage.setItem("harpy_user_api_key", clean);
+        localStorage.setItem("harpy_user_model_id", initialModel.id);
+        localStorage.setItem("harpy_user_model_name", initialModel.name);
+      } catch {}
+    } catch {
+      setKeyError("Network error while validating API key.");
+    }
+    setIsValidatingKey(false);
+  };
+
+  const handleResetToDefaultKey = async () => {
+    setApiKey("");
+    setTempKeyInput("");
+    setIsEditingKey(false);
+    setKeyError(null);
+    try {
+      localStorage.removeItem("harpy_user_api_key");
+      localStorage.setItem("harpy_user_model_id", "openai/gpt-oss-120b");
+      localStorage.setItem("harpy_user_model_name", "GPT-OSS 120B");
+    } catch {}
+
+    setSelectedModelId("openai/gpt-oss-120b");
+    setSelectedModelName("GPT-OSS 120B");
+
+    setIsValidatingKey(true);
+    try {
+      const res = await fetch("/api/models", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: "" }),
       });
       if (res.ok) {
         const data = await res.json();
@@ -494,26 +560,12 @@ export default function DashboardPage() {
         }
       }
     } catch {}
-  };
-
-  const handleRemoveKey = () => {
-    setApiKey("");
-    setTempKeyInput("");
-    setSelectedModelId("");
-    setSelectedModelName("Select Model");
-    setCustomModels([]);
-    setIsEditingKey(false);
-    try {
-      localStorage.removeItem("harpy_user_api_key");
-      localStorage.removeItem("harpy_user_model_id");
-      localStorage.removeItem("harpy_user_model_name");
-    } catch {}
+    setIsValidatingKey(false);
   };
 
   const handleSelectModel = (modelId: string, modelName: string) => {
     setSelectedModelId(modelId);
     setSelectedModelName(modelName);
-    setIsDropdownOpen(false);
     try {
       localStorage.setItem("harpy_user_model_id", modelId);
       localStorage.setItem("harpy_user_model_name", modelName);
@@ -607,31 +659,10 @@ export default function DashboardPage() {
       textareaRef.current.style.overflowY = "hidden";
     }
 
-    // Check if API key is present
-    if (!apiKey || apiKey.trim() === "") {
-      const keyPromptMsg: Message = {
-        id: `harpy-need-key-${Date.now()}`,
-        sender: "harpy",
-        text: "Please click 'Select Model' next to the microphone to paste your API key and activate live autonomous execution.",
-        timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
-        isError: true,
-      };
-
-      setSessions((prev) =>
-        prev.map((s) =>
-          s.id === currentSessionId
-            ? { ...s, messages: [...updatedMessages, keyPromptMsg] }
-            : s
-        )
-      );
-      setIsDropdownOpen(true);
-      return;
-    }
-
     setIsExecuting(true);
 
     try {
-      const engine = detectEngineFromKey(apiKey);
+      const engine = detectEngineFromKey(apiKey || "gsk_default");
       const chosenModel = selectedModelId || engine.defaultModelId;
 
       const apiMessages = [
@@ -648,7 +679,7 @@ export default function DashboardPage() {
         body: JSON.stringify({
           provider: engine.provider,
           model: chosenModel,
-          apiKey: apiKey,
+          apiKey: apiKey || "",
           messages: apiMessages,
         }),
       });
@@ -1032,8 +1063,9 @@ export default function DashboardPage() {
     }
   };
 
-  const currentEngine = apiKey ? detectEngineFromKey(apiKey) : null;
-  const hasActiveKey = Boolean(apiKey && apiKey.trim().length > 0);
+  const isCustomKey = Boolean(apiKey && apiKey.trim().length > 0);
+  const currentEngine = detectEngineFromKey(apiKey || "gsk_default");
+  const hasActiveKey = true;
   const activeModelsList =
     customModels.length > 0 ? customModels : currentEngine ? currentEngine.models : [];
 
@@ -1487,17 +1519,25 @@ export default function DashboardPage() {
               )}
             </button>
 
-            {/* Model Badge */}
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#1C1C26] bg-[#0B0B0F]">
+            {/* Model Badge -> Click to Open API & Models in Settings */}
+            <button
+              type="button"
+              onClick={() => {
+                setSettingsTab("models");
+                setSettingsModalOpen(true);
+              }}
+              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] hover:bg-[#12121A] transition-all cursor-pointer group"
+              title="Configure API Key & Models in System Settings"
+            >
               <span
                 className="w-1.5 h-1.5 rounded-full animate-pulse"
-                style={{ backgroundColor: hasActiveKey ? currentEngine?.color || "#10A37F" : "#C6A46A" }}
+                style={{ backgroundColor: currentEngine?.color || "#F55036" }}
               />
-              <span className="font-cinzel text-xs text-[#E8DDC7] tracking-wider font-medium">
-                HARPY AI · {hasActiveKey ? selectedModelName : "Autonomous Kernel"}
+              <span className="font-cinzel text-xs text-[#E8DDC7] group-hover:text-[#C6A46A] tracking-wider font-medium transition-colors">
+                HARPY AI · {selectedModelName}
               </span>
               <span className="text-[#C6A46A] text-xs font-mono">v2.6</span>
-            </div>
+            </button>
           </div>
 
           <div className="flex items-center gap-4">
@@ -1771,201 +1811,10 @@ export default function DashboardPage() {
                 value={inputValue}
                 onChange={handleTextareaInput}
                 onKeyDown={handleKeyDown}
-                placeholder={
-                  hasActiveKey
-                    ? `Instruct Harpy AI (${selectedModelName})...`
-                    : "Instruct Harpy AI across Gmail, Notion, WhatsApp, Code, Chrome..."
-                }
+                placeholder={`Instruct Harpy AI (${selectedModelName})...`}
                 className="flex-1 max-h-40 py-1 px-1 bg-transparent text-[#E8DDC7] placeholder-[#E8DDC7]/35 text-sm focus:outline-none resize-none font-inter font-light leading-relaxed no-scrollbar"
                 style={{ overflowY: "hidden", resize: "none", scrollbarWidth: "none", msOverflowStyle: "none" }}
               />
-
-              {/* ──────────────────────────────────────────────────
-                  MODEL SELECTOR (Directly to the Left of MIC)
-                  Opens clean UPWARD dropdown with auto-detect API Key
-                 ────────────────────────────────────────────────── */}
-              <div className="relative" ref={dropdownRef}>
-                <button
-                  type="button"
-                  onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                  className={`h-8 px-2.5 rounded-xl border flex items-center gap-1.5 transition-all duration-200 flex-shrink-0 group ${
-                    hasActiveKey
-                      ? "bg-[#0E0E14] border-[#C6A46A]/40 text-[#E8DDC7] hover:border-[#C6A46A] hover:bg-[#14141C]"
-                      : "bg-[#14141C] border-[#22222E] text-[#E8DDC7]/80 hover:text-[#C6A46A] hover:border-[#C6A46A]/50 hover:bg-[#1A1A24]"
-                  }`}
-                  title="Select AI Model & API Key"
-                  aria-label="Model Selector"
-                >
-                  <Sparkles className="w-3.5 h-3.5 text-[#C6A46A]" />
-                  <span className="font-cinzel text-xs font-semibold tracking-wide truncate max-w-[90px] sm:max-w-[135px]">
-                    {hasActiveKey ? selectedModelName : "Select Model"}
-                  </span>
-                  <ChevronUp
-                    className={`w-3 h-3 text-[#C6A46A]/70 group-hover:text-[#C6A46A] transition-transform duration-200 ${
-                      isDropdownOpen ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {/* UPWARD DROPDOWN POPOVER */}
-                <AnimatePresence>
-                  {isDropdownOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.96 }}
-                      transition={{ duration: 0.16 }}
-                      className="absolute bottom-full mb-3 right-0 w-80 sm:w-88 rounded-2xl bg-[#09090E] border border-[#1E1E28] p-4 shadow-2xl z-50 space-y-3.5 backdrop-blur-xl"
-                    >
-                      {!hasActiveKey ? (
-                        /* State 1: No Key Added -> Simple Single Input Field */
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between pb-2 border-b border-[#14141C]">
-                            <div className="flex items-center gap-1.5 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase font-semibold">
-                              <Key className="w-3.5 h-3.5" />
-                              <span>Add API Key</span>
-                            </div>
-                            <span className="text-[10px] text-[#E8DDC7]/45 font-mono">
-                              Auto-detects model
-                            </span>
-                          </div>
-
-                          <div className="space-y-2">
-                            <div className="relative">
-                              <input
-                                type={showKeySecret ? "text" : "password"}
-                                value={tempKeyInput}
-                                onChange={(e) => setTempKeyInput(e.target.value)}
-                                onKeyDown={(e) => {
-                                  if (e.key === "Enter") handleSaveKey();
-                                }}
-                                placeholder="Paste API Key (e.g. gsk_...)"
-                                className="w-full py-2.5 pl-3 pr-9 rounded-xl bg-[#050508] border border-[#1C1C26] focus:border-[#C6A46A] text-xs font-mono text-[#E8DDC7] placeholder-[#E8DDC7]/30 focus:outline-none"
-                                autoFocus
-                              />
-                              <button
-                                type="button"
-                                onClick={() => setShowKeySecret(!showKeySecret)}
-                                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#E8DDC7]/40 hover:text-[#C6A46A] p-0.5"
-                              >
-                                {showKeySecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                              </button>
-                            </div>
-
-                            <button
-                              type="button"
-                              onClick={handleSaveKey}
-                              disabled={!tempKeyInput.trim()}
-                              className="w-full py-2 rounded-xl bg-[#C6A46A] hover:bg-[#E2C99A] text-[#050508] font-cinzel text-xs font-semibold uppercase tracking-wider transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-md"
-                            >
-                              Connect &amp; Auto-Detect Model
-                            </button>
-                          </div>
-
-                          <p className="text-[10.5px] text-[#E8DDC7]/45 text-center font-light leading-relaxed">
-                            Paste your key from Groq, OpenAI, or Claude. Model will be detected automatically.
-                          </p>
-                        </div>
-                      ) : (
-                        /* State 2: Key Added -> Shows Detected Engine & Models */
-                        <div className="space-y-3">
-                          {/* Active Status Header */}
-                          <div className="flex items-center justify-between pb-2 border-b border-[#14141C]">
-                            <div className="flex items-center gap-2">
-                              <span
-                                className="w-2 h-2 rounded-full animate-pulse"
-                                style={{ backgroundColor: currentEngine?.color || "#10A37F" }}
-                              />
-                              <span className="font-cinzel text-xs text-[#E8DDC7] font-semibold">
-                                {currentEngine?.providerName} Active
-                              </span>
-                            </div>
-                            <button
-                              type="button"
-                              onClick={handleRemoveKey}
-                              className="text-[11px] text-red-400 hover:text-red-300 transition-colors"
-                            >
-                              Remove Key
-                            </button>
-                          </div>
-
-                          {/* Available Models for this detected provider */}
-                          <div className="space-y-1.5">
-                            <span className="font-cinzel text-[10px] text-[#C6A46A]/80 uppercase tracking-wider block">
-                              Available Models
-                            </span>
-                            <div className="space-y-1 max-h-44 overflow-y-auto pr-0.5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                              {activeModelsList.map((m) => {
-                                const isSelected = selectedModelId === m.id;
-                                return (
-                                  <button
-                                    key={m.id}
-                                    type="button"
-                                    onClick={() => handleSelectModel(m.id, m.name)}
-                                    className={`w-full p-2.5 rounded-xl border text-left flex items-center justify-between transition-all ${
-                                      isSelected
-                                        ? "bg-[#14141E] border-[#C6A46A] text-[#E8DDC7] shadow-sm"
-                                        : "bg-[#050508] border-[#14141C] text-[#E8DDC7]/70 hover:border-[#C6A46A]/40 hover:text-[#E8DDC7]"
-                                    }`}
-                                  >
-                                    <div className="space-y-0.5">
-                                      <span className="font-cinzel text-xs block font-semibold">
-                                        {m.name}
-                                      </span>
-                                      <span className="text-[10px] font-mono text-emerald-400">
-                                        {m.speed}
-                                      </span>
-                                    </div>
-                                    {isSelected && (
-                                      <div className="w-4 h-4 rounded-full bg-[#C6A46A] flex items-center justify-center text-[#050508]">
-                                        <Check className="w-3 h-3 stroke-[3]" />
-                                      </div>
-                                    )}
-                                  </button>
-                                );
-                              })}
-                            </div>
-                          </div>
-
-                          {/* Change / Update Key Accordion */}
-                          <div className="pt-2 border-t border-[#14141C]">
-                            <div className="flex items-center justify-between text-[11px] text-[#E8DDC7]/50 font-mono">
-                              <span>Key: {apiKey.slice(0, 7)}•••••••{apiKey.slice(-4)}</span>
-                              <button
-                                type="button"
-                                onClick={() => setIsEditingKey(!isEditingKey)}
-                                className="text-[#C6A46A] hover:underline"
-                              >
-                                {isEditingKey ? "Cancel" : "Change Key"}
-                              </button>
-                            </div>
-
-                            {isEditingKey && (
-                              <div className="mt-2 flex gap-1.5 animate-fadeIn">
-                                <input
-                                  type="password"
-                                  value={tempKeyInput}
-                                  onChange={(e) => setTempKeyInput(e.target.value)}
-                                  placeholder="Paste new API key..."
-                                  className="flex-1 py-1.5 px-2.5 rounded-lg bg-[#050508] border border-[#1E1E28] text-xs font-mono text-[#E8DDC7] focus:outline-none focus:border-[#C6A46A]"
-                                  autoFocus
-                                />
-                                <button
-                                  type="button"
-                                  onClick={handleSaveKey}
-                                  className="px-3 py-1.5 bg-[#C6A46A] text-[#050508] rounded-lg font-cinzel text-xs font-semibold hover:bg-[#E2C99A] transition-colors"
-                                >
-                                  Save
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
 
               {/* MIC (Microphone Voice Input) */}
               <button
@@ -2086,7 +1935,7 @@ export default function DashboardPage() {
       </AnimatePresence>
 
       {/* ──────────────────────────────────────────────────────────
-          SETTINGS MODAL
+          SETTINGS MODAL: API & MODELS + SYSTEM CONFIG
          ────────────────────────────────────────────────────────── */}
       <AnimatePresence>
         {settingsModalOpen && (
@@ -2095,61 +1944,254 @@ export default function DashboardPage() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-lg bg-[#08080C] border border-[#1C1C26] rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl relative"
+              className="w-full max-w-xl bg-[#08080C] border border-[#1C1C26] rounded-2xl p-6 sm:p-7 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col"
             >
-              <div className="flex items-center justify-between border-b border-[#14141C] pb-4">
-                <div className="space-y-1">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between border-b border-[#14141C] pb-3.5 flex-shrink-0">
+                <div className="space-y-0.5">
                   <div className="inline-flex items-center gap-2 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase">
-                    <Settings className="w-4 h-4" />
-                    <span>Kernel Configuration</span>
+                    <Settings className="w-3.5 h-3.5" />
+                    <span>Configuration &amp; Inference</span>
                   </div>
                   <h3 className="font-cinzel text-xl text-[#E8DDC7]">System Settings</h3>
                 </div>
                 <button
                   onClick={() => setSettingsModalOpen(false)}
                   className="p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors rounded-lg hover:bg-[#12121A]"
+                  title="Close Settings"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              <div className="space-y-4 text-xs font-inter">
-                <div className="space-y-1.5">
-                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
-                    Active Inference Engine
-                  </label>
-                  <div className="p-3 rounded-xl bg-[#0B0B10] border border-[#171720] text-[#E8DDC7] flex items-center justify-between">
-                    <span>{hasActiveKey ? selectedModelName : "Harpy Sovereign Kernel"}</span>
-                    <span className="text-emerald-400 font-mono text-[11px]">ACTIVE</span>
-                  </div>
-                </div>
+              {/* Tab Selector */}
+              <div className="flex items-center gap-2 border-b border-[#14141C] pb-2 flex-shrink-0">
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab("models")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all ${
+                    settingsTab === "models"
+                      ? "bg-[#C6A46A] text-[#050508] shadow-sm"
+                      : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5" />
+                  <span>API &amp; Models</span>
+                </button>
 
-                <div className="space-y-1.5">
-                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
-                    Safety &amp; In-App Safeguards
-                  </label>
-                  <div className="p-3 rounded-xl bg-[#0B0B10] border border-[#171720] text-[#E8DDC7]/80 leading-relaxed font-light">
-                    Every autonomous action inside Gmail, Notion, WhatsApp, and Code Editors is verified with deterministic invariants and cognitive auditing.
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
-                    Latency &amp; Parallelism
-                  </label>
-                  <div className="p-3 rounded-xl bg-[#0B0B10] border border-[#171720] text-[#E8DDC7] flex items-center justify-between">
-                    <span>Multi-Agent Swarm Concurrency</span>
-                    <span className="text-[#C6A46A] font-mono text-[11px]">MAX (8 WORKERS)</span>
-                  </div>
-                </div>
+                <button
+                  type="button"
+                  onClick={() => setSettingsTab("system")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all ${
+                    settingsTab === "system"
+                      ? "bg-[#C6A46A] text-[#050508] shadow-sm"
+                      : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
+                  }`}
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Kernel &amp; Safety</span>
+                </button>
               </div>
 
-              <div className="pt-2 border-t border-[#14141C] flex justify-end">
+              {/* Modal Body */}
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1 [scrollbar-width:thin] text-xs font-inter">
+                {settingsTab === "models" ? (
+                  <>
+                    {/* Active Status Card */}
+                    <div className="p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720] flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <span
+                          className="w-2.5 h-2.5 rounded-full animate-pulse"
+                          style={{ backgroundColor: currentEngine?.color || "#10A37F" }}
+                        />
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
+                              {isCustomKey ? currentEngine?.providerName : "Groq Cloud (System Default)"}
+                            </span>
+                            <span className="px-2 py-0.5 rounded text-[9px] font-mono border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 uppercase">
+                              {isCustomKey ? "Custom Key" : "Default Key Active"}
+                            </span>
+                          </div>
+                          <span className="text-[11px] font-mono text-[#C6A46A] block mt-0.5">
+                            Active Model: {selectedModelName}
+                          </span>
+                        </div>
+                      </div>
+
+                      {isCustomKey && (
+                        <button
+                          type="button"
+                          onClick={handleResetToDefaultKey}
+                          className="px-2.5 py-1 rounded-lg bg-[#14141C] hover:bg-red-500/20 text-[#E8DDC7]/60 hover:text-red-400 border border-[#22222E] hover:border-red-500/30 text-[11px] font-mono transition-colors"
+                        >
+                          Reset to Default
+                        </button>
+                      )}
+                    </div>
+
+                    {/* API Key Input Section */}
+                    <div className="space-y-2 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
+                      <div className="flex items-center justify-between">
+                        <label className="font-cinzel text-xs uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                          Custom API Key (Optional)
+                        </label>
+                        <span className="text-[10px] text-[#E8DDC7]/40 font-mono">
+                          Groq · OpenAI · Anthropic
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#E8DDC7]/60 font-light leading-relaxed">
+                        Harpy runs on the high-speed default Groq API from environment. Enter your own API key below to unlock your custom models:
+                      </p>
+
+                      <div className="flex gap-2 pt-1">
+                        <div className="relative flex-1">
+                          <input
+                            type={showKeySecret ? "text" : "password"}
+                            value={tempKeyInput}
+                            onChange={(e) => {
+                              setTempKeyInput(e.target.value);
+                              setKeyError(null);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") handleSaveKey();
+                            }}
+                            placeholder="Paste API key (e.g. gsk_... or sk-...)"
+                            className="w-full py-2 pl-3 pr-9 rounded-xl bg-[#050508] border border-[#1E1E28] focus:border-[#C6A46A] text-xs font-mono text-[#E8DDC7] placeholder-[#E8DDC7]/30 focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowKeySecret(!showKeySecret)}
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#E8DDC7]/40 hover:text-[#C6A46A] p-0.5"
+                            title={showKeySecret ? "Hide secret" : "Show secret"}
+                          >
+                            {showKeySecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                          </button>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={handleSaveKey}
+                          disabled={isValidatingKey || !tempKeyInput.trim()}
+                          className="px-4 py-2 bg-[#C6A46A] hover:bg-[#E2C99A] text-[#050508] rounded-xl font-cinzel text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 flex-shrink-0"
+                        >
+                          {isValidatingKey ? (
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-[#050508] border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            "Connect"
+                          )}
+                        </button>
+                      </div>
+
+                      {keyError && (
+                        <p className="text-[11px] text-red-400 font-mono flex items-center gap-1 mt-1">
+                          <AlertCircle className="w-3.5 h-3.5 inline flex-shrink-0" />
+                          <span>{keyError}</span>
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Interactive Model Selection List */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <label className="font-cinzel text-xs uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                          Choose Model ({activeModelsList.length} Available)
+                        </label>
+                        <span className="text-[10px] text-[#E8DDC7]/40 font-mono">
+                          Select model for missions
+                        </span>
+                      </div>
+
+                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 [scrollbar-width:thin]">
+                        {activeModelsList.map((m) => {
+                          const isSelected = selectedModelId === m.id;
+                          return (
+                            <button
+                              key={m.id}
+                              type="button"
+                              onClick={() => handleSelectModel(m.id, m.name)}
+                              className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all group ${
+                                isSelected
+                                  ? "bg-[#14141E] border-[#C6A46A] text-[#E8DDC7] shadow-[0_0_15px_rgba(198,164,106,0.15)] ring-1 ring-[#C6A46A]/30"
+                                  : "bg-[#0A0A0F] border-[#161622] text-[#E8DDC7]/70 hover:border-[#C6A46A]/50 hover:text-[#E8DDC7] hover:bg-[#101018]"
+                              }`}
+                            >
+                              <div className="space-y-0.5">
+                                <div className="flex items-center gap-2">
+                                  <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
+                                    {m.name}
+                                  </span>
+                                  {m.id.includes("120b") && (
+                                    <span className="px-1.5 py-0.5 rounded text-[8.5px] bg-[#C6A46A]/20 text-[#C6A46A] font-mono border border-[#C6A46A]/40 font-medium">
+                                      RECOMMENDED
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 font-mono text-[10px]">
+                                  <span className="text-emerald-400">{m.speed}</span>
+                                  <span className="text-[#E8DDC7]/30">·</span>
+                                  <span className="text-[#E8DDC7]/40 truncate max-w-[200px] sm:max-w-xs">{m.id}</span>
+                                </div>
+                              </div>
+
+                              {isSelected ? (
+                                <div className="w-5 h-5 rounded-full bg-[#C6A46A] flex items-center justify-center text-[#050508] flex-shrink-0 shadow-sm">
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                </div>
+                              ) : (
+                                <div className="w-5 h-5 rounded-full border border-[#22222E] flex-shrink-0 group-hover:border-[#C6A46A]/50 transition-colors" />
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    {/* Kernel & Safety Details */}
+                    <div className="space-y-3">
+                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
+                        <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                          Active Inference Engine
+                        </label>
+                        <div className="flex items-center justify-between text-[#E8DDC7]">
+                          <span className="font-mono text-xs">{selectedModelName} ({selectedModelId})</span>
+                          <span className="text-emerald-400 font-mono text-[11px]">ACTIVE</span>
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
+                        <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                          Safety &amp; In-App Safeguards
+                        </label>
+                        <p className="text-[#E8DDC7]/80 leading-relaxed font-light">
+                          Every autonomous action inside Gmail, Notion, WhatsApp, and Code Editors is verified with deterministic invariants and cognitive auditing.
+                        </p>
+                      </div>
+
+                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
+                        <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                          Multi-Agent Swarm Concurrency
+                        </label>
+                        <div className="flex items-center justify-between text-[#E8DDC7]">
+                          <span>Swarm Workers</span>
+                          <span className="text-[#C6A46A] font-mono text-[11px]">MAX (8 WORKERS)</span>
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="pt-3 border-t border-[#14141C] flex justify-end flex-shrink-0">
                 <button
+                  type="button"
                   onClick={() => setSettingsModalOpen(false)}
-                  className="px-6 py-2 rounded-xl bg-[#C6A46A] text-[#050508] font-cinzel text-xs tracking-wider uppercase font-semibold hover:bg-[#E2C99A] transition-colors"
+                  className="px-6 py-2 rounded-xl bg-[#C6A46A] text-[#050508] font-cinzel text-xs tracking-wider uppercase font-semibold hover:bg-[#E2C99A] transition-colors shadow-md"
                 >
-                  Save &amp; Return
+                  Done
                 </button>
               </div>
             </motion.div>

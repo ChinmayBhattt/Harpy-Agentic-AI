@@ -2,19 +2,27 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { apiKey, provider } = await req.json();
+    const body = await req.json().catch(() => ({}));
+    const { apiKey, provider } = body || {};
 
-    if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
-      return NextResponse.json({ error: "API key is required" }, { status: 400 });
+    const cleanKey = (apiKey && typeof apiKey === "string" && apiKey.trim() !== "")
+      ? apiKey.trim()
+      : (process.env.GROQ_API_KEY || "").trim();
+
+    if (!cleanKey) {
+      return NextResponse.json(
+        { error: "No API key configured. Please add an API key in System Settings." },
+        { status: 400 }
+      );
     }
 
-    const cleanKey = apiKey.trim();
+    const isDefaultKey = !apiKey || apiKey.trim() === "";
     const cleanProvider = (provider || "").toLowerCase();
 
     // ──────────────────────────────────────────────────────────
     // GROQ CLOUD LIVE MODELS
     // ──────────────────────────────────────────────────────────
-    if (cleanProvider === "groq" || cleanKey.startsWith("gsk_")) {
+    if (cleanProvider === "groq" || cleanKey.startsWith("gsk_") || isDefaultKey) {
       const res = await fetch("https://api.groq.com/openai/v1/models", {
         headers: {
           Authorization: `Bearer ${cleanKey}`,
@@ -42,25 +50,35 @@ export async function POST(req: Request) {
         )
         .map((m: { id: string }) => {
           let name = m.id;
-          if (m.id.includes("llama-3.1-8b")) name = "Llama 3.1 8B Instant";
+          if (m.id.includes("gpt-oss-120b")) name = "GPT-OSS 120B (Best Model)";
+          else if (m.id.includes("gpt-oss-20b")) name = "GPT-OSS 20B (Fast)";
+          else if (m.id.includes("qwen3.8-27b") || m.id.includes("qwen")) name = "Qwen 3.8 27B";
+          else if (m.id.includes("allam-2-7b")) name = "ALLAM 2 7B";
+          else if (m.id.includes("llama-3.1-8b")) name = "Llama 3.1 8B Instant";
           else if (m.id.includes("llama-3.3-70b")) name = "Llama 3.3 70B";
           else if (m.id.includes("mixtral-8x7b")) name = "Mixtral 8x7B";
           else if (m.id.includes("gemma2")) name = "Gemma 2 9B";
-          else if (m.id.includes("qwen")) name = "Qwen";
 
           return {
             id: m.id,
             name: name,
-            speed: m.id.includes("8b") ? "Ultra-Fast (700+ tok/s)" : "Fast (300+ tok/s)",
+            speed: m.id.includes("120b")
+              ? "High Reasoning (Best)"
+              : m.id.includes("8b")
+              ? "Ultra-Fast (700+ tok/s)"
+              : "Fast (300+ tok/s)",
           };
         });
 
       return NextResponse.json({
         provider: "groq",
         providerName: "Groq Cloud",
+        isDefaultKey,
+        defaultModelId: "openai/gpt-oss-120b",
         models: chatModels.length > 0 ? chatModels : [
-          { id: "llama-3.1-8b-instant", name: "Llama 3.1 8B Instant", speed: "Ultra-Fast" },
-          { id: "llama-3.3-70b-versatile", name: "Llama 3.3 70B", speed: "Fast" },
+          { id: "openai/gpt-oss-120b", name: "GPT-OSS 120B (Best Model)", speed: "High Reasoning" },
+          { id: "qwen/qwen3.8-27b", name: "Qwen 3.8 27B", speed: "Fast" },
+          { id: "openai/gpt-oss-20b", name: "GPT-OSS 20B (Fast)", speed: "Fast" },
         ],
       });
     }

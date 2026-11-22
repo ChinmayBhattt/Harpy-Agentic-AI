@@ -73,7 +73,7 @@ function detectProvider(key: string, passedProvider?: string): {
       provider: passedProvider,
       defaultModel:
         passedProvider === "groq"
-          ? "llama-3.1-8b-instant"
+          ? "openai/gpt-oss-120b"
           : passedProvider === "openai"
           ? "gpt-4o"
           : "claude-3-5-sonnet-20241022",
@@ -81,7 +81,7 @@ function detectProvider(key: string, passedProvider?: string): {
   }
 
   if (clean.startsWith("gsk_")) {
-    return { provider: "groq", defaultModel: "llama-3.1-8b-instant" };
+    return { provider: "groq", defaultModel: "openai/gpt-oss-120b" };
   }
   if (clean.startsWith("sk-ant-")) {
     return { provider: "anthropic", defaultModel: "claude-3-5-sonnet-20241022" };
@@ -90,7 +90,7 @@ function detectProvider(key: string, passedProvider?: string): {
     return { provider: "openai", defaultModel: "gpt-4o" };
   }
 
-  return { provider: "groq", defaultModel: "llama-3.1-8b-instant" };
+  return { provider: "groq", defaultModel: "openai/gpt-oss-120b" };
 }
 
 export async function POST(req: Request) {
@@ -98,14 +98,17 @@ export async function POST(req: Request) {
     const body = await req.json();
     const { provider, model, apiKey, messages } = body;
 
-    if (!apiKey || typeof apiKey !== "string" || apiKey.trim() === "") {
+    const cleanKey = (apiKey && typeof apiKey === "string" && apiKey.trim() !== "")
+      ? apiKey.trim()
+      : (process.env.GROQ_API_KEY || "").trim();
+
+    if (!cleanKey) {
       return NextResponse.json(
-        { error: "No API key provided. Please connect your API key in the Model Selector." },
+        { error: "No API key configured. Please add an API key in System Settings." },
         { status: 400 }
       );
     }
 
-    const cleanKey = apiKey.trim();
     const detected = detectProvider(cleanKey, provider);
     const chosenProvider = detected.provider;
     const initialModel = model || detected.defaultModel;
@@ -138,10 +141,14 @@ export async function POST(req: Request) {
     if (chosenProvider === "groq") {
       const candidateModels = [
         initialModel,
+        "openai/gpt-oss-120b",
+        "qwen/qwen3.8-27b",
+        "openai/gpt-oss-20b",
+        "allam-2-7b",
         "llama-3.1-8b-instant",
         "mixtral-8x7b-32768",
         "gemma2-9b-it",
-      ];
+      ].filter(Boolean);
       const uniqueModels = Array.from(new Set(candidateModels));
 
       let lastError = "";
