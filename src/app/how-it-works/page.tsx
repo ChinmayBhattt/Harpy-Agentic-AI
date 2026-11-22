@@ -326,7 +326,7 @@ export default function HowItWorksPage() {
           </p>
           <div className="pt-4">
             <Link
-              href="/contact"
+              href="/started"
               className="inline-flex items-center gap-3 px-8 py-4 bg-gold text-obsidian font-cinzel text-xs tracking-[0.2em] uppercase font-semibold hover:bg-[#E2C99A] transition-all duration-300"
             >
               <span>Connect Your Ecosystem</span>

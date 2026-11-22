@@ -1,11 +1,12 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
-import { Menu, X } from "lucide-react";
+import { Menu, X, User } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 
 const navLinks = [
   { href: "/", label: "Home" },
@@ -17,10 +18,34 @@ const navLinks = [
 export function Navigation() {
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  if (pathname?.startsWith("/dashbord") || pathname?.startsWith("/dashboard")) {
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => {
+      setUserEmail(data?.user?.email || null);
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUserEmail(session?.user?.email || null);
+    });
+
+    return () => {
+      authListener?.subscription.unsubscribe();
+    };
+  }, []);
+
+  if (
+    pathname?.startsWith("/dashbord") ||
+    pathname?.startsWith("/dashboard") ||
+    pathname === "/started"
+  ) {
     return null;
   }
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setUserEmail(null);
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-obsidian/85 border-b border-gold/15 transition-all duration-300">
@@ -80,12 +105,31 @@ export function Navigation() {
 
         {/* Action Button */}
         <div className="hidden md:flex items-center gap-4">
-          <Link
-            href="/contact"
-            className="px-5 py-2 text-xs font-cinzel tracking-[0.18em] uppercase border border-gold/40 text-gold hover:bg-gold hover:text-obsidian transition-all duration-300 rounded-none shadow-sm hover:shadow-[0_0_15px_rgba(198,164,106,0.2)]"
-          >
-            Initiate Contact
-          </Link>
+          {userEmail ? (
+            <div className="flex items-center gap-3">
+              <Link
+                href="/dashbord"
+                className="px-5 py-2 text-xs font-cinzel tracking-[0.18em] uppercase bg-gold text-obsidian font-semibold hover:bg-[#E2C99A] transition-all duration-300 shadow-sm hover:shadow-[0_0_15px_rgba(198,164,106,0.3)] flex items-center gap-1.5"
+              >
+                <span>Dashboard</span>
+                <span className="text-[10px]">↗</span>
+              </Link>
+              <button
+                onClick={handleSignOut}
+                className="text-[11px] font-cinzel tracking-wider text-parchment/50 hover:text-gold uppercase transition-colors"
+                title="Sign Out"
+              >
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <Link
+              href="/started"
+              className="px-5 py-2 text-xs font-cinzel tracking-[0.18em] uppercase border border-gold/50 text-gold hover:bg-gold hover:text-obsidian transition-all duration-300 rounded-none shadow-sm hover:shadow-[0_0_15px_rgba(198,164,106,0.2)]"
+            >
+              Get Started
+            </Link>
+          )}
         </div>
 
         {/* Mobile Hamburger Button */}
@@ -124,13 +168,34 @@ export function Navigation() {
                   </Link>
                 );
               })}
-              <Link
-                href="/contact"
-                onClick={() => setMobileMenuOpen(false)}
-                className="mt-4 text-center py-3 text-xs font-cinzel tracking-[0.2em] uppercase bg-gold text-obsidian font-semibold"
-              >
-                Initiate Contact
-              </Link>
+              {userEmail ? (
+                <div className="flex flex-col gap-2 mt-4">
+                  <Link
+                    href="/dashbord"
+                    onClick={() => setMobileMenuOpen(false)}
+                    className="text-center py-3 text-xs font-cinzel tracking-[0.2em] uppercase bg-gold text-obsidian font-semibold"
+                  >
+                    Enter Dashboard ↗
+                  </Link>
+                  <button
+                    onClick={() => {
+                      handleSignOut();
+                      setMobileMenuOpen(false);
+                    }}
+                    className="text-center py-2 text-xs font-cinzel tracking-[0.2em] uppercase text-parchment/60 hover:text-gold"
+                  >
+                    Sign Out
+                  </button>
+                </div>
+              ) : (
+                <Link
+                  href="/started"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="mt-4 text-center py-3 text-xs font-cinzel tracking-[0.2em] uppercase bg-gold text-obsidian font-semibold"
+                >
+                  Get Started
+                </Link>
+              )}
             </div>
           </motion.div>
         )}

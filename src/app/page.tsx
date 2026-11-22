@@ -467,10 +467,10 @@ export default function HomePage() {
 
           <div className="pt-4 flex flex-wrap justify-center gap-5">
             <Link
-              href="/contact"
+              href="/started"
               className="px-8 py-4 bg-gold text-obsidian font-cinzel text-xs tracking-[0.22em] uppercase font-semibold hover:bg-[#E2C99A] transition-all duration-300 hover:shadow-[0_0_30px_rgba(198,164,106,0.3)]"
             >
-              Initiate Consultation
+              Get Started
             </Link>
             <Link
               href="/how-it-works"
