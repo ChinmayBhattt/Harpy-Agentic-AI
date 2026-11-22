@@ -310,63 +310,63 @@ export default function BrowserPanel({
     switch (status) {
       case 'observing':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-full animate-pulse">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-amber-500/10 border border-amber-500/30 text-amber-300 rounded-full animate-pulse whitespace-nowrap shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-            Observing Viewport
+            Observing
           </span>
         );
       case 'planning':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-blue-500/10 border border-blue-500/30 text-blue-300 rounded-full animate-pulse">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-blue-500/10 border border-blue-500/30 text-blue-300 rounded-full animate-pulse whitespace-nowrap shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-blue-400" />
-            Synthesizing Plan
+            Planning
           </span>
         );
       case 'acting':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-full animate-pulse">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-full animate-pulse whitespace-nowrap shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-            Executing Action
+            Executing
           </span>
         );
       case 'verifying':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-full animate-pulse">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-purple-500/10 border border-purple-500/30 text-purple-300 rounded-full animate-pulse whitespace-nowrap shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-purple-400" />
-            Verifying State
+            Verifying
           </span>
         );
       case 'awaiting_confirmation':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-full animate-pulse">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-rose-500/20 border border-rose-500/40 text-rose-300 rounded-full animate-pulse whitespace-nowrap shrink-0">
             <ShieldAlert className="w-3 h-3 text-rose-400" />
-            Authorization Required
+            Authorization
           </span>
         );
       case 'manual':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-bronze/10 border border-bronze/30 text-[#D5C2A5] rounded-full">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-bronze/10 border border-bronze/30 text-[#D5C2A5] rounded-full whitespace-nowrap shrink-0">
             <Hand className="w-3 h-3 text-gold" />
-            Manual Pilot
+            Pilot
           </span>
         );
       case 'completed':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-full">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 rounded-full whitespace-nowrap shrink-0">
             <CheckCircle2 className="w-3 h-3 text-emerald-400" />
-            Mission Complete
+            Complete
           </span>
         );
       case 'error':
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-red-500/10 border border-red-500/30 text-red-300 rounded-full">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-red-500/10 border border-red-500/30 text-red-300 rounded-full whitespace-nowrap shrink-0">
             <AlertTriangle className="w-3 h-3 text-red-400" />
-            Flight Issue
+            Issue
           </span>
         );
       default:
         return (
-          <span className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-medium tracking-wide uppercase bg-white/5 border border-white/10 text-parchment-muted rounded-full">
+          <span className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium tracking-wide uppercase bg-white/5 border border-white/10 text-parchment-muted rounded-full whitespace-nowrap shrink-0">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400/80" />
             Kernel Ready
           </span>
@@ -387,127 +387,136 @@ export default function BrowserPanel({
       }`}
     >
       {/* ────────────────────────────────────────────────────────── */}
-      {/* 1. TOP BROWSER CONTROLS & OMNIBOX */}
+      {/* 1. TOP BROWSER CONTROLS & OMNIBOX (STICKY & COMPACT) */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 bg-[#141210] border-b border-[#2D2824]">
-        {/* Navigation History & Controls */}
-        <div className="flex items-center gap-1.5">
-          <button
-            onClick={() => handleHistory('back')}
-            title="Back"
-            className="p-1.5 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleHistory('forward')}
-            title="Forward"
-            className="p-1.5 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <ArrowRight className="w-4 h-4" />
-          </button>
-          <button
-            onClick={() => handleHistory('reload')}
-            title="Reload"
-            className="p-1.5 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
-          >
-            <RotateCw className="w-4 h-4" />
-          </button>
-        </div>
-
-        {/* Omnibox / URL Bar */}
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            handleNavigate();
-          }}
-          className="flex-1 min-w-[260px] max-w-2xl flex items-center bg-[#090807] border border-[#332D27] rounded-lg px-3 py-1.5 focus-within:border-gold/50 transition-colors"
-        >
-          <Globe className="w-3.5 h-3.5 text-gold/70 mr-2 shrink-0" />
-          <input
-            type="text"
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            placeholder="Search Google or enter URL..."
-            className="w-full bg-transparent text-xs font-mono text-parchment focus:outline-none"
-          />
-          <button
-            type="submit"
-            className="ml-2 text-xs text-gold hover:text-parchment transition-colors shrink-0"
-          >
-            <Search className="w-3.5 h-3.5" />
-          </button>
-        </form>
-
-        {/* Mode Toggle & Status & View Controls */}
-        <div className="flex items-center gap-2.5">
-          {/* Status Badge */}
-          {getStatusBadge()}
-
-          {/* Mode Switcher */}
-          <div className="flex items-center bg-[#1D1A17] border border-[#332D27] rounded-lg p-0.5">
+      <div className="shrink-0 z-20 bg-[#141210] border-b border-[#2D2824] flex flex-col">
+        {/* Row 1: Nav buttons, Omnibox, Window controls */}
+        <div className="flex items-center gap-1.5 px-3 py-2">
+          {/* Navigation History & Controls */}
+          <div className="flex items-center gap-0.5 shrink-0">
             <button
-              onClick={() => handleSetMode('agent')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors ${
-                sessionState?.controlMode === 'agent'
-                  ? 'bg-gold/15 text-gold font-medium border border-gold/30'
-                  : 'text-[#D5C2A5]/60 hover:text-white'
-              }`}
-              title="AI executes tasks independently"
+              onClick={() => handleHistory('back')}
+              title="Back"
+              className="p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
             >
-              <Sparkles className="w-3 h-3" />
-              Agent
+              <ArrowLeft className="w-3.5 h-3.5" />
             </button>
             <button
-              onClick={() => handleSetMode('manual')}
-              className={`flex items-center gap-1.5 px-2.5 py-1 text-xs rounded transition-colors ${
-                sessionState?.controlMode === 'manual'
-                  ? 'bg-white/10 text-white font-medium border border-white/20'
-                  : 'text-[#D5C2A5]/60 hover:text-white'
-              }`}
-              title="Manual clicks & inputs"
+              onClick={() => handleHistory('forward')}
+              title="Forward"
+              className="p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
             >
-              <Hand className="w-3 h-3" />
-              Pilot
+              <ArrowRight className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={() => handleHistory('reload')}
+              title="Reload"
+              className="p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
+            >
+              <RotateCw className="w-3.5 h-3.5" />
             </button>
           </div>
 
-          {/* Stop / Reset Buttons */}
-          {isAgentWorking && (
-            <button
-              onClick={handleStopAgent}
-              className="flex items-center gap-1 px-2.5 py-1 text-xs bg-rose-500/15 border border-rose-500/30 text-rose-300 rounded hover:bg-rose-500/25 transition-colors"
-              title="Halt active agent run"
-            >
-              <Square className="w-3 h-3" />
-              Stop
-            </button>
-          )}
-
-          {onToggleExpand && (
-            <button
-              onClick={onToggleExpand}
-              className="p-1.5 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
-              title={isExpanded ? 'Restore IDE Split' : 'Expand Panel'}
-            >
-              {isExpanded ? <Minimize2 className="w-4 h-4" /> : <Maximize2 className="w-4 h-4" />}
-            </button>
-          )}
-
-          <button
-            onClick={onClose}
-            className="p-1.5 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
-            title="Close Browser View"
+          {/* Omnibox / URL Bar */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleNavigate();
+            }}
+            className="flex-1 min-w-0 flex items-center bg-[#090807] border border-[#332D27] rounded-lg px-2.5 py-1 focus-within:border-gold/50 transition-colors"
           >
-            <X className="w-4 h-4" />
-          </button>
+            <Globe className="w-3.5 h-3.5 text-gold/70 mr-1.5 shrink-0" />
+            <input
+              type="text"
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              placeholder="Search Google or enter URL..."
+              className="w-full bg-transparent text-xs font-mono text-parchment focus:outline-none min-w-0"
+            />
+            <button
+              type="submit"
+              className="ml-1.5 text-xs text-gold hover:text-parchment transition-colors shrink-0"
+            >
+              <Search className="w-3.5 h-3.5" />
+            </button>
+          </form>
+
+          {/* Window Controls */}
+          <div className="flex items-center gap-1 shrink-0">
+            {onToggleExpand && (
+              <button
+                onClick={onToggleExpand}
+                className="p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
+                title={isExpanded ? 'Restore IDE Split' : 'Expand Panel'}
+              >
+                {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className="p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
+              title="Close Browser View"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+
+        {/* Row 2: Status pill, Mode switcher, Stop button */}
+        <div className="flex items-center justify-between px-3 py-1 bg-[#0E0C0A] border-t border-[#1F1B17]">
+          {/* Left: Status Badge */}
+          <div className="shrink-0">
+            {getStatusBadge()}
+          </div>
+
+          {/* Right: Mode Switcher & Stop button */}
+          <div className="flex items-center gap-2 shrink-0">
+            {isAgentWorking && (
+              <button
+                onClick={handleStopAgent}
+                className="flex items-center gap-1 px-2 py-0.5 text-[11px] bg-rose-500/15 border border-rose-500/30 text-rose-300 rounded hover:bg-rose-500/25 transition-colors shrink-0 whitespace-nowrap"
+                title="Halt active agent run"
+              >
+                <Square className="w-2.5 h-2.5" />
+                Stop
+              </button>
+            )}
+
+            <div className="flex items-center bg-[#1D1A17] border border-[#332D27] rounded-md p-0.5 shrink-0">
+              <button
+                onClick={() => handleSetMode('agent')}
+                className={`flex items-center gap-1 px-2 py-0.5 text-[11px] rounded transition-colors whitespace-nowrap ${
+                  sessionState?.controlMode === 'agent'
+                    ? 'bg-gold/15 text-gold font-medium border border-gold/30'
+                    : 'text-[#D5C2A5]/60 hover:text-white'
+                }`}
+                title="AI executes tasks independently"
+              >
+                <Sparkles className="w-2.5 h-2.5" />
+                Agent
+              </button>
+              <button
+                onClick={() => handleSetMode('manual')}
+                className={`flex items-center gap-1 px-2 py-0.5 text-[11px] rounded transition-colors whitespace-nowrap ${
+                  sessionState?.controlMode === 'manual'
+                    ? 'bg-white/10 text-white font-medium border border-white/20'
+                    : 'text-[#D5C2A5]/60 hover:text-white'
+                }`}
+                title="Manual clicks & inputs"
+              >
+                <Hand className="w-2.5 h-2.5" />
+                Pilot
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       {/* ────────────────────────────────────────────────────────── */}
       {/* 2. MAIN BROWSER AREA (VIEWPORT & LIVE OVERLAY) */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div className="relative flex-1 bg-black flex flex-col items-center justify-center overflow-hidden min-h-[380px]">
+      <div className="relative flex-1 bg-black flex flex-col items-center justify-center overflow-hidden min-h-0">
         {sessionState?.screenshot ? (
           <div
             ref={viewportRef}
@@ -650,55 +659,57 @@ export default function BrowserPanel({
       {/* ────────────────────────────────────────────────────────── */}
       {/* 3. AGENT REASONING & TELEMETRY DRAWER */}
       {/* ────────────────────────────────────────────────────────── */}
-      <div className="bg-[#12100E] border-t border-[#2D2824] flex flex-col">
+      <div className="bg-[#12100E] border-t border-[#2D2824] flex flex-col shrink-0">
         {/* Drawer Header & Tabs */}
-        <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-[#24201C] bg-[#161412] gap-2">
+        <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-[#24201C] bg-[#161412] gap-1.5 shrink-0">
           {/* Left: Tab Switchers */}
-          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={() => setActiveTab('loop')}
-              className={`flex items-center gap-1.5 text-xs font-cinzel font-semibold transition-all py-1 px-2.5 rounded-lg ${
+              className={`flex items-center gap-1 text-[11px] font-cinzel font-semibold transition-all py-1 px-2 rounded-md whitespace-nowrap shrink-0 ${
                 activeTab === 'loop'
                   ? 'bg-gold/15 text-gold border border-gold/40 shadow-sm'
                   : 'text-[#D5C2A5]/60 hover:text-parchment hover:bg-white/5 border border-transparent'
               }`}
+              title="Autonomous Loop telemetry & logs"
             >
-              <Cpu className="w-3.5 h-3.5 shrink-0" />
-              <span>Autonomous Loop</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/50 text-gold font-medium ml-0.5">
+              <Cpu className="w-3 h-3 shrink-0" />
+              <span>Loop</span>
+              <span className="px-1 py-0.2 rounded text-[10px] font-mono bg-black/60 text-gold font-medium ml-0.5">
                 {logs.length}
               </span>
             </button>
 
             <button
               onClick={() => setActiveTab('elements')}
-              className={`flex items-center gap-1.5 text-xs font-cinzel font-semibold transition-all py-1 px-2.5 rounded-lg ${
+              className={`flex items-center gap-1 text-[11px] font-cinzel font-semibold transition-all py-1 px-2 rounded-md whitespace-nowrap shrink-0 ${
                 activeTab === 'elements'
                   ? 'bg-gold/15 text-gold border border-gold/40 shadow-sm'
                   : 'text-[#D5C2A5]/60 hover:text-parchment hover:bg-white/5 border border-transparent'
               }`}
+              title="Interactive DOM elements detected"
             >
-              <Layers className="w-3.5 h-3.5 shrink-0" />
-              <span>DOM Elements</span>
-              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/50 text-[#D5C2A5] font-medium ml-0.5">
+              <Layers className="w-3 h-3 shrink-0" />
+              <span>DOM</span>
+              <span className="px-1 py-0.2 rounded text-[10px] font-mono bg-black/60 text-[#D5C2A5] font-medium ml-0.5">
                 {sessionState?.interactiveElements?.length || 0}
               </span>
             </button>
           </div>
 
           {/* Right: Actions (Reset + Collapse) */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-1.5 shrink-0">
             <button
               onClick={handleReset}
-              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-lg bg-[#0E0C0A] border border-[#2D2824] text-[#D5C2A5]/70 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 transition-all shadow-sm"
+              className="flex items-center gap-1 px-2 py-1 text-[11px] font-mono rounded-md bg-[#0E0C0A] border border-[#2D2824] text-[#D5C2A5]/70 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 transition-all shadow-sm whitespace-nowrap shrink-0"
               title="Reset session to clean Google instance"
             >
-              <RotateCw className="w-3 h-3" />
-              <span>Reset Session</span>
+              <RotateCw className="w-2.5 h-2.5 shrink-0" />
+              <span>Reset</span>
             </button>
             <button
               onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-              className="p-1.5 rounded-lg text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 border border-transparent hover:border-[#2D2824] transition-colors"
+              className="p-1 rounded-md text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 border border-transparent hover:border-[#2D2824] transition-colors shrink-0"
               title={isDrawerOpen ? "Collapse drawer" : "Expand drawer"}
             >
               {isDrawerOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
@@ -708,7 +719,7 @@ export default function BrowserPanel({
 
         {/* Drawer Body */}
         {isDrawerOpen && (
-          <div className="h-44 overflow-y-auto p-3 space-y-2 text-xs font-mono">
+          <div className="max-h-36 min-h-24 overflow-y-auto p-2.5 space-y-1.5 text-xs font-mono">
             {activeTab === 'loop' ? (
               logs.length > 0 ? (
                 logs.map((log) => {
@@ -812,7 +823,7 @@ export default function BrowserPanel({
         {/* ────────────────────────────────────────────────────────── */}
         {/* 4. GOAL INPUT & LAUNCH BAR */}
         {/* ────────────────────────────────────────────────────────── */}
-        <div className="p-3 bg-[#0E0C0A] border-t border-[#26211C]">
+        <div className="p-2.5 bg-[#0E0C0A] border-t border-[#26211C] shrink-0">
           {/* Goal Input Field */}
           <form
             onSubmit={(e) => {
@@ -821,23 +832,23 @@ export default function BrowserPanel({
             }}
             className="flex items-center gap-2"
           >
-            <div className="relative flex-1 flex items-center bg-[#070605] border border-[#332D27] rounded-lg px-3 py-2 focus-within:border-gold transition-colors">
-              <Compass className="w-4 h-4 text-gold/70 mr-2 shrink-0" />
+            <div className="relative flex-1 min-w-0 flex items-center bg-[#070605] border border-[#332D27] rounded-lg px-2.5 py-1.5 focus-within:border-gold transition-colors">
+              <Compass className="w-3.5 h-3.5 text-gold/70 mr-1.5 shrink-0" />
               <input
                 type="text"
                 value={goalInput}
                 onChange={(e) => setGoalInput(e.target.value)}
                 placeholder="Give Harpy any autonomous browsing mission..."
-                className="w-full bg-transparent text-xs text-parchment placeholder-[#6B5E51] focus:outline-none"
+                className="w-full bg-transparent text-xs text-parchment placeholder-[#6B5E51] focus:outline-none min-w-0"
               />
             </div>
 
             <button
               type="submit"
               disabled={isAgentWorking || !goalInput.trim()}
-              className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-gold-dark via-gold to-bronze text-black font-semibold text-xs rounded-lg shadow-md hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-wider shrink-0"
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-gold-dark via-gold to-bronze text-black font-semibold text-xs rounded-lg shadow-md hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-wider shrink-0 whitespace-nowrap"
             >
-              <Play className="w-3.5 h-3.5 fill-black" />
+              <Play className="w-3 h-3 fill-black shrink-0" />
               Take Flight
             </button>
           </form>
