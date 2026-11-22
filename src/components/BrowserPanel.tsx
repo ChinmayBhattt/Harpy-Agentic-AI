@@ -533,42 +533,6 @@ export default function BrowserPanel({
                 className="absolute w-8 h-8 rounded-full border-2 border-gold bg-gold/20 animate-ping pointer-events-none"
               />
             )}
-
-            {/* Interactive Element Numbered Overlays in Agent Mode */}
-            {sessionState.controlMode === 'agent' &&
-              sessionState.interactiveElements?.slice(0, 30).map((el) => {
-                if (!viewportRef.current) return null;
-                const containerRect = viewportRef.current.getBoundingClientRect();
-                const scaleX = containerRect.width / 1280;
-                const scaleY = containerRect.height / 800;
-
-                const left = el.rect.x * scaleX;
-                const top = el.rect.y * scaleY;
-                const width = Math.max(el.rect.width * scaleX, 16);
-                const height = Math.max(el.rect.height * scaleY, 14);
-
-                return (
-                  <div
-                    key={el.index}
-                    style={{ left, top, width, height }}
-                    className={`absolute pointer-events-none border transition-all ${
-                      el.isSensitive
-                        ? 'border-rose-500/70 bg-rose-500/10'
-                        : 'border-gold/40 hover:border-gold bg-gold/5'
-                    }`}
-                  >
-                    <span
-                      className={`absolute -top-3.5 -left-1 text-[9px] font-mono px-1 py-0.2 rounded shadow font-bold ${
-                        el.isSensitive
-                          ? 'bg-rose-600 text-white'
-                          : 'bg-[#1C1814] border border-gold/60 text-gold'
-                      }`}
-                    >
-                      {el.index}
-                    </span>
-                  </div>
-                );
-              })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-8 text-center space-y-3">
