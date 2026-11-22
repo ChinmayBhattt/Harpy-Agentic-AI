@@ -41,6 +41,9 @@ import {
   Pencil,
   Share2,
   MoreHorizontal,
+  User,
+  LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 
@@ -215,11 +218,25 @@ const SUGGESTIONS = [
   },
 ];
 
+interface AuthUserProfile {
+  id: string;
+  email: string;
+  fullName: string;
+  avatarUrl?: string;
+  role: string;
+  createdAt?: string;
+}
+
 export default function DashboardPage() {
   const router = useRouter();
   const [sessions, setSessions] = useState<ChatSession[]>([]);
   const [currentSessionId, setCurrentSessionId] = useState<string>("session-init");
-  const [authUser, setAuthUser] = useState<{ email?: string; id?: string } | null>(null);
+  const [authUser, setAuthUser] = useState<AuthUserProfile | null>(null);
+  const [profileModalOpen, setProfileModalOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [newDisplayName, setNewDisplayName] = useState("");
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement>(null);
   const [inputValue, setInputValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -338,13 +355,39 @@ export default function DashboardPage() {
           .catch(() => {});
       }
 
+      // Helper to build rich operator profile from Supabase user
+      const buildProfile = (u: any): AuthUserProfile => {
+        const metaName = u.user_metadata?.full_name || u.user_metadata?.name;
+        const derivedName = metaName || (u.email ? u.email.split("@")[0] : "Operator");
+        return {
+          id: u.id,
+          email: u.email || "",
+          fullName: derivedName,
+          avatarUrl: u.user_metadata?.avatar_url,
+          role: "Sovereign Operator",
+          createdAt: u.created_at,
+        };
+      };
+
       // Check active Supabase session
       supabase.auth.getUser().then(({ data }) => {
-        setAuthUser(data?.user ? { email: data.user.email, id: data.user.id } : null);
+        if (data?.user) {
+          const prof = buildProfile(data.user);
+          setAuthUser(prof);
+          setNewDisplayName(prof.fullName);
+        } else {
+          setAuthUser(null);
+        }
       });
 
       const { data: authListener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setAuthUser(session?.user ? { email: session.user.email, id: session.user.id } : null);
+        if (session?.user) {
+          const prof = buildProfile(session.user);
+          setAuthUser(prof);
+          setNewDisplayName(prof.fullName);
+        } else {
+          setAuthUser(null);
+        }
       });
 
       return () => {
@@ -359,6 +402,21 @@ export default function DashboardPage() {
     router.push("/");
   };
 
+  const handleUpdateProfile = async () => {
+    if (!newDisplayName.trim()) return;
+    setIsSavingProfile(true);
+    try {
+      const { data, error } = await supabase.auth.updateUser({
+        data: { full_name: newDisplayName.trim() },
+      });
+      if (!error && data?.user) {
+        setAuthUser((prev) => (prev ? { ...prev, fullName: newDisplayName.trim() } : null));
+        setProfileModalOpen(false);
+      }
+    } catch {}
+    setIsSavingProfile(false);
+  };
+
   // Close dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -367,6 +425,9 @@ export default function DashboardPage() {
       }
       if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
         setActiveMenuSessionId(null);
+      }
+      if (profileMenuRef.current && !profileMenuRef.current.contains(e.target as Node)) {
+        setProfileMenuOpen(false);
       }
     };
     document.addEventListener("mousedown", handleClickOutside);
@@ -1033,16 +1094,134 @@ export default function DashboardPage() {
         </div>
 
         {/* Sidebar Footer */}
-        <div className="p-3.5 pt-3 pb-12 border-t border-[#14141C] bg-[#050508] space-y-2 relative z-10 flex-shrink-0">
+        <div className="p-3.5 pt-3 pb-8 border-t border-[#14141C] bg-[#050508] space-y-2 relative z-10 flex-shrink-0">
+          {/* System Settings Button */}
           <button
             onClick={() => setSettingsModalOpen(true)}
-            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs text-[#E8DDC7]/70 hover:text-[#C6A46A] hover:bg-[#0E0E14] transition-colors"
+            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/70 hover:text-[#C6A46A] hover:bg-[#0E0E14] border border-transparent hover:border-[#1C1C26] transition-colors group"
           >
-            <Settings className="w-3.5 h-3.5 text-[#C6A46A]" />
-            <span className="font-cinzel text-[11px] tracking-wider uppercase">System Settings</span>
+            <div className="flex items-center gap-2.5">
+              <Settings className="w-3.5 h-3.5 text-[#C6A46A]/80 group-hover:text-[#C6A46A]" />
+              <span className="font-cinzel text-[11px] tracking-wider uppercase">System Settings</span>
+            </div>
+            <span className="text-[10px] font-mono text-[#E8DDC7]/30">v2.6</span>
           </button>
 
-          <div className="flex items-center justify-between px-3 text-[10px] text-[#E8DDC7]/45 font-mono">
+          {/* User Profile (Below System Settings) */}
+          {authUser ? (
+            <div className="relative pt-0.5" ref={profileMenuRef}>
+              <button
+                onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                className="w-full flex items-center justify-between p-2 rounded-xl bg-[#09090E] border border-[#1C1C28] hover:border-[#C6A46A]/50 hover:bg-[#0E0E16] transition-all duration-200 text-left group shadow-sm"
+              >
+                <div className="flex items-center gap-2.5 min-w-0 pr-1 flex-1">
+                  {/* Avatar */}
+                  {authUser.avatarUrl ? (
+                    <img
+                      src={authUser.avatarUrl}
+                      alt={authUser.fullName}
+                      className="w-8 h-8 rounded-full border border-[#C6A46A]/50 object-cover flex-shrink-0"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full border border-[#C6A46A]/40 bg-[#12121A] flex items-center justify-center font-cinzel text-xs text-[#C6A46A] font-semibold flex-shrink-0 shadow-sm group-hover:border-[#C6A46A] transition-colors">
+                      {authUser.fullName.charAt(0).toUpperCase()}
+                    </div>
+                  )}
+
+                  {/* Name and Email */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-medium text-[#E8DDC7] truncate font-inter group-hover:text-[#C6A46A] transition-colors">
+                        {authUser.fullName}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-[#E8DDC7]/45 truncate font-mono">
+                      {authUser.email}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-1 rounded-md text-[#E8DDC7]/40 group-hover:text-[#C6A46A] transition-colors flex-shrink-0">
+                  <MoreHorizontal className="w-3.5 h-3.5" />
+                </div>
+              </button>
+
+              {/* Upward Profile Menu Popover */}
+              <AnimatePresence>
+                {profileMenuOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                    className="absolute left-0 bottom-full mb-2 w-full z-50 rounded-2xl bg-[#0E0E16] border border-[#262638] p-2 shadow-[0_16px_40px_rgba(0,0,0,0.9)] backdrop-blur-xl space-y-1"
+                  >
+                    {/* Header inside popup */}
+                    <div className="px-3 py-2 border-b border-[#1A1A26] space-y-1">
+                      <p className="text-xs font-semibold text-[#E8DDC7] truncate font-inter">
+                        {authUser.fullName}
+                      </p>
+                      <p className="text-[10px] text-[#C6A46A] font-mono truncate">
+                        {authUser.email}
+                      </p>
+                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-[#C6A46A]/10 text-[#C6A46A] text-[9px] font-cinzel tracking-wider uppercase border border-[#C6A46A]/20">
+                        <span className="w-1 h-1 rounded-full bg-emerald-400" />
+                        {authUser.role}
+                      </span>
+                    </div>
+
+                    {/* Manage Profile */}
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        setProfileModalOpen(true);
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:text-[#C6A46A] hover:bg-[#161622] transition-colors text-left"
+                    >
+                      <User className="w-3.5 h-3.5 text-[#C6A46A]" />
+                      <span>Operator Profile</span>
+                    </button>
+
+                    {/* Sign Out */}
+                    <button
+                      onClick={() => {
+                        setProfileMenuOpen(false);
+                        handleSignOut();
+                      }}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left"
+                    >
+                      <LogOut className="w-3.5 h-3.5 text-red-400" />
+                      <span>Sign Out</span>
+                    </button>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+          ) : (
+            <div className="pt-0.5">
+              <Link
+                href="/started"
+                className="w-full flex items-center justify-between p-2 rounded-xl border border-[#C6A46A]/30 bg-[#09090E] hover:border-[#C6A46A]/70 hover:bg-[#0E0E16] transition-all text-left group"
+              >
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="w-7 h-7 rounded-full border border-[#C6A46A]/40 bg-[#12121A] flex items-center justify-center text-[#C6A46A] flex-shrink-0">
+                    <User className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="min-w-0">
+                    <span className="text-[11px] font-cinzel tracking-wider uppercase text-[#E8DDC7] group-hover:text-[#C6A46A] transition-colors block truncate">
+                      Sign In Operator
+                    </span>
+                    <span className="text-[9px] text-[#E8DDC7]/40 block font-light truncate">
+                      Supabase Cloud Auth
+                    </span>
+                  </div>
+                </div>
+                <ArrowRight className="w-3 h-3 text-[#C6A46A]/60 group-hover:text-[#C6A46A] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+              </Link>
+            </div>
+          )}
+
+          {/* Status Line */}
+          <div className="flex items-center justify-between px-2 pt-1 text-[10px] text-[#E8DDC7]/45 font-mono">
             <span>Kernel: Harpy v2.6</span>
             <span className="text-emerald-400 flex items-center gap-1">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
@@ -1717,6 +1896,128 @@ export default function DashboardPage() {
                 >
                   Save &amp; Return
                 </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ──────────────────────────────────────────────────────────
+          OPERATOR PROFILE MODAL
+         ────────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {profileModalOpen && authUser && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.96 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              className="w-full max-w-md bg-[#08080C] border border-[#1C1C26] rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl relative"
+            >
+              <div className="flex items-center justify-between border-b border-[#14141C] pb-4">
+                <div className="space-y-1">
+                  <div className="inline-flex items-center gap-2 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase">
+                    <User className="w-4 h-4" />
+                    <span>Operator Identity</span>
+                  </div>
+                  <h3 className="font-cinzel text-xl text-[#E8DDC7]">Sovereign Profile</h3>
+                </div>
+                <button
+                  onClick={() => setProfileModalOpen(false)}
+                  className="p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors rounded-lg hover:bg-[#12121A]"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Avatar & Key Stats */}
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-[#0B0B10] border border-[#171720]">
+                {authUser.avatarUrl ? (
+                  <img
+                    src={authUser.avatarUrl}
+                    alt={authUser.fullName}
+                    className="w-14 h-14 rounded-full border-2 border-[#C6A46A]/60 object-cover shadow-md"
+                  />
+                ) : (
+                  <div className="w-14 h-14 rounded-full border-2 border-[#C6A46A]/60 bg-[#12121A] flex items-center justify-center font-cinzel text-xl text-[#C6A46A] font-semibold shadow-md">
+                    {authUser.fullName.charAt(0).toUpperCase()}
+                  </div>
+                )}
+                <div className="min-w-0 space-y-0.5">
+                  <h4 className="font-cinzel text-base text-[#E8DDC7] font-semibold truncate">
+                    {authUser.fullName}
+                  </h4>
+                  <p className="font-mono text-xs text-[#E8DDC7]/60 truncate">
+                    {authUser.email}
+                  </p>
+                  <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    Authenticated via Supabase
+                  </div>
+                </div>
+              </div>
+
+              {/* Editable Fields */}
+              <div className="space-y-4 text-xs font-inter">
+                <div className="space-y-1.5">
+                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
+                    Display Name / Handle
+                  </label>
+                  <input
+                    type="text"
+                    value={newDisplayName}
+                    onChange={(e) => setNewDisplayName(e.target.value)}
+                    placeholder="Enter operator handle"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#0C0C12] border border-[#20202C] focus:border-[#C6A46A] focus:outline-none text-xs text-[#E8DDC7] transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
+                    Operator UUID
+                  </label>
+                  <div className="p-3 rounded-xl bg-[#0B0B10] border border-[#171720] text-[#E8DDC7]/70 font-mono text-[11px] truncate">
+                    {authUser.id}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
+                    Ecosystem Privileges
+                  </label>
+                  <div className="p-3 rounded-xl bg-[#0B0B10] border border-[#171720] text-[#E8DDC7] flex items-center justify-between">
+                    <span>Autonomous Kernel v2.6 Access</span>
+                    <span className="text-emerald-400 font-mono text-[11px]">UNRESTRICTED</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Actions */}
+              <div className="pt-2 border-t border-[#14141C] flex items-center justify-between">
+                <button
+                  onClick={() => {
+                    setProfileModalOpen(false);
+                    handleSignOut();
+                  }}
+                  className="px-4 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 font-cinzel text-xs tracking-wider uppercase transition-colors"
+                >
+                  Sign Out
+                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setProfileModalOpen(false)}
+                    className="px-4 py-2 rounded-xl border border-[#22222E] text-[#E8DDC7]/60 hover:text-[#E8DDC7] font-cinzel text-xs tracking-wider uppercase transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateProfile}
+                    disabled={isSavingProfile}
+                    className="px-5 py-2 rounded-xl bg-[#C6A46A] text-[#050508] font-cinzel text-xs tracking-wider uppercase font-semibold hover:bg-[#E2C99A] transition-colors disabled:opacity-50"
+                  >
+                    {isSavingProfile ? "Saving..." : "Save Profile"}
+                  </button>
+                </div>
               </div>
             </motion.div>
           </div>
