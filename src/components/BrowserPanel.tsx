@@ -56,7 +56,7 @@ export default function BrowserPanel({
   const [urlInput, setUrlInput] = useState('https://www.google.com');
   const [goalInput, setGoalInput] = useState(initialGoal || '');
   const [activeTab, setActiveTab] = useState<'loop' | 'elements'>('loop');
-  const [isDrawerOpen, setIsDrawerOpen] = useState(true);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [clickRipple, setClickRipple] = useState<{ x: number; y: number } | null>(null);
   const [manualTypeText, setManualTypeText] = useState('');
   const [selectedElementIndex, setSelectedElementIndex] = useState<number | null>(null);
@@ -66,6 +66,12 @@ export default function BrowserPanel({
   const [isConnecting, setIsConnecting] = useState(false);
   const [showCloudConfig, setShowCloudConfig] = useState(false);
   const [hasCloudKey, setHasCloudKey] = useState(false);
+
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth >= 1024) {
+      setIsDrawerOpen(true);
+    }
+  }, []);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
@@ -559,7 +565,7 @@ export default function BrowserPanel({
             {onToggleExpand && (
               <button
                 onClick={onToggleExpand}
-                className="p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
+                className="hidden lg:flex p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
                 title={isExpanded ? 'Restore IDE Split' : 'Expand Panel'}
               >
                 {isExpanded ? <Minimize2 className="w-3.5 h-3.5" /> : <Maximize2 className="w-3.5 h-3.5" />}
@@ -1074,7 +1080,7 @@ export default function BrowserPanel({
                 type="text"
                 value={goalInput}
                 onChange={(e) => setGoalInput(e.target.value)}
-                placeholder="Give Harpy any autonomous browsing mission..."
+                placeholder="Give Harpy any autonomous mission..."
                 className="w-full bg-transparent text-xs text-parchment placeholder-[#6B5E51] focus:outline-none min-w-0"
               />
             </div>
@@ -1082,10 +1088,10 @@ export default function BrowserPanel({
             <button
               type="submit"
               disabled={isAgentWorking || !goalInput.trim()}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-gold-dark via-gold to-bronze text-black font-semibold text-xs rounded-lg shadow-md hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-wider shrink-0 whitespace-nowrap"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 bg-gradient-to-r from-gold-dark via-gold to-bronze text-black font-semibold text-xs rounded-lg shadow-md hover:brightness-110 disabled:opacity-50 disabled:cursor-not-allowed transition-all uppercase tracking-wider shrink-0 whitespace-nowrap"
             >
               <Play className="w-3 h-3 fill-black shrink-0" />
-              Take Flight
+              <span><span className="hidden sm:inline">Take </span>Flight</span>
             </button>
           </form>
         </div>

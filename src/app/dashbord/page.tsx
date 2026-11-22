@@ -302,6 +302,9 @@ export default function DashboardPage() {
   // Load saved key, model, and real user chat sessions from localStorage on mount
   useEffect(() => {
     try {
+      if (typeof window !== "undefined" && window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      }
       // Purge any legacy mock/dummy sessions and load only authentic user conversations
       const savedSessionsRaw = localStorage.getItem("harpy_chat_sessions");
       if (savedSessionsRaw) {
@@ -590,6 +593,9 @@ export default function DashboardPage() {
   };
 
   const handleNewChat = () => {
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
     if (currentSession && currentSession.messages.length === 0) {
       if (textareaRef.current) {
         textareaRef.current.focus();
@@ -1097,13 +1103,23 @@ export default function DashboardPage() {
     customModels.length > 0 ? customModels : currentEngine ? currentEngine.models : [];
 
   return (
-    <div className="flex h-screen w-full bg-[#050508] text-[#E8DDC7] overflow-hidden select-none font-inter">
+    <div className="flex h-screen w-full bg-[#050508] text-[#E8DDC7] overflow-hidden select-none font-inter relative">
+      {/* Mobile Backdrop for Sidebar */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-30 lg:hidden animate-in fade-in duration-200"
+        />
+      )}
+
       {/* ──────────────────────────────────────────────────────────
           METALLIC DEEP OBSIDIAN SIDEBAR
          ────────────────────────────────────────────────────────── */}
       <aside
-        className={`relative flex flex-col border-r border-[#14141C] bg-[#07070B] transition-all duration-300 ease-in-out z-30 shadow-2xl flex-shrink-0 ${
-          sidebarOpen ? "w-64 lg:w-72 border-r" : "w-0 border-r-0 pointer-events-none opacity-0"
+        className={`fixed lg:relative inset-y-0 left-0 flex flex-col border-r border-[#14141C] bg-[#07070B] transition-all duration-300 ease-in-out z-40 lg:z-30 shadow-2xl flex-shrink-0 ${
+          sidebarOpen
+            ? "w-72 max-w-[85vw] border-r translate-x-0"
+            : "w-0 border-r-0 -translate-x-full lg:translate-x-0 pointer-events-none opacity-0"
         } overflow-hidden`}
       >
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(198,164,106,0.025),_transparent_75%)] pointer-events-none" />
@@ -1209,7 +1225,12 @@ export default function DashboardPage() {
                     <div
                       key={s.id}
                       onClick={() => {
-                        if (!isEditing) setCurrentSessionId(s.id);
+                        if (!isEditing) {
+                          setCurrentSessionId(s.id);
+                          if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                            setSidebarOpen(false);
+                          }
+                        }
                       }}
                       onKeyDown={(e) => {
                         if (!isEditing) {
@@ -1530,13 +1551,13 @@ export default function DashboardPage() {
         <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-[radial-gradient(circle,_rgba(198,164,106,0.025),_transparent_75%)] pointer-events-none" />
 
         {/* Top Operational Bar */}
-        <header className="h-14 border-b border-[#14141C] bg-[#07070B]/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between z-20 flex-shrink-0">
-          <div className="flex items-center gap-3">
+        <header className="h-14 border-b border-[#14141C] bg-[#07070B]/90 backdrop-blur-md px-2.5 sm:px-6 flex items-center justify-between z-20 flex-shrink-0 gap-2">
+          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
             {/* Sidebar Open Button (Only visible when sidebar is collapsed) */}
             {!sidebarOpen && (
               <button
                 onClick={() => setSidebarOpen(true)}
-                className="p-2 rounded-lg text-[#E8DDC7]/75 hover:text-[#C6A46A] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] transition-all flex items-center justify-center shadow-sm group"
+                className="p-2 rounded-lg text-[#E8DDC7]/75 hover:text-[#C6A46A] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] transition-all flex items-center justify-center shadow-sm group shrink-0"
                 title="Open sidebar (⌘B)"
                 aria-label="Open sidebar"
               >
@@ -1551,45 +1572,46 @@ export default function DashboardPage() {
                 setSettingsTab("models");
                 setSettingsModalOpen(true);
               }}
-              className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] hover:bg-[#12121A] transition-all cursor-pointer group"
+              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] hover:bg-[#12121A] transition-all cursor-pointer group min-w-0"
               title="Configure API Key & Models in System Settings"
             >
               <span
-                className="w-1.5 h-1.5 rounded-full animate-pulse"
+                className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0"
                 style={{ backgroundColor: currentEngine?.color || "#F55036" }}
               />
-              <span className="font-cinzel text-xs text-[#E8DDC7] group-hover:text-[#C6A46A] tracking-wider font-medium transition-colors">
-                HARPY AI · {selectedModelName}
+              <span className="font-cinzel text-[11px] sm:text-xs text-[#E8DDC7] group-hover:text-[#C6A46A] tracking-wider font-medium transition-colors truncate max-w-[110px] sm:max-w-[200px] md:max-w-none">
+                <span className="hidden sm:inline">HARPY AI · </span>
+                {selectedModelName.replace(/ \(Best Model\)|\(Fast\)/, "")}
               </span>
-              <span className="text-[#C6A46A] text-xs font-mono">v2.6</span>
+              <span className="text-[#C6A46A] text-[10px] sm:text-xs font-mono hidden md:inline">v2.6</span>
             </button>
           </div>
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             {/* Browser Agent Toggle Button */}
             <button
               type="button"
               onClick={() => setBrowserPanelOpen(!browserPanelOpen)}
-              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full border transition-all cursor-pointer shrink-0 ${
                 browserPanelOpen
                   ? "border-[#C6A46A] bg-[#C6A46A]/20 text-[#C6A46A] shadow-[0_0_14px_rgba(198,164,106,0.3)]"
                   : "border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] text-xs text-[#E8DDC7]/75 hover:text-[#C6A46A]"
               }`}
               title="Open Autonomous AI Browser Panel"
             >
-              <Compass className={`w-3.5 h-3.5 text-[#C6A46A] ${browserPanelOpen ? "animate-spin" : ""}`} />
-              <span className="font-cinzel text-[11px] tracking-wider uppercase font-semibold">
-                Browser Agent
+              <Compass className={`w-3.5 h-3.5 text-[#C6A46A] shrink-0 ${browserPanelOpen ? "animate-spin" : ""}`} />
+              <span className="font-cinzel text-[10px] sm:text-[11px] tracking-wider uppercase font-semibold">
+                <span className="hidden sm:inline">Browser </span>Agent
               </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
             </button>
 
             {/* Return to Home Portal */}
             <Link
               href="/"
-              className="inline-flex items-center gap-1.5 text-xs font-cinzel uppercase tracking-widest text-[#C6A46A] hover:text-[#E2C99A] border-b border-[#C6A46A]/30 pb-0.5 transition-colors"
+              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-cinzel uppercase tracking-widest text-[#C6A46A] hover:text-[#E2C99A] border-b border-[#C6A46A]/30 pb-0.5 transition-colors shrink-0"
             >
-              <span>Portal</span>
+              <span className="hidden xs:inline">Portal</span>
               <ExternalLink className="w-3 h-3" />
             </Link>
           </div>
@@ -1601,7 +1623,7 @@ export default function DashboardPage() {
           <div
             className={`flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${
               browserPanelOpen && !browserExpanded
-                ? "w-full lg:w-1/2 border-r border-[#14141C]"
+                ? "hidden lg:flex lg:w-1/2 border-r border-[#14141C]"
                 : browserExpanded
                 ? "hidden"
                 : "w-full"
