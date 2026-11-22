@@ -1532,19 +1532,17 @@ export default function DashboardPage() {
         {/* Top Operational Bar */}
         <header className="h-14 border-b border-[#14141C] bg-[#07070B]/90 backdrop-blur-md px-4 sm:px-6 flex items-center justify-between z-20 flex-shrink-0">
           <div className="flex items-center gap-3">
-            {/* Sidebar Toggle Hamburger (Open / Close) */}
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 rounded-lg text-[#E8DDC7]/75 hover:text-[#C6A46A] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] transition-all flex items-center justify-center shadow-sm group"
-              title={sidebarOpen ? "Collapse sidebar (⌘B)" : "Open sidebar (⌘B)"}
-              aria-label={sidebarOpen ? "Collapse sidebar" : "Open sidebar"}
-            >
-              {sidebarOpen ? (
-                <PanelLeftClose className="w-4 h-4 text-[#C6A46A] group-hover:scale-105 transition-transform" />
-              ) : (
+            {/* Sidebar Open Button (Only visible when sidebar is collapsed) */}
+            {!sidebarOpen && (
+              <button
+                onClick={() => setSidebarOpen(true)}
+                className="p-2 rounded-lg text-[#E8DDC7]/75 hover:text-[#C6A46A] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] transition-all flex items-center justify-center shadow-sm group"
+                title="Open sidebar (⌘B)"
+                aria-label="Open sidebar"
+              >
                 <Menu className="w-4 h-4 text-[#C6A46A] group-hover:scale-105 transition-transform" />
-              )}
-            </button>
+              </button>
+            )}
 
             {/* Model Badge -> Click to Open API & Models in Settings */}
             <button
@@ -1584,15 +1582,6 @@ export default function DashboardPage() {
                 Browser Agent
               </span>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            </button>
-
-            {/* Connected Apps Pill */}
-            <button
-              onClick={() => setConnectorsModalOpen(true)}
-              className="hidden sm:inline-flex items-center gap-2 px-3 py-1 rounded-full border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] text-xs text-[#E8DDC7]/75 hover:text-[#C6A46A] transition-all"
-            >
-              <Layers className="w-3.5 h-3.5 text-[#C6A46A]" />
-              <span className="font-cinzel text-[11px] tracking-wider uppercase">7 Apps Linked</span>
             </button>
 
             {/* Return to Home Portal */}
