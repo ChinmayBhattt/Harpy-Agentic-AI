@@ -265,6 +265,15 @@ export default function DashboardPage() {
   const [editingTitle, setEditingTitle] = useState<string>("");
   const [shareToast, setShareToast] = useState<string | null>(null);
 
+  // Real Speech Recognition & Audio Recording State
+  const [voiceStatus, setVoiceStatus] = useState<string | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const recognitionRef = useRef<any>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
+  const isRecordingRef = useRef(false);
+  const baseInputRef = useRef("");
+
   const fileInputRef = useRef<HTMLInputElement>(null);
   const chatBottomRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -540,6 +549,11 @@ export default function DashboardPage() {
   };
 
   const handleSendMessage = async (customPrompt?: string) => {
+    // If voice recording is running, stop it
+    if (isRecordingRef.current) {
+      stopRecording();
+    }
+
     const textToSend = customPrompt || inputValue.trim();
     if (!textToSend && !attachedFile) return;
 
@@ -712,20 +726,222 @@ export default function DashboardPage() {
     }
   };
 
-  const toggleRecording = () => {
-    if (isRecording) {
-      setIsRecording(false);
-    } else {
-      setIsRecording(true);
-      setTimeout(() => {
-        setInputValue((prev) =>
-          prev
-            ? `${prev} Summarize unread Gmail and alert Notion`
-            : "Review urgent Gmail threads, create Notion cards, and ping on WhatsApp"
-        );
-        setIsRecording(false);
-      }, 2200);
+  const stopRecording = () => {
+    isRecordingRef.current = false;
+    setIsRecording(false);
+    setVoiceStatus(null);
+
+    if (recognitionRef.current) {
+      try {
+        recognitionRef.current.stop();
+      } catch {}
+      recognitionRef.current = null;
     }
+
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== "inactive") {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch {}
+      mediaRecorderRef.current = null;
+    }
+  };
+
+  const transcribeAudioBlob = async (blob: Blob) => {
+    setVoiceStatus("Transcribing voice input with AI...");
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "audio.webm");
+      if (apiKey) {
+        formData.append("apiKey", apiKey);
+      }
+
+      const res = await fetch("/api/transcribe", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+      if (data?.text) {
+        const recognizedText = data.text.trim();
+        const base = baseInputRef.current.trim();
+        const combined = base ? `${base} ${recognizedText}` : recognizedText;
+        setInputValue(combined);
+
+        if (textareaRef.current) {
+          textareaRef.current.style.height = "auto";
+          textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+          textareaRef.current.focus();
+        }
+      } else if (data?.error) {
+        setVoiceError(`Transcription note: ${data.error}`);
+      }
+    } catch {
+      setVoiceError("Audio transcription request could not be completed.");
+    } finally {
+      setVoiceStatus(null);
+    }
+  };
+
+  const startMediaRecorderFallback = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      setVoiceError("Microphone is not supported in this browser environment.");
+      setIsRecording(false);
+      isRecordingRef.current = false;
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      audioChunksRef.current = [];
+
+      let mimeType = "";
+      if (typeof MediaRecorder !== "undefined") {
+        if (MediaRecorder.isTypeSupported("audio/webm")) {
+          mimeType = "audio/webm";
+        } else if (MediaRecorder.isTypeSupported("audio/mp4")) {
+          mimeType = "audio/mp4";
+        }
+      }
+
+      const options = mimeType ? { mimeType } : undefined;
+      const mediaRecorder = new MediaRecorder(stream, options);
+      mediaRecorderRef.current = mediaRecorder;
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data && event.data.size > 0) {
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((track) => track.stop());
+        const audioBlob = new Blob(audioChunksRef.current, { type: mimeType || "audio/wav" });
+        if (audioBlob.size > 500) {
+          await transcribeAudioBlob(audioBlob);
+        }
+      };
+
+      mediaRecorder.start(250);
+      setIsRecording(true);
+      isRecordingRef.current = true;
+      setVoiceStatus("Listening... speak now (click mic again to finish)");
+    } catch (err: any) {
+      console.error("Microphone access error:", err);
+      if (err.name === "NotAllowedError" || err.name === "PermissionDeniedError") {
+        setVoiceError(
+          "Microphone permission denied. In Safari: click Safari > Settings for This Website (or Safari Settings > Websites > Microphone) and set localhost to 'Allow'."
+        );
+      } else {
+        setVoiceError(`Failed to access microphone: ${err.message || "Unknown error"}`);
+      }
+      setIsRecording(false);
+      isRecordingRef.current = false;
+    }
+  };
+
+  const toggleRecording = () => {
+    // If currently recording, stop it immediately
+    if (isRecordingRef.current) {
+      stopRecording();
+      return;
+    }
+
+    setVoiceError(null);
+    setVoiceStatus(null);
+    baseInputRef.current = inputValue;
+
+    const SpeechRecognition =
+      typeof window !== "undefined"
+        ? (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+        : null;
+
+    if (SpeechRecognition) {
+      try {
+        const recognition = new SpeechRecognition();
+        recognitionRef.current = recognition;
+        recognition.continuous = true;
+        recognition.interimResults = true;
+        recognition.maxAlternatives = 1;
+        recognition.lang =
+          typeof navigator !== "undefined" && navigator.language ? navigator.language : "en-US";
+
+        let finalTranscripts = "";
+
+        recognition.onstart = () => {
+          setIsRecording(true);
+          isRecordingRef.current = true;
+          setVoiceStatus("Listening... speak into your microphone");
+        };
+
+        recognition.onresult = (event: any) => {
+          let interimTranscript = "";
+          for (let i = event.resultIndex; i < event.results.length; i++) {
+            const item = event.results[i];
+            const text = item[0]?.transcript || "";
+            if (item.isFinal) {
+              finalTranscripts += (finalTranscripts ? " " : "") + text.trim();
+            } else {
+              interimTranscript += (interimTranscript ? " " : "") + text.trim();
+            }
+          }
+
+          const currentSpeech = (finalTranscripts + (interimTranscript ? " " + interimTranscript : "")).trim();
+          const base = baseInputRef.current.trim();
+          const combined = base ? (currentSpeech ? `${base} ${currentSpeech}` : base) : currentSpeech;
+          setInputValue(combined);
+
+          if (textareaRef.current) {
+            textareaRef.current.style.height = "auto";
+            textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 160)}px`;
+          }
+        };
+
+        recognition.onerror = (event: any) => {
+          console.warn("Speech recognition event:", event.error);
+          if (event.error === "no-speech") {
+            // Keep listening, do not interrupt user
+            return;
+          }
+          if (event.error === "not-allowed") {
+            setVoiceError(
+              "Microphone permission denied. In Safari: click Safari > Settings for This Website (or Safari Settings > Websites > Microphone) and set localhost to 'Allow'."
+            );
+            stopRecording();
+          } else if (event.error === "service-not-allowed") {
+            // If Apple Dictation is off on macOS, fallback to MediaRecorder
+            console.log("Speech recognition service not allowed, switching to MediaRecorder fallback");
+            stopRecording();
+            startMediaRecorderFallback();
+          } else if (event.error !== "aborted") {
+            setVoiceError(`Voice input: ${event.error}`);
+            stopRecording();
+          }
+        };
+
+        recognition.onend = () => {
+          if (isRecordingRef.current) {
+            try {
+              recognition.start();
+            } catch {
+              setIsRecording(false);
+              isRecordingRef.current = false;
+              setVoiceStatus(null);
+            }
+          } else {
+            setIsRecording(false);
+            setVoiceStatus(null);
+          }
+        };
+
+        recognition.start();
+        return;
+      } catch (err) {
+        console.warn("Direct SpeechRecognition start error, falling back to MediaRecorder:", err);
+      }
+    }
+
+    // Fallback if SpeechRecognition is not available or throws
+    startMediaRecorderFallback();
   };
 
   const copyToClipboard = (text: string, id: string) => {
@@ -1488,6 +1704,46 @@ export default function DashboardPage() {
               </div>
             )}
 
+            {/* Real-time Voice Recording Status Bar */}
+            {isRecording && (
+              <div className="mb-2 flex items-center justify-between px-3.5 py-2 rounded-xl bg-red-950/40 border border-red-500/40 backdrop-blur-md animate-fadeIn shadow-lg">
+                <div className="flex items-center gap-2.5">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
+                  </span>
+                  <span className="text-xs font-medium text-red-200">
+                    {voiceStatus || "Listening... speak into your microphone"}
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={stopRecording}
+                  className="px-2.5 py-0.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-mono font-semibold transition-colors cursor-pointer"
+                >
+                  Done
+                </button>
+              </div>
+            )}
+
+            {/* Voice Input Error Banner */}
+            {voiceError && (
+              <div className="mb-2 flex items-center justify-between px-3.5 py-2 rounded-xl bg-[#2A1515] border border-red-500/50 text-red-200 text-xs shadow-lg animate-fadeIn">
+                <div className="flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
+                  <span className="leading-snug">{voiceError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setVoiceError(null)}
+                  className="text-red-400 hover:text-red-200 text-sm ml-2 font-bold px-1"
+                  aria-label="Dismiss voice error"
+                >
+                  ×
+                </button>
+              </div>
+            )}
+
             {/* Input Box Shell */}
             <div className="relative flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-2xl bg-[#0A0A0F] border border-[#1A1A24] focus-within:border-[#C6A46A]/60 focus-within:ring-1 focus-within:ring-[#C6A46A]/20 transition-all duration-200 shadow-2xl">
               {/* + (Upload Attachments) Button */}
@@ -1717,11 +1973,11 @@ export default function DashboardPage() {
                 onClick={toggleRecording}
                 className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
                   isRecording
-                    ? "bg-red-500/20 text-red-400 border border-red-500/40 animate-pulse"
+                    ? "bg-red-500/25 text-red-400 border border-red-500/50 animate-pulse shadow-[0_0_14px_rgba(239,68,68,0.5)]"
                     : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#14141C]"
                 }`}
-                title={isRecording ? "Listening... click to stop" : "Voice Input (MIC)"}
-                aria-label="Microphone Voice Input"
+                title={isRecording ? "Listening... click to stop (or click Done)" : "Voice Input (Click to speak into microphone)"}
+                aria-label={isRecording ? "Stop voice recording" : "Start voice recording"}
               >
                 {isRecording ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
               </button>
