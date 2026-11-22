@@ -61,6 +61,7 @@ export default function BrowserPanel({
   const [selectedElementIndex, setSelectedElementIndex] = useState<number | null>(null);
 
   const viewportRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
 
   // ──────────────────────────────────────────────────────────
@@ -226,19 +227,34 @@ export default function BrowserPanel({
   const handleViewportClick = async (e: React.MouseEvent<HTMLDivElement>) => {
     if (!sessionState || sessionState.controlMode !== 'manual') return;
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const clickX = e.clientX - rect.left;
-    const clickY = e.clientY - rect.top;
+    const imgEl = imgRef.current;
+    const targetRect = imgEl ? imgEl.getBoundingClientRect() : e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - targetRect.left;
+    const clickY = e.clientY - targetRect.top;
+
+    if (clickX < 0 || clickY < 0 || clickX > targetRect.width || clickY > targetRect.height) return;
 
     // Viewport is fixed at 1280x800 in Playwright
-    const scaleX = 1280 / rect.width;
-    const scaleY = 800 / rect.height;
+    const scaleX = 1280 / targetRect.width;
+    const scaleY = 800 / targetRect.height;
 
     const realX = Math.round(clickX * scaleX);
     const realY = Math.round(clickY * scaleY);
 
     setClickRipple({ x: clickX, y: clickY });
     setTimeout(() => setClickRipple(null), 600);
+
+    // Detect if click landed on an interactive element
+    const clickedEl = sessionState.interactiveElements?.find(
+      (el) =>
+        realX >= el.rect.x &&
+        realX <= el.rect.x + el.rect.width &&
+        realY >= el.rect.y &&
+        realY <= el.rect.y + el.rect.height
+    );
+    if (clickedEl) {
+      setSelectedElementIndex(clickedEl.index);
+    }
 
     try {
       await fetch('/api/browser', {
@@ -249,6 +265,7 @@ export default function BrowserPanel({
           subAction: 'click',
           x: realX,
           y: realY,
+          index: clickedEl ? clickedEl.index : undefined,
         }),
       });
     } catch (err) {
@@ -530,6 +547,7 @@ export default function BrowserPanel({
             {/* Live Playwright Screenshot */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
+              ref={imgRef}
               src={sessionState.screenshot}
               alt={sessionState.title || 'Browser Viewport'}
               className="w-full h-full object-contain pointer-events-none"
@@ -550,48 +568,6 @@ export default function BrowserPanel({
             <p className="font-inter text-xs text-parchment-muted max-w-sm">
               Spinning up isolated Playwright session with real-time DOM telemetry and autonomous visual flight controls.
             </p>
-          </div>
-        )}
-
-        {/* Scroll Control Overlay (Manual Pilot) */}
-        {sessionState?.controlMode === 'manual' && (
-          <div className="absolute right-4 bottom-4 flex flex-col gap-1.5 z-10">
-            <button
-              onClick={() => handleScroll('up')}
-              className="p-2 bg-[#1C1814]/90 border border-gold/30 rounded-lg text-gold hover:bg-gold/20 transition-colors shadow-lg"
-              title="Scroll Up"
-            >
-              <ChevronUp className="w-4 h-4" />
-            </button>
-            <button
-              onClick={() => handleScroll('down')}
-              className="p-2 bg-[#1C1814]/90 border border-gold/30 rounded-lg text-gold hover:bg-gold/20 transition-colors shadow-lg"
-              title="Scroll Down"
-            >
-              <ChevronDown className="w-4 h-4" />
-            </button>
-          </div>
-        )}
-
-        {/* Manual Pilot Type Bar */}
-        {sessionState?.controlMode === 'manual' && (
-          <div className="absolute left-4 bottom-4 flex items-center gap-2 bg-[#181512]/95 border border-gold/30 rounded-lg p-2 shadow-2xl z-10 max-w-md">
-            <input
-              type="text"
-              value={manualTypeText}
-              onChange={(e) => setManualTypeText(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleManualType(true);
-              }}
-              placeholder="Type text directly into page..."
-              className="bg-[#0D0B0A] border border-[#332D27] rounded px-2.5 py-1 text-xs text-parchment font-mono focus:outline-none focus:border-gold w-64"
-            />
-            <button
-              onClick={() => handleManualType(true)}
-              className="px-2.5 py-1 text-xs bg-gold/20 hover:bg-gold/30 border border-gold/40 text-gold rounded font-medium transition-colors"
-            >
-              Send
-            </button>
           </div>
         )}
 
@@ -655,6 +631,63 @@ export default function BrowserPanel({
           </div>
         )}
       </div>
+
+      {/* ────────────────────────────────────────────────────────── */}
+      {/* 2.5 DOCKED PILOT (MANUAL) TOOLBAR - NOT COVERING WEBPAGE */}
+      {/* ────────────────────────────────────────────────────────── */}
+      {sessionState?.controlMode === 'manual' && (
+        <div className="w-full shrink-0 bg-[#14110E] border-t border-[#29231D] px-3 py-1.5 flex items-center justify-between gap-2 z-10">
+          {/* Typing input */}
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handleManualType(true);
+            }}
+            className="flex-1 min-w-0 flex items-center gap-1.5 bg-[#090807] border border-gold/30 focus-within:border-gold rounded-md px-2 py-1 transition-colors"
+          >
+            <span className="text-[10px] font-mono uppercase tracking-wider text-gold shrink-0 font-medium">
+              {selectedElementIndex ? `[#${selectedElementIndex}]:` : 'Type:'}
+            </span>
+            <input
+              type="text"
+              value={manualTypeText}
+              onChange={(e) => setManualTypeText(e.target.value)}
+              placeholder={
+                selectedElementIndex
+                  ? `Type text into element #${selectedElementIndex}...`
+                  : 'Click on page to focus or type text here...'
+              }
+              className="w-full bg-transparent text-xs text-parchment font-mono placeholder-[#6B5E51] focus:outline-none min-w-0"
+            />
+            <button
+              type="submit"
+              className="px-2 py-0.5 text-xs bg-gold/20 hover:bg-gold/30 border border-gold/40 text-gold rounded font-medium transition-colors shrink-0 whitespace-nowrap"
+            >
+              Send ⏎
+            </button>
+          </form>
+
+          {/* Scroll Controls */}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => handleScroll('up')}
+              className="p-1.5 bg-[#1C1814] border border-[#332D27] hover:border-gold/40 rounded text-gold/80 hover:text-gold transition-colors"
+              title="Scroll Page Up"
+            >
+              <ChevronUp className="w-3.5 h-3.5" />
+            </button>
+            <button
+              type="button"
+              onClick={() => handleScroll('down')}
+              className="p-1.5 bg-[#1C1814] border border-[#332D27] hover:border-gold/40 rounded text-gold/80 hover:text-gold transition-colors"
+              title="Scroll Page Down"
+            >
+              <ChevronDown className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ────────────────────────────────────────────────────────── */}
       {/* 3. AGENT REASONING & TELEMETRY DRAWER */}

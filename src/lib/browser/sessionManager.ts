@@ -60,10 +60,17 @@ export class BrowserSessionManager {
     const context = await browser.newContext({
       viewport: { width: 1280, height: 800 },
       userAgent:
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36 HarpyAgent/2.6',
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
       deviceScaleFactor: 1,
       locale: 'en-US',
       timezoneId: 'America/New_York',
+    });
+
+    // Stealth script to bypass bot-detection on interactive pages
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', {
+        get: () => undefined,
+      });
     });
 
     const page = await context.newPage();
@@ -415,7 +422,7 @@ export class BrowserSessionManager {
       }
 
       // Wait a moment for dynamic responses/navigation
-      await page.waitForTimeout(1000);
+      await page.waitForTimeout(600);
       await this.observe(sessionId);
       return true;
     } catch (err: any) {
@@ -452,13 +459,34 @@ export class BrowserSessionManager {
       } else if (target.selector) {
         locator = page.locator(target.selector).first();
         await locator.click({ timeout: 4000 });
+      } else {
+        // Auto-detect currently focused input, or auto-focus visible text input on page
+        const isInputFocused = await page.evaluate(() => {
+          const el = document.activeElement;
+          return (
+            el &&
+            (el.tagName === 'INPUT' ||
+              el.tagName === 'TEXTAREA' ||
+              el.getAttribute('contenteditable') === 'true')
+          );
+        });
+
+        if (!isInputFocused) {
+          const visibleInput = page
+            .locator('input:not([type="hidden"]):not([disabled]), textarea:not([disabled])')
+            .first();
+          if ((await visibleInput.count()) > 0 && (await visibleInput.isVisible())) {
+            await visibleInput.click({ timeout: 3000 }).catch(() => {});
+          }
+        }
       }
 
-      await page.keyboard.type(text, { delay: 40 });
+      // Type text into the active/targeted element
+      await page.keyboard.type(text, { delay: 35 });
 
       if (pressEnter) {
         await page.keyboard.press('Enter');
-        await page.waitForTimeout(1500);
+        await page.waitForTimeout(1000);
       }
 
       await this.observe(sessionId);
@@ -474,7 +502,7 @@ export class BrowserSessionManager {
     const session = await this.getSession(sessionId);
     try {
       await session.page.keyboard.press(key);
-      await session.page.waitForTimeout(500);
+      await session.page.waitForTimeout(400);
       await this.observe(sessionId);
       return true;
     } catch (err: any) {
@@ -486,15 +514,37 @@ export class BrowserSessionManager {
   public static async scroll(
     sessionId = 'default',
     direction: 'up' | 'down' = 'down',
-    amount = 500
+    amount = 450
   ): Promise<boolean> {
     const session = await this.getSession(sessionId);
     try {
       const delta = direction === 'down' ? amount : -amount;
+
+      // 1. Playwright hardware mouse wheel dispatch (works on almost all modern SPAs & overflow containers)
+      await session.page.mouse.move(640, 400);
+      await session.page.mouse.wheel(0, delta);
+
+      // 2. DOM scrolling fallback for standard scrollingElement and nested scrollable containers
       await session.page.evaluate((d) => {
-        window.scrollBy({ top: d, behavior: 'smooth' });
+        window.scrollBy(0, d);
+        if (document.scrollingElement) {
+          document.scrollingElement.scrollTop += d;
+        }
+        const scrollables = Array.from(document.querySelectorAll<HTMLElement>('*')).filter(
+          (el) => {
+            const style = window.getComputedStyle(el);
+            return (
+              (style.overflowY === 'auto' || style.overflowY === 'scroll') &&
+              el.scrollHeight > el.clientHeight
+            );
+          }
+        );
+        for (const s of scrollables) {
+          s.scrollTop += d;
+        }
       }, delta);
-      await session.page.waitForTimeout(600);
+
+      await session.page.waitForTimeout(400);
       await this.observe(sessionId);
       return true;
     } catch (err: any) {
