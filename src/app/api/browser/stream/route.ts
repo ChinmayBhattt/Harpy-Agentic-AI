@@ -1,66 +1,74 @@
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { BrowserSessionManager } from '@/lib/browser/sessionManager';
 import { BrowserSessionState, BrowserStepLog } from '@/lib/browser/types';
 
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const sessionId = searchParams.get('sessionId') || 'default';
+  try {
+    const { searchParams } = new URL(req.url);
+    const sessionId = searchParams.get('sessionId') || 'default';
+    const clientKey = req.headers.get('x-browserless-key') || searchParams.get('browserlessKey') || undefined;
+    const clientWs = req.headers.get('x-browser-ws-endpoint') || searchParams.get('wsEndpoint') || undefined;
+    const customWs = clientWs || (clientKey ? `wss://chrome.browserless.io?token=${clientKey}` : undefined);
 
-  // Ensure session exists
-  await BrowserSessionManager.getSession(sessionId);
+    // Ensure session exists
+    await BrowserSessionManager.getSession(sessionId, customWs);
 
-  const encoder = new TextEncoder();
+    const encoder = new TextEncoder();
 
-  const stream = new ReadableStream({
-    async start(controller) {
-      const sendEvent = (event: string, data: any) => {
-        try {
-          const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
-          controller.enqueue(encoder.encode(payload));
-        } catch {}
-      };
+    const stream = new ReadableStream({
+      async start(controller) {
+        const sendEvent = (event: string, data: any) => {
+          try {
+            const payload = `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`;
+            controller.enqueue(encoder.encode(payload));
+          } catch {}
+        };
 
-      // Send initial state
-      const session = await BrowserSessionManager.getSession(sessionId);
-      sendEvent('state', session.state);
+        // Send initial state
+        const session = await BrowserSessionManager.getSession(sessionId);
+        sendEvent('state', session.state);
 
-      // Subscribe to state and log events
-      const unsubscribe = BrowserSessionManager.subscribe(
-        sessionId,
-        (state: BrowserSessionState) => {
-          sendEvent('state', state);
-        },
-        (log: BrowserStepLog) => {
-          sendEvent('log', log);
-        }
-      );
+        // Subscribe to state and log events
+        const unsubscribe = BrowserSessionManager.subscribe(
+          sessionId,
+          (state: BrowserSessionState) => {
+            sendEvent('state', state);
+          },
+          (log: BrowserStepLog) => {
+            sendEvent('log', log);
+          }
+        );
 
-      // Heartbeat to keep connection alive
-      const heartbeat = setInterval(() => {
-        try {
-          controller.enqueue(encoder.encode(': ping\n\n'));
-        } catch {
+        // Heartbeat to keep connection alive
+        const heartbeat = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(': ping\n\n'));
+          } catch {
+            clearInterval(heartbeat);
+          }
+        }, 15000);
+
+        req.signal.addEventListener('abort', () => {
           clearInterval(heartbeat);
-        }
-      }, 15000);
+          unsubscribe();
+          try {
+            controller.close();
+          } catch {}
+        });
+      },
+    });
 
-      req.signal.addEventListener('abort', () => {
-        clearInterval(heartbeat);
-        unsubscribe();
-        try {
-          controller.close();
-        } catch {}
-      });
-    },
-  });
-
-  return new Response(stream, {
-    headers: {
-      'Content-Type': 'text/event-stream',
-      'Cache-Control': 'no-cache, no-transform',
-      Connection: 'keep-alive',
-    },
-  });
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+      },
+    });
+  } catch (err: any) {
+    console.error('Browser stream error:', err);
+    return NextResponse.json({ success: false, error: err.message }, { status: 500 });
+  }
 }

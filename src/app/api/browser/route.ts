@@ -2,12 +2,31 @@ import { NextResponse } from 'next/server';
 import { BrowserSessionManager } from '@/lib/browser/sessionManager';
 import { BrowserAgent } from '@/lib/browser/agentLoop';
 
+function resolveWsEndpoint(req: Request, body?: any): string | undefined {
+  const url = new URL(req.url);
+  const clientKey =
+    req.headers.get('x-browserless-key') ||
+    url.searchParams.get('browserlessKey') ||
+    body?.browserlessKey ||
+    undefined;
+  const clientWs =
+    req.headers.get('x-browser-ws-endpoint') ||
+    url.searchParams.get('wsEndpoint') ||
+    body?.wsEndpoint ||
+    undefined;
+
+  if (clientWs) return clientWs;
+  if (clientKey) return `wss://chrome.browserless.io?token=${clientKey}`;
+  return undefined;
+}
+
 export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const sessionId = searchParams.get('sessionId') || 'default';
+    const customWs = resolveWsEndpoint(req);
 
-    const session = await BrowserSessionManager.getSession(sessionId);
+    const session = await BrowserSessionManager.getSession(sessionId, customWs);
 
     // If session has no screenshot yet, observe once
     if (!session.state.screenshot) {
@@ -29,10 +48,14 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
     const { action, sessionId = 'default' } = body;
+    const customWs = resolveWsEndpoint(req, body);
 
     if (!action) {
       return NextResponse.json({ success: false, error: 'Missing action parameter' }, { status: 400 });
     }
+
+    // Ensure session is initialized (or retrieved) with customWs if provided
+    await BrowserSessionManager.getSession(sessionId, customWs);
 
     // ──────────────────────────────────────────────────────────
     // 1. START AGENT AUTONOMOUS MISSION

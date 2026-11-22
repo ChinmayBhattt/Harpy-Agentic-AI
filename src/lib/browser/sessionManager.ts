@@ -28,7 +28,7 @@ if (!global.__harpyBrowserSessions) {
 }
 
 export class BrowserSessionManager {
-  public static async getSession(sessionId = 'default'): Promise<ActiveSession> {
+  public static async getSession(sessionId = 'default', customWsEndpoint?: string): Promise<ActiveSession> {
     const sessions = global.__harpyBrowserSessions!;
     const existing = sessions.get(sessionId);
 
@@ -36,9 +36,19 @@ export class BrowserSessionManager {
       return existing;
     }
 
-    const profileDir = path.join(process.cwd(), '.harpy-browser-profile');
+    const isServerless = Boolean(
+      process.env.VERCEL ||
+      process.env.AWS_LAMBDA_FUNCTION_NAME ||
+      process.env.LAMBDA_TASK_ROOT
+    );
+    const baseDir = isServerless ? '/tmp' : process.cwd();
+    const profileDir = path.join(baseDir, '.harpy-browser-profile');
     if (!fs.existsSync(profileDir)) {
-      fs.mkdirSync(profileDir, { recursive: true });
+      try {
+        fs.mkdirSync(profileDir, { recursive: true });
+      } catch (e) {
+        console.warn('Profile directory creation warning:', e);
+      }
     }
 
     // Clean up stale Chromium lock files if previous process ended abruptly
@@ -52,38 +62,74 @@ export class BrowserSessionManager {
       }
     }
 
-    // Detect official Google Chrome binary on Mac/Linux
-    const macChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
-    const executablePath = fs.existsSync(macChrome) ? macChrome : undefined;
+    const wsEndpoint =
+      customWsEndpoint ||
+      process.env.BROWSER_WS_ENDPOINT ||
+      (process.env.BROWSERLESS_API_KEY
+        ? `wss://chrome.browserless.io?token=${process.env.BROWSERLESS_API_KEY}`
+        : undefined);
 
-    // Launch Persistent Context so cookies, logins, and sessions stay saved permanently
-    const context = await chromium.launchPersistentContext(profileDir, {
-      headless: true,
-      executablePath,
-      viewport: { width: 1280, height: 800 },
-      userAgent:
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-      deviceScaleFactor: 1,
-      locale: 'en-US',
-      timezoneId: 'America/New_York',
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-blink-features=AutomationControlled',
-        '--disable-web-security',
-        '--disable-features=IsolateOrigins,site-per-process',
-      ],
-    });
+    let context: BrowserContext;
+    let page: Page;
+
+    if (wsEndpoint) {
+      console.log('Connecting to remote cloud browser via CDP:', wsEndpoint.replace(/token=([^&]+)/, 'token=***'));
+      const browser = await chromium.connectOverCDP(wsEndpoint);
+      const contexts = browser.contexts();
+      context =
+        contexts.length > 0
+          ? contexts[0]
+          : await browser.newContext({
+              viewport: { width: 1280, height: 800 },
+              userAgent:
+                'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+              deviceScaleFactor: 1,
+              locale: 'en-US',
+              timezoneId: 'America/New_York',
+            });
+      page = context.pages()[0] || (await context.newPage());
+    } else {
+      if (isServerless) {
+        throw new Error(
+          'Vercel Serverless environment detected: Local desktop Chrome is not available inside serverless containers. Set BROWSERLESS_API_KEY (free at browserless.io) in Vercel Environment Variables, enter your key in the browser panel, or run Harpy locally on your machine with npm run dev.'
+        );
+      }
+
+      // Detect official Google Chrome binary on Mac/Linux
+      const macChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+      const executablePath = fs.existsSync(macChrome) ? macChrome : undefined;
+
+      // Launch Persistent Context so cookies, logins, and sessions stay saved permanently
+      context = await chromium.launchPersistentContext(profileDir, {
+        headless: true,
+        executablePath,
+        viewport: { width: 1280, height: 800 },
+        userAgent:
+          'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+        deviceScaleFactor: 1,
+        locale: 'en-US',
+        timezoneId: 'America/New_York',
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-blink-features=AutomationControlled',
+          '--disable-web-security',
+          '--disable-features=IsolateOrigins,site-per-process',
+        ],
+      });
+
+      page = context.pages()[0] || (await context.newPage());
+    }
 
     // Stealth script to bypass bot-detection on interactive pages
-    await context.addInitScript(() => {
-      Object.defineProperty(navigator, 'webdriver', {
-        get: () => undefined,
+    try {
+      await context.addInitScript(() => {
+        Object.defineProperty(navigator, 'webdriver', {
+          get: () => undefined,
+        });
       });
-    });
-
-    const page = context.pages()[0] || (await context.newPage());
+    } catch {}
 
     // Default starting state
     const initialState: BrowserSessionState = {

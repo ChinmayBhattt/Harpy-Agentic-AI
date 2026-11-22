@@ -141,7 +141,7 @@ export default function ContactPage() {
                       Founder & Lead Engineering
                     </strong>
                     <span className="text-parchment/60">
-                      Chinmay Bhatt · Pune / Maharashtra, India
+                      Chinmay Bhatt · Jaipur / Maharashtra, India
                     </span>
                   </div>
                 </div>
@@ -150,7 +150,7 @@ export default function ContactPage() {
                   <Sparkles className="w-4 h-4 text-gold flex-shrink-0 mt-0.5" />
                   <div>
                     <strong className="text-parchment block font-cinzel text-xs">
-                      Hacker&apos;s Unity Community
+   Community
                     </strong>
                     <span className="text-parchment/60">
                       National Builder Ecosystem & AI Hackathon Network

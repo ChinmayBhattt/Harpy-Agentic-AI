@@ -23,6 +23,7 @@ import {
   Layers,
   Compass,
   Check,
+  Key,
 } from 'lucide-react';
 import {
   BrowserSessionState,
@@ -60,9 +61,80 @@ export default function BrowserPanel({
   const [manualTypeText, setManualTypeText] = useState('');
   const [selectedElementIndex, setSelectedElementIndex] = useState<number | null>(null);
 
+  const [initError, setInitError] = useState<string | null>(null);
+  const [browserlessKeyInput, setBrowserlessKeyInput] = useState('');
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [showCloudConfig, setShowCloudConfig] = useState(false);
+  const [hasCloudKey, setHasCloudKey] = useState(false);
+
   const viewportRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const logsEndRef = useRef<HTMLDivElement>(null);
+
+  const apiFetch = (url: string, init?: RequestInit) => {
+    const key = typeof window !== 'undefined' ? localStorage.getItem('harpy_browserless_key') : null;
+    const headers = new Headers(init?.headers || {});
+    if (key) {
+      headers.set('x-browserless-key', key);
+    }
+    return fetch(url, { ...init, headers });
+  };
+
+  const handleSaveBrowserlessKey = async (key: string) => {
+    setIsConnecting(true);
+    if (typeof window !== 'undefined') {
+      if (key) {
+        localStorage.setItem('harpy_browserless_key', key);
+        setHasCloudKey(true);
+      } else {
+        localStorage.removeItem('harpy_browserless_key');
+        setHasCloudKey(false);
+      }
+    }
+    try {
+      const res = await fetch(`/api/browser?sessionId=default&browserlessKey=${encodeURIComponent(key)}`, {
+        headers: key ? { 'x-browserless-key': key } : {},
+      });
+      const data = await res.json();
+      if (data.success && data.state) {
+        setSessionState(data.state);
+        setInitError(null);
+        setShowCloudConfig(false);
+        if (data.state.url && data.state.url !== 'about:blank') {
+          setUrlInput(data.state.url);
+        }
+      } else {
+        setInitError(data.error || 'Connection failed with provided cloud browser key.');
+      }
+    } catch (err: any) {
+      setInitError(err.message || 'Connection failed.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
+
+  const handleRetryConnection = async () => {
+    setIsConnecting(true);
+    setInitError(null);
+    try {
+      const key = typeof window !== 'undefined' ? localStorage.getItem('harpy_browserless_key') || '' : '';
+      const res = await apiFetch(`/api/browser?sessionId=default${key ? `&browserlessKey=${encodeURIComponent(key)}` : ''}`);
+      const data = await res.json();
+      if (data.success && data.state) {
+        setSessionState(data.state);
+        setInitError(null);
+        if (data.state.url && data.state.url !== 'about:blank') {
+          setUrlInput(data.state.url);
+        }
+      } else {
+        setInitError(data.error || 'Could not initialize browser engine.');
+      }
+    } catch (err: any) {
+      setInitError(err.message || 'Could not reach browser backend.');
+    } finally {
+      setIsConnecting(false);
+    }
+  };
 
   // ──────────────────────────────────────────────────────────
   // SSE REAL-TIME CONNECTION
@@ -70,15 +142,23 @@ export default function BrowserPanel({
   useEffect(() => {
     if (!isOpen) return;
 
+    const savedKey = typeof window !== 'undefined' ? localStorage.getItem('harpy_browserless_key') : null;
+    if (savedKey) {
+      setHasCloudKey(true);
+      setBrowserlessKeyInput(savedKey);
+    }
+
     let eventSource: EventSource | null = null;
 
     try {
-      eventSource = new EventSource('/api/browser/stream?sessionId=default');
+      const streamUrl = `/api/browser/stream?sessionId=default${savedKey ? `&browserlessKey=${encodeURIComponent(savedKey)}` : ''}`;
+      eventSource = new EventSource(streamUrl);
 
       eventSource.addEventListener('state', (e) => {
         try {
           const data = JSON.parse(e.data) as BrowserSessionState;
           setSessionState(data);
+          setInitError(null);
           if (data.url && data.url !== 'about:blank') {
             setUrlInput(data.url);
           }
@@ -107,16 +187,21 @@ export default function BrowserPanel({
     }
 
     // Initial fetch
-    fetch('/api/browser?sessionId=default')
+    apiFetch(`/api/browser?sessionId=default${savedKey ? `&browserlessKey=${encodeURIComponent(savedKey)}` : ''}`)
       .then((res) => res.json())
       .then((data) => {
         if (data.success && data.state) {
           setSessionState(data.state);
+          setInitError(null);
           setUrlInput(data.state.url || 'https://www.google.com');
           if (data.state.logs) setLogs(data.state.logs);
+        } else if (!data.success) {
+          setInitError(data.error || 'Failed to initialize browser session');
         }
       })
-      .catch((e) => console.error('Initial state fetch error:', e));
+      .catch((e) => {
+        setInitError(e.message || 'Could not connect to browser backend.');
+      });
 
     return () => {
       if (eventSource) {
@@ -147,7 +232,7 @@ export default function BrowserPanel({
   // ──────────────────────────────────────────────────────────
   const handleNavigate = async (targetUrl = urlInput) => {
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'navigate', url: targetUrl }),
@@ -159,7 +244,7 @@ export default function BrowserPanel({
 
   const handleHistory = async (command: 'back' | 'forward' | 'reload') => {
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'history', command }),
@@ -171,7 +256,7 @@ export default function BrowserPanel({
 
   const handleSetMode = async (mode: BrowserControlMode) => {
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'set_mode', mode }),
@@ -184,7 +269,7 @@ export default function BrowserPanel({
   const handleStartAgent = async (goalToRun = goalInput) => {
     if (!goalToRun.trim()) return;
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -202,7 +287,7 @@ export default function BrowserPanel({
 
   const handleStopAgent = async () => {
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'stop_agent' }),
@@ -214,7 +299,7 @@ export default function BrowserPanel({
 
   const handleConfirm = async (allowed: boolean) => {
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'confirm', allowed }),
@@ -257,7 +342,7 @@ export default function BrowserPanel({
     }
 
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -276,7 +361,7 @@ export default function BrowserPanel({
   const handleManualType = async (pressEnter = true) => {
     if (!manualTypeText.trim()) return;
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -295,7 +380,7 @@ export default function BrowserPanel({
 
   const handleScroll = async (direction: 'up' | 'down') => {
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -312,7 +397,7 @@ export default function BrowserPanel({
 
   const handleReset = async () => {
     try {
-      await fetch('/api/browser', {
+      await apiFetch('/api/browser', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'reset' }),
@@ -460,6 +545,17 @@ export default function BrowserPanel({
 
           {/* Window Controls */}
           <div className="flex items-center gap-1 shrink-0">
+            {/* Cloud Browser Key Settings */}
+            <button
+              onClick={() => setShowCloudConfig(!showCloudConfig)}
+              className={`p-1 rounded transition-colors ${
+                hasCloudKey ? 'text-gold hover:text-white' : 'text-[#D5C2A5]/50 hover:text-white'
+              }`}
+              title={hasCloudKey ? 'Cloud Browser Connected (Click to manage key)' : 'Configure Cloud Browser Key for Vercel'}
+            >
+              <Key className="w-3.5 h-3.5" />
+            </button>
+
             {onToggleExpand && (
               <button
                 onClick={onToggleExpand}
@@ -479,6 +575,56 @@ export default function BrowserPanel({
             </button>
           </div>
         </div>
+
+        {/* Cloud Browser Config Drawer */}
+        {showCloudConfig && (
+          <div className="bg-[#14100D] border-t border-[#332A22] p-2.5 px-3 flex flex-col gap-2 animate-in fade-in duration-150">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-xs text-gold font-cinzel font-semibold">
+                <Key className="w-3 h-3 text-gold" />
+                <span>Cloud Browser Configuration (Vercel / Remote)</span>
+              </div>
+              <button
+                onClick={() => setShowCloudConfig(false)}
+                className="text-[#A89885] hover:text-white text-xs"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-[11px] text-parchment-muted">
+              Vercel serverless containers require an external Chromium endpoint. Use a free API key from{' '}
+              <a href="https://www.browserless.io" target="_blank" rel="noopener noreferrer" className="text-gold underline">browserless.io</a>{' '}
+              (1,000 free sessions/mo) or configure BROWSERLESS_API_KEY in Vercel.
+            </p>
+            <div className="flex items-center gap-2">
+              <input
+                type="password"
+                placeholder="Paste Browserless API Key..."
+                value={browserlessKeyInput}
+                onChange={(e) => setBrowserlessKeyInput(e.target.value)}
+                className="flex-1 bg-black/60 border border-[#332A22] rounded px-2 py-1 text-xs text-parchment font-mono focus:outline-none focus:border-gold"
+              />
+              <button
+                type="button"
+                onClick={() => handleSaveBrowserlessKey(browserlessKeyInput.trim())}
+                disabled={isConnecting}
+                className="px-2.5 py-1 bg-gold text-black text-xs font-semibold rounded hover:brightness-110 disabled:opacity-50 transition-all shrink-0"
+              >
+                {isConnecting ? 'Connecting...' : 'Save & Connect'}
+              </button>
+              {hasCloudKey && (
+                <button
+                  type="button"
+                  onClick={() => handleSaveBrowserlessKey('')}
+                  className="px-2 py-1 bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs rounded hover:bg-rose-500/30 transition-all shrink-0"
+                  title="Clear key and revert to local Chrome"
+                >
+                  Clear
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Row 2: Status pill, Mode switcher, Stop button */}
         <div className="flex items-center justify-between px-3 py-1 bg-[#0E0C0A] border-t border-[#1F1B17]">
@@ -560,6 +706,78 @@ export default function BrowserPanel({
                 className="absolute w-8 h-8 rounded-full border-2 border-gold bg-gold/20 animate-ping pointer-events-none"
               />
             )}
+          </div>
+        ) : initError ? (
+          <div className="flex flex-col items-center justify-center p-6 text-center max-w-lg w-full mx-auto my-auto animate-in fade-in duration-300">
+            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 flex items-center justify-center mb-3 text-amber-400">
+              <AlertTriangle className="w-6 h-6" />
+            </div>
+
+            <h3 className="font-cinzel text-base text-parchment font-bold tracking-wide mb-1">
+              Browser Engine Deployment Notice
+            </h3>
+
+            <p className="font-mono text-xs text-rose-300/90 bg-rose-950/30 border border-rose-900/40 rounded-lg p-2.5 my-2.5 text-left w-full break-words">
+              {initError}
+            </p>
+
+            <div className="w-full bg-[#14110E] border border-[#2B241D] rounded-xl p-3.5 text-left space-y-2.5 text-xs">
+              <div className="flex items-start gap-2">
+                <span className="text-gold font-bold">1.</span>
+                <p className="text-parchment/80">
+                  <strong className="text-white">Run Locally:</strong> For native Google Chrome with zero config, run{' '}
+                  <code className="text-gold bg-black/60 px-1.5 py-0.5 rounded font-mono">npm run dev</code> on your machine.
+                </p>
+              </div>
+
+              <div className="flex items-start gap-2">
+                <span className="text-gold font-bold">2.</span>
+                <div className="space-y-1.5 w-full">
+                  <p className="text-parchment/80">
+                    <strong className="text-white">Vercel / Cloud Browser:</strong> Vercel serverless containers require an external browser endpoint. Get a free API key at{' '}
+                    <a
+                      href="https://www.browserless.io"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-gold underline hover:text-parchment font-semibold"
+                    >
+                      browserless.io
+                    </a>{' '}
+                    (1,000 free sessions/month).
+                  </p>
+
+                  <div className="flex gap-2 pt-1">
+                    <input
+                      type="password"
+                      placeholder="Paste Browserless API Key..."
+                      value={browserlessKeyInput}
+                      onChange={(e) => setBrowserlessKeyInput(e.target.value)}
+                      className="flex-1 bg-black/60 border border-[#3D3328] rounded px-2.5 py-1.5 text-xs text-parchment font-mono focus:outline-none focus:border-gold"
+                    />
+                    <button
+                      type="button"
+                      disabled={!browserlessKeyInput.trim() || isConnecting}
+                      onClick={() => handleSaveBrowserlessKey(browserlessKeyInput.trim())}
+                      className="px-3 py-1.5 bg-gold text-black font-semibold rounded text-xs hover:brightness-110 disabled:opacity-40 transition-all flex items-center gap-1 shrink-0"
+                    >
+                      {isConnecting ? <RotateCw className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                      Connect
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-3 mt-3.5">
+              <button
+                type="button"
+                onClick={() => handleRetryConnection()}
+                className="flex items-center gap-1.5 px-4 py-2 bg-[#1C1814] border border-[#3D3328] hover:border-gold text-parchment text-xs rounded-lg transition-colors"
+              >
+                <RotateCw className="w-3.5 h-3.5 text-gold" />
+                Retry Connection
+              </button>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center p-8 text-center space-y-3">
@@ -803,7 +1021,7 @@ export default function BrowserPanel({
                       setSelectedElementIndex(el.index);
                       // In manual mode, clicking this will click the element
                       if (sessionState.controlMode === 'manual') {
-                        fetch('/api/browser', {
+                        apiFetch('/api/browser', {
                           method: 'POST',
                           headers: { 'Content-Type': 'application/json' },
                           body: JSON.stringify({
