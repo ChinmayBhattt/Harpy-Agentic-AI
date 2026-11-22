@@ -10,7 +10,14 @@ export async function GET(req: NextRequest) {
     const sessionId = searchParams.get('sessionId') || 'default';
     const clientKey = req.headers.get('x-browserless-key') || searchParams.get('browserlessKey') || undefined;
     const clientWs = req.headers.get('x-browser-ws-endpoint') || searchParams.get('wsEndpoint') || undefined;
-    const customWs = clientWs || (clientKey ? `wss://chrome.browserless.io?token=${clientKey}` : undefined);
+    const host = process.env.BROWSERLESS_HOST || 'production-sfo.browserless.io/chromium';
+    const customWs =
+      clientWs ||
+      (clientKey
+        ? (clientKey.startsWith('ws://') || clientKey.startsWith('wss://')
+            ? clientKey
+            : `wss://${host}?token=${clientKey}`)
+        : undefined);
 
     // Ensure session exists
     await BrowserSessionManager.getSession(sessionId, customWs);

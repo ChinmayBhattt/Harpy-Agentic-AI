@@ -62,17 +62,21 @@ export class BrowserSessionManager {
       }
     }
 
-    // Cloud Browser endpoint configuration
+    // Cloud Browser endpoint configuration (Browserless v2 San Francisco cluster)
     const defaultServerlessKey = '2Vg1EbMVfUmahnT74402f541e19216f53c9abd734417e7369';
     const effectiveBrowserlessKey =
       process.env.BROWSERLESS_API_KEY ||
       (isServerless ? defaultServerlessKey : undefined);
 
+    const browserlessHost = process.env.BROWSERLESS_HOST || 'production-sfo.browserless.io/chromium';
+
     const wsEndpoint =
       customWsEndpoint ||
       process.env.BROWSER_WS_ENDPOINT ||
       (effectiveBrowserlessKey
-        ? `wss://chrome.browserless.io?token=${effectiveBrowserlessKey}`
+        ? (effectiveBrowserlessKey.startsWith('ws://') || effectiveBrowserlessKey.startsWith('wss://')
+            ? effectiveBrowserlessKey
+            : `wss://${browserlessHost}?token=${effectiveBrowserlessKey}`)
         : undefined);
 
     let context: BrowserContext;

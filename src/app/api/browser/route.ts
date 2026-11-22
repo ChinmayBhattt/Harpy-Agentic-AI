@@ -16,7 +16,11 @@ function resolveWsEndpoint(req: Request, body?: any): string | undefined {
     undefined;
 
   if (clientWs) return clientWs;
-  if (clientKey) return `wss://chrome.browserless.io?token=${clientKey}`;
+  if (clientKey) {
+    if (clientKey.startsWith('ws://') || clientKey.startsWith('wss://')) return clientKey;
+    const host = process.env.BROWSERLESS_HOST || 'production-sfo.browserless.io/chromium';
+    return `wss://${host}?token=${clientKey}`;
+  }
   return undefined;
 }
 
