@@ -1,4 +1,6 @@
-import { chromium, type Browser, type BrowserContext, type Page } from 'playwright';
+import path from 'path';
+import fs from 'fs';
+import { chromium, type BrowserContext, type Page } from 'playwright';
 import {
   BrowserSessionState,
   InteractiveElement,
@@ -18,8 +20,6 @@ interface ActiveSession {
 
 declare global {
   // eslint-disable-next-line no-var
-  var __harpyBrowserInstance: Browser | undefined;
-  // eslint-disable-next-line no-var
   var __harpyBrowserSessions: Map<string, ActiveSession> | undefined;
 }
 
@@ -28,13 +28,44 @@ if (!global.__harpyBrowserSessions) {
 }
 
 export class BrowserSessionManager {
-  private static async getBrowser(): Promise<Browser> {
-    if (global.__harpyBrowserInstance && global.__harpyBrowserInstance.isConnected()) {
-      return global.__harpyBrowserInstance;
+  public static async getSession(sessionId = 'default'): Promise<ActiveSession> {
+    const sessions = global.__harpyBrowserSessions!;
+    const existing = sessions.get(sessionId);
+
+    if (existing && !existing.page.isClosed()) {
+      return existing;
     }
 
-    global.__harpyBrowserInstance = await chromium.launch({
+    const profileDir = path.join(process.cwd(), '.harpy-browser-profile');
+    if (!fs.existsSync(profileDir)) {
+      fs.mkdirSync(profileDir, { recursive: true });
+    }
+
+    // Clean up stale Chromium lock files if previous process ended abruptly
+    const lockFiles = ['SingletonLock', 'SingletonCookie', 'SingletonSocket'];
+    for (const file of lockFiles) {
+      const p = path.join(profileDir, file);
+      if (fs.existsSync(p)) {
+        try {
+          fs.unlinkSync(p);
+        } catch {}
+      }
+    }
+
+    // Detect official Google Chrome binary on Mac/Linux
+    const macChrome = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    const executablePath = fs.existsSync(macChrome) ? macChrome : undefined;
+
+    // Launch Persistent Context so cookies, logins, and sessions stay saved permanently
+    const context = await chromium.launchPersistentContext(profileDir, {
       headless: true,
+      executablePath,
+      viewport: { width: 1280, height: 800 },
+      userAgent:
+        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
+      deviceScaleFactor: 1,
+      locale: 'en-US',
+      timezoneId: 'America/New_York',
       args: [
         '--no-sandbox',
         '--disable-setuid-sandbox',
@@ -45,27 +76,6 @@ export class BrowserSessionManager {
       ],
     });
 
-    return global.__harpyBrowserInstance;
-  }
-
-  public static async getSession(sessionId = 'default'): Promise<ActiveSession> {
-    const sessions = global.__harpyBrowserSessions!;
-    const existing = sessions.get(sessionId);
-
-    if (existing && !existing.page.isClosed()) {
-      return existing;
-    }
-
-    const browser = await this.getBrowser();
-    const context = await browser.newContext({
-      viewport: { width: 1280, height: 800 },
-      userAgent:
-        'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
-      deviceScaleFactor: 1,
-      locale: 'en-US',
-      timezoneId: 'America/New_York',
-    });
-
     // Stealth script to bypass bot-detection on interactive pages
     await context.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', {
@@ -73,7 +83,7 @@ export class BrowserSessionManager {
       });
     });
 
-    const page = await context.newPage();
+    const page = context.pages()[0] || (await context.newPage());
 
     // Default starting state
     const initialState: BrowserSessionState = {

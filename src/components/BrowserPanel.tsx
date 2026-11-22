@@ -572,61 +572,46 @@ export default function BrowserPanel({
         )}
 
         {/* ────────────────────────────────────────────────────────── */}
-        {/* SENSITIVE ACTION AUTHORIZATION DIALOG */}
+        {/* SENSITIVE ACTION / AUTH GATE BANNER (NON-BLOCKING) */}
         {/* ────────────────────────────────────────────────────────── */}
         {sessionState?.status === 'awaiting_confirmation' && sessionState.pendingConfirmation && (
-          <div className="absolute inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center p-6 z-30">
-            <div className="max-w-md w-full bg-[#181412] border-2 border-rose-500/60 p-6 rounded-xl shadow-2xl space-y-4 animate-in fade-in zoom-in duration-200">
-              <div className="flex items-center gap-3 text-rose-400">
-                <div className="p-2.5 bg-rose-500/20 rounded-lg border border-rose-500/40">
-                  <ShieldAlert className="w-6 h-6" />
-                </div>
-                <div>
-                  <h3 className="font-cinzel text-base font-semibold text-white">
-                    Authorization Required
-                  </h3>
-                  <span className="font-inter text-xs text-rose-300">
-                    Security Barrier Protocol Active
+          <div className="absolute top-2 inset-x-2 bg-[#181412]/95 border-2 border-gold/70 p-2.5 rounded-xl shadow-2xl z-30 flex items-center justify-between gap-3 animate-in fade-in duration-200">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-1.5 bg-gold/20 rounded-lg border border-gold/40 shrink-0">
+                <ShieldAlert className="w-4 h-4 text-gold" />
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="font-cinzel text-xs font-semibold text-white">
+                    {sessionState.pendingConfirmation.action === 'login'
+                      ? 'Authentication Required'
+                      : 'Authorization Required'}
+                  </span>
+                  <span className="text-[10px] bg-gold/20 text-gold px-1.5 py-0.2 rounded font-mono font-medium shrink-0">
+                    Pilot Mode Active
                   </span>
                 </div>
-              </div>
-
-              <div className="p-3 bg-black/50 border border-rose-500/20 rounded-lg text-xs space-y-1.5 font-mono text-parchment/90">
-                <p>
-                  <strong className="text-gold">Action:</strong>{' '}
-                  {sessionState.pendingConfirmation.action}
-                </p>
-                <p>
-                  <strong className="text-gold">Description:</strong>{' '}
+                <p className="text-[11px] text-parchment/80 font-mono truncate max-w-md">
                   {sessionState.pendingConfirmation.description}
                 </p>
-                {sessionState.pendingConfirmation.url && (
-                  <p className="truncate">
-                    <strong className="text-gold">Target URL:</strong>{' '}
-                    {sessionState.pendingConfirmation.url}
-                  </p>
-                )}
               </div>
+            </div>
 
-              <p className="font-inter text-xs text-parchment-muted">
-                The Harpy Autonomous Agent paused execution before this sensitive interaction.
-                Do you permit Harpy to proceed?
-              </p>
-
-              <div className="flex items-center justify-end gap-3 pt-2">
-                <button
-                  onClick={() => handleConfirm(false)}
-                  className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-parchment/80 bg-white/5 hover:bg-white/10 border border-white/10 rounded-lg transition-colors"
-                >
-                  Deny Action
-                </button>
-                <button
-                  onClick={() => handleConfirm(true)}
-                  className="px-4 py-2 text-xs font-semibold uppercase tracking-wider text-black bg-gradient-to-r from-gold-light via-gold to-bronze hover:brightness-110 rounded-lg shadow-lg transition-all"
-                >
-                  Authorize Flight
-                </button>
-              </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                onClick={() => handleConfirm(false)}
+                className="px-2.5 py-1 text-xs text-parchment/70 hover:text-white bg-white/5 hover:bg-white/10 border border-white/10 rounded transition-colors"
+                title="Cancel autonomous mission"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleConfirm(true)}
+                className="px-3 py-1 text-xs font-semibold text-black bg-gradient-to-r from-gold-light via-gold to-bronze hover:brightness-110 rounded shadow transition-all whitespace-nowrap"
+                title="Save session & continue mission"
+              >
+                Resume Flight ✈️
+              </button>
             </div>
           </div>
         )}

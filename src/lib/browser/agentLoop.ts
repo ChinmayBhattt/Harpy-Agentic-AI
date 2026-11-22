@@ -214,27 +214,41 @@ Current Step: ${step} of ${maxSteps}. Decide your next action.`;
         });
 
         // ──────────────────────────────────────────────────────────
-        // SAFETY & CONFIRMATION CHECK
+        // SAFETY & CONFIRMATION CHECK (INCLUDING AUTH GATE DETECTION)
         // ──────────────────────────────────────────────────────────
         const targetElement = plan.targetIndex
           ? observation.elements.find((e) => e.index === plan.targetIndex)
           : null;
 
+        const isAuthGate =
+          /\b(accounts\.google\.com|login|signin|sign-in|auth|2fa|checkpoint|challenge|recaptcha)\b/i.test(
+            observation.state.url
+          ) ||
+          observation.elements.some((e) => e.type === 'password') ||
+          /\b(sign in to continue|log in to your account|enter your password|2-step verification|verify it's you)\b/i.test(
+            observation.pageSummary
+          );
+
         if (
           plan.action === 'ask_confirmation' ||
           targetElement?.isSensitive ||
-          (plan.action === 'type' && targetElement?.type === 'password')
+          (plan.action === 'type' && targetElement?.type === 'password') ||
+          (isAuthGate && (plan.action === 'type' || plan.action === 'click'))
         ) {
           session.state.status = 'awaiting_confirmation';
+          session.state.controlMode = 'manual'; // Auto-handover to Pilot mode so user can sign in!
+          BrowserSessionManager.emitState(sessionId);
+
           const confId = `conf_${Date.now()}`;
           BrowserSessionManager.setPendingConfirmation(sessionId, {
             id: confId,
-            action: plan.action,
-            description:
-              plan.confirmationReason ||
-              `The agent is about to interact with a potentially sensitive element: ${
-                targetElement?.text || targetElement?.name || 'Input field'
-              }. Do you authorize this action?`,
+            action: isAuthGate ? 'login' : plan.action,
+            description: isAuthGate
+              ? `Authentication Required on ${observation.state.title || 'Page'}. Please complete login in Pilot mode below. Once logged in, click "Resume Flight" and your session will be saved permanently.`
+              : plan.confirmationReason ||
+                `The agent is about to interact with a potentially sensitive element: ${
+                  targetElement?.text || targetElement?.name || 'Input field'
+                }. Do you authorize this action?`,
             severity: 'high',
             elementIndex: plan.targetIndex,
             url: observation.state.url,
@@ -243,8 +257,12 @@ Current Step: ${step} of ${maxSteps}. Decide your next action.`;
           BrowserSessionManager.addLog(sessionId, {
             stepNumber: step,
             phase: 'CONFIRMATION',
-            thought: 'Security boundary: User authorization required before proceeding.',
-            details: plan.confirmationReason || 'Sensitive element interaction detected.',
+            thought: isAuthGate
+              ? 'Authentication barrier encountered: Handing over to Pilot mode for user sign-in.'
+              : 'Security boundary: User authorization required before proceeding.',
+            details: isAuthGate
+              ? 'Please sign in or complete 2FA on the screen. Session will be saved permanently.'
+              : plan.confirmationReason || 'Sensitive element interaction detected.',
             status: 'pending',
           });
 
@@ -254,11 +272,16 @@ Current Step: ${step} of ${maxSteps}. Decide your next action.`;
             BrowserSessionManager.addLog(sessionId, {
               stepNumber: step,
               phase: 'CONFIRMATION',
-              action: 'Action denied by user.',
+              action: 'Action cancelled by user.',
               status: 'failed',
             });
             break;
           }
+
+          // Once confirmed, switch back to agent mode and re-observe
+          session.state.controlMode = 'agent';
+          BrowserSessionManager.emitState(sessionId);
+          await BrowserSessionManager.observe(sessionId);
         }
 
         // ──────────────────────────────────────────────────────────
