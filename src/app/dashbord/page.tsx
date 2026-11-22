@@ -1281,28 +1281,6 @@ export default function DashboardPage() {
               <span>Portal</span>
               <ExternalLink className="w-3 h-3" />
             </Link>
-
-            {/* Supabase Authenticated User / Sign In Pill */}
-            {authUser ? (
-              <div className="hidden md:flex items-center gap-2 px-2.5 py-1 rounded-full border border-[#1C1C26] bg-[#0B0B0F] text-[11px] text-[#E8DDC7]/80">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                <span className="font-mono truncate max-w-[140px] text-[#E8DDC7]/90">{authUser.email}</span>
-                <button
-                  onClick={handleSignOut}
-                  className="text-[#C6A46A]/60 hover:text-[#C6A46A] ml-1 pl-1.5 border-l border-[#22222E] uppercase font-cinzel text-[10px] transition-colors"
-                  title="Sign Out of Supabase"
-                >
-                  Exit
-                </button>
-              </div>
-            ) : (
-              <Link
-                href="/started"
-                className="hidden md:inline-flex items-center gap-1 px-3 py-1 rounded-full border border-[#C6A46A]/40 text-[11px] font-cinzel text-[#C6A46A] hover:bg-[#C6A46A]/10 transition-colors"
-              >
-                <span>Sign In</span>
-              </Link>
-            )}
           </div>
         </header>
 
