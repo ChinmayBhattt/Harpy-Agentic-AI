@@ -1188,13 +1188,13 @@ export default function DashboardPage() {
           </div>
 
           <div className="space-y-1 pt-1">
-            {sessions.filter((s) => s.messages && s.messages.length > 0).length === 0 ? (
+            {(sessions || []).filter((s) => s?.messages && s.messages.length > 0).length === 0 ? (
               <div className="px-3 py-6 text-center text-xs text-[#E8DDC7]/30 font-light font-cinzel tracking-wider">
                 No Previous Missions
               </div>
             ) : (
-              sessions
-                .filter((s) => s.messages && s.messages.length > 0)
+              (sessions || [])
+                .filter((s) => s?.messages && s.messages.length > 0)
                 .sort((a, b) => {
                   if (a.isPinned && !b.isPinned) return -1;
                   if (!a.isPinned && b.isPinned) return 1;

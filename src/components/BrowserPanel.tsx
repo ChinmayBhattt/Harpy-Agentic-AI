@@ -652,43 +652,54 @@ export default function BrowserPanel({
       {/* ────────────────────────────────────────────────────────── */}
       <div className="bg-[#12100E] border-t border-[#2D2824] flex flex-col">
         {/* Drawer Header & Tabs */}
-        <div className="flex items-center justify-between px-4 py-2 border-b border-[#24201C] bg-[#161412]">
-          <div className="flex items-center gap-3">
+        <div className="flex items-center justify-between px-3 sm:px-4 py-2 border-b border-[#24201C] bg-[#161412] gap-2">
+          {/* Left: Tab Switchers */}
+          <div className="flex items-center gap-2 sm:gap-3 min-w-0">
             <button
               onClick={() => setActiveTab('loop')}
-              className={`flex items-center gap-1.5 text-xs font-cinzel font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 text-xs font-cinzel font-semibold transition-all py-1 px-2.5 rounded-lg ${
                 activeTab === 'loop'
-                  ? 'text-gold border-b-2 border-gold pb-0.5'
-                  : 'text-[#D5C2A5]/60 hover:text-white'
+                  ? 'bg-gold/15 text-gold border border-gold/40 shadow-sm'
+                  : 'text-[#D5C2A5]/60 hover:text-parchment hover:bg-white/5 border border-transparent'
               }`}
             >
-              <Cpu className="w-3.5 h-3.5" />
-              Autonomous Loop ({logs.length})
+              <Cpu className="w-3.5 h-3.5 shrink-0" />
+              <span>Autonomous Loop</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/50 text-gold font-medium ml-0.5">
+                {logs.length}
+              </span>
             </button>
+
             <button
               onClick={() => setActiveTab('elements')}
-              className={`flex items-center gap-1.5 text-xs font-cinzel font-semibold transition-colors ${
+              className={`flex items-center gap-1.5 text-xs font-cinzel font-semibold transition-all py-1 px-2.5 rounded-lg ${
                 activeTab === 'elements'
-                  ? 'text-gold border-b-2 border-gold pb-0.5'
-                  : 'text-[#D5C2A5]/60 hover:text-white'
+                  ? 'bg-gold/15 text-gold border border-gold/40 shadow-sm'
+                  : 'text-[#D5C2A5]/60 hover:text-parchment hover:bg-white/5 border border-transparent'
               }`}
             >
-              <Layers className="w-3.5 h-3.5" />
-              DOM Elements ({sessionState?.interactiveElements?.length || 0})
+              <Layers className="w-3.5 h-3.5 shrink-0" />
+              <span>DOM Elements</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-mono bg-black/50 text-[#D5C2A5] font-medium ml-0.5">
+                {sessionState?.interactiveElements?.length || 0}
+              </span>
             </button>
           </div>
 
-          <div className="flex items-center gap-2">
+          {/* Right: Actions (Reset + Collapse) */}
+          <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={handleReset}
-              className="text-[11px] font-mono text-[#D5C2A5]/60 hover:text-rose-400 transition-colors"
+              className="flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono rounded-lg bg-[#0E0C0A] border border-[#2D2824] text-[#D5C2A5]/70 hover:text-rose-400 hover:border-rose-500/40 hover:bg-rose-500/10 transition-all shadow-sm"
               title="Reset session to clean Google instance"
             >
-              Reset Session
+              <RotateCw className="w-3 h-3" />
+              <span>Reset Session</span>
             </button>
             <button
               onClick={() => setIsDrawerOpen(!isDrawerOpen)}
-              className="p-1 rounded text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 transition-colors"
+              className="p-1.5 rounded-lg text-[#D5C2A5]/70 hover:text-white hover:bg-white/5 border border-transparent hover:border-[#2D2824] transition-colors"
+              title={isDrawerOpen ? "Collapse drawer" : "Expand drawer"}
             >
               {isDrawerOpen ? <ChevronDown className="w-3.5 h-3.5" /> : <ChevronUp className="w-3.5 h-3.5" />}
             </button>
@@ -801,32 +812,7 @@ export default function BrowserPanel({
         {/* ────────────────────────────────────────────────────────── */}
         {/* 4. GOAL INPUT & LAUNCH BAR */}
         {/* ────────────────────────────────────────────────────────── */}
-        <div className="p-3 bg-[#0E0C0A] border-t border-[#26211C] flex flex-col gap-2">
-          {/* Quick presets */}
-          <div className="flex items-center gap-1.5 overflow-x-auto pb-1 text-[11px] text-parchment-muted scrollbar-none">
-            <span className="text-gold/70 text-[10px] uppercase tracking-wider font-cinzel shrink-0 mr-1">
-              Flight Paths:
-            </span>
-            <button
-              onClick={() => handleStartAgent('Search Google for the latest breakthrough in AI agent models')}
-              className="px-2.5 py-0.5 rounded-full bg-[#1A1613] border border-[#332D27] text-[#D5C2A5] hover:border-gold/50 hover:text-white transition-colors shrink-0"
-            >
-              Google Search AI
-            </button>
-            <button
-              onClick={() => handleStartAgent('Navigate to github.com and find trending repositories')}
-              className="px-2.5 py-0.5 rounded-full bg-[#1A1613] border border-[#332D27] text-[#D5C2A5] hover:border-gold/50 hover:text-white transition-colors shrink-0"
-            >
-              GitHub Trending
-            </button>
-            <button
-              onClick={() => handleStartAgent('Go to news.ycombinator.com and list top 3 tech stories')}
-              className="px-2.5 py-0.5 rounded-full bg-[#1A1613] border border-[#332D27] text-[#D5C2A5] hover:border-gold/50 hover:text-white transition-colors shrink-0"
-            >
-              Hacker News Top Stories
-            </button>
-          </div>
-
+        <div className="p-3 bg-[#0E0C0A] border-t border-[#26211C]">
           {/* Goal Input Field */}
           <form
             onSubmit={(e) => {
