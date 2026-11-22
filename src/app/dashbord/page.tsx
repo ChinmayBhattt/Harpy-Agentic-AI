@@ -48,8 +48,10 @@ import {
   Menu,
   PanelLeftClose,
   PanelLeftOpen,
+  Compass,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
+import BrowserPanel from "@/components/BrowserPanel";
 
 interface Message {
   id: string;
@@ -252,6 +254,11 @@ export default function DashboardPage() {
   const [isExecuting, setIsExecuting] = useState(false);
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Integrated AI Browser Automation State
+  const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
+  const [browserExpanded, setBrowserExpanded] = useState(false);
+  const [browserGoal, setBrowserGoal] = useState<string | undefined>(undefined);
 
   // Model & Auto-Detect API Key State
   const [apiKey, setApiKey] = useState<string>("");
@@ -609,6 +616,25 @@ export default function DashboardPage() {
 
     const textToSend = customPrompt || inputValue.trim();
     if (!textToSend && !attachedFile) return;
+
+    // Automatic browser mission intent detection
+    const lowerText = textToSend.toLowerCase();
+    const isBrowserIntent =
+      lowerText.includes("browse") ||
+      lowerText.includes("google search") ||
+      lowerText.includes("search google") ||
+      lowerText.startsWith("open ") ||
+      lowerText.includes("open website") ||
+      lowerText.includes("go to ") ||
+      lowerText.includes("playwright") ||
+      lowerText.includes("navigate to ") ||
+      lowerText.includes("check website") ||
+      lowerText.includes("scrape");
+
+    if (isBrowserIntent) {
+      setBrowserGoal(textToSend);
+      setBrowserPanelOpen(true);
+    }
 
     const userMsg: Message = {
       id: `usr-${Date.now()}`,
@@ -1541,7 +1567,25 @@ export default function DashboardPage() {
             </button>
           </div>
 
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            {/* Browser Agent Toggle Button */}
+            <button
+              type="button"
+              onClick={() => setBrowserPanelOpen(!browserPanelOpen)}
+              className={`inline-flex items-center gap-2 px-3 py-1 rounded-full border transition-all cursor-pointer ${
+                browserPanelOpen
+                  ? "border-[#C6A46A] bg-[#C6A46A]/20 text-[#C6A46A] shadow-[0_0_14px_rgba(198,164,106,0.3)]"
+                  : "border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] text-xs text-[#E8DDC7]/75 hover:text-[#C6A46A]"
+              }`}
+              title="Open Autonomous AI Browser Panel"
+            >
+              <Compass className={`w-3.5 h-3.5 text-[#C6A46A] ${browserPanelOpen ? "animate-spin" : ""}`} />
+              <span className="font-cinzel text-[11px] tracking-wider uppercase font-semibold">
+                Browser Agent
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            </button>
+
             {/* Connected Apps Pill */}
             <button
               onClick={() => setConnectorsModalOpen(true)}
@@ -1562,7 +1606,19 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Messages Scroll Area */}
+        {/* Split Screen Container: Left (Chat Area) & Right (Browser Panel) */}
+        <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative">
+          {/* Chat Container */}
+          <div
+            className={`flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${
+              browserPanelOpen && !browserExpanded
+                ? "w-full lg:w-1/2 border-r border-[#14141C]"
+                : browserExpanded
+                ? "hidden"
+                : "w-full"
+            }`}
+          >
+            {/* Messages Scroll Area */}
         <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 z-10 flex flex-col [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {(!currentSession?.messages || currentSession.messages.length === 0) ? (
             /* Centered Greeting */
@@ -1599,7 +1655,13 @@ export default function DashboardPage() {
                   {SUGGESTIONS.map((item, idx) => (
                     <button
                       key={idx}
-                      onClick={() => handleSendMessage(item.prompt)}
+                      onClick={() => {
+                        if (item.title.toLowerCase().includes("chrome")) {
+                          setBrowserGoal("Browse our staging environment in Chrome, verify all endpoints return 200 OK, and dispatch an executive status report to WhatsApp.");
+                          setBrowserPanelOpen(true);
+                        }
+                        handleSendMessage(item.prompt);
+                      }}
                       className="p-4 rounded-xl bg-[#09090E] border border-[#171722] hover:border-[#C6A46A]/50 hover:bg-[#0E0E16] transition-all duration-200 text-left flex flex-col justify-between group shadow-sm hover:shadow-[0_0_20px_rgba(198,164,106,0.08)] min-h-[96px]"
                     >
                       <div className="flex items-center justify-between w-full mb-1.5">
@@ -1855,7 +1917,28 @@ export default function DashboardPage() {
             </p>
           </div>
         </div>
-      </main>
+      </div>
+
+      {/* Integrated Browser Panel */}
+      {browserPanelOpen && (
+        <div
+          className={`h-full min-h-0 transition-all duration-300 flex flex-col ${
+            browserExpanded ? "w-full" : "w-full lg:w-1/2"
+          }`}
+        >
+          <BrowserPanel
+            isOpen={browserPanelOpen}
+            onClose={() => setBrowserPanelOpen(false)}
+            apiKey={apiKey}
+            selectedModel={selectedModelId}
+            initialGoal={browserGoal}
+            isExpanded={browserExpanded}
+            onToggleExpand={() => setBrowserExpanded(!browserExpanded)}
+          />
+        </div>
+      )}
+    </div>
+  </main>
 
       {/* ──────────────────────────────────────────────────────────
           CONNECTORS MODAL (Gmail, Notion, WhatsApp, Discord, etc.)
