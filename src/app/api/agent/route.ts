@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { AgentLoop } from '@/lib/agent/agentLoop';
-import { AgentEvent } from '@/lib/agent/events';
+import { AgentEvent, FileChangeRecord } from '@/lib/agent/events';
+import { WorkspaceSandbox } from '@/lib/agent/tools';
 
 export const dynamic = 'force-dynamic';
 export const maxDuration = 60; // Max allowed serverless duration on standard Vercel accounts
@@ -8,12 +9,46 @@ export const maxDuration = 60; // Max allowed serverless duration on standard Ve
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { action, prompt, sessionId = `session-${Date.now()}`, userId = 'anonymous', model, apiKey } = body;
+    const {
+      action,
+      prompt,
+      sessionId = `session-${Date.now()}`,
+      userId = 'anonymous',
+      model,
+      apiKey,
+      existingFiles,
+      command,
+    } = body;
 
     // Handle abort action
     if (action === 'abort') {
       const ok = AgentLoop.abort(sessionId);
       return NextResponse.json({ success: ok, message: ok ? 'Agent run aborted.' : 'No active run found.' });
+    }
+
+    // Handle interactive terminal CLI command
+    if (action === 'command') {
+      if (!command || typeof command !== 'string') {
+        return NextResponse.json({ error: 'Missing command string' }, { status: 400 });
+      }
+      try {
+        const sandbox = new WorkspaceSandbox(userId, sessionId);
+        const result = await sandbox.executeCommand(command);
+        return NextResponse.json({
+          success: result.exitCode === 0,
+          stdout: result.stdout,
+          stderr: result.stderr,
+          exitCode: result.exitCode,
+        });
+      } catch (cmdErr: unknown) {
+        const message = cmdErr instanceof Error ? cmdErr.message : 'Command execution failed';
+        return NextResponse.json({
+          success: false,
+          stdout: '',
+          stderr: message,
+          exitCode: 1,
+        });
+      }
     }
 
     if (!prompt || typeof prompt !== 'string' || !prompt.trim()) {
@@ -38,6 +73,7 @@ export async function POST(req: NextRequest) {
             sessionId,
             model,
             apiKey,
+            existingFiles: Array.isArray(existingFiles) ? (existingFiles as FileChangeRecord[]) : undefined,
             signal: req.signal,
             onEvent: sendEvent,
           });

@@ -10,6 +10,7 @@ interface AgentLoopOptions {
   model?: string;
   apiKey?: string;
   provider?: 'groq' | 'openai' | 'anthropic';
+  existingFiles?: FileChangeRecord[];
   signal?: AbortSignal;
   onEvent: (event: AgentEvent) => void;
   maxSteps?: number;
@@ -59,6 +60,7 @@ export class AgentLoop {
       sessionId,
       model = 'openai/gpt-oss-120b',
       apiKey,
+      existingFiles,
       signal,
       onEvent,
     } = options;
@@ -72,6 +74,15 @@ export class AgentLoop {
 
     const sandbox = new WorkspaceSandbox(userId, sessionId);
     const runner = new AgentToolRunner(sandbox);
+
+    // Pre-populate existing files so previous workspace work is preserved across prompts!
+    if (existingFiles && Array.isArray(existingFiles)) {
+      for (const ef of existingFiles) {
+        if (ef && ef.path) {
+          runner.filesChanged.set(ef.path, ef);
+        }
+      }
+    }
 
     const cleanKey = (apiKey && apiKey.trim() !== '')
       ? apiKey.trim()
@@ -151,10 +162,13 @@ export class AgentLoop {
 
     try {
       // ──────────────────────────────────────────────────────────
-      // PHASE 1: AUTONOMOUS PLAN FORMULATION (AI DECIDES STEPS)
+      // PHASE 1: DYNAMIC PLAN FORMULATION (TAILORED TO USER PROMPT)
       // ──────────────────────────────────────────────────────────
       const planThinkingStart = Date.now();
       onEvent({ type: 'thinking_start', timestamp: planThinkingStart });
+
+      const existingFileNames = Array.from(runner.filesChanged.keys());
+      const hasExisting = existingFileNames.length > 0;
 
       let generatedSteps: string[] = [];
 
@@ -162,17 +176,17 @@ export class AgentLoop {
         const planPrompt = [
           {
             role: 'system',
-            content: `You are HARPY AGENT, an elite software architect and autonomous code builder.
-Analyze the user's project prompt and generate a clean, modular execution plan with 4 to 5 concise steps.
-Output ONLY a valid JSON array of strings containing the step titles.
-Example:
-[
-  "Initialize project structure, package.json, and build configurations",
-  "Create HTML entry point, root mount script, and base layout",
-  "Implement core functional components and UI views",
-  "Implement application state, LocalStorage persistence, and interaction logic",
-  "Add modern responsive styles and documentation"
-]`,
+            content: `You are HARPY AGENT, an elite software architect and fullstack code engineer.
+Analyze the user's project request and formulate a direct, effective execution plan with 3 to 4 concise steps.
+Current workspace existing files: ${hasExisting ? existingFileNames.join(', ') : 'None (new workspace)'}.
+
+IMPORTANT PLANNING RULES:
+- If the user asks for specific files or modifications (e.g. "create X", "add dark mode to App", "make this component"), formulate targeted steps specifically for what was requested without destroying unrelated existing files.
+- If the user asks to build an entire application, plan 3 to 4 comprehensive steps:
+  1. Project setup & configs (package.json, build configs, HTML shell)
+  2. Core components & application logic (all required views, sub-components, state)
+  3. Styles, responsive design, utilities, and documentation
+- Output ONLY a valid JSON array of strings containing the step titles.`,
           },
           { role: 'user', content: prompt },
         ];
@@ -194,25 +208,26 @@ Example:
         const lowerPrompt = prompt.toLowerCase();
         if (lowerPrompt.includes('next') || lowerPrompt.includes('portfolio')) {
           generatedSteps = [
-            'Initialize Next.js project configuration and package.json with dependencies',
-            'Configure global styling, layout container, and navigation header',
+            'Initialize Next.js project configuration, package.json, and HTML shell',
             'Implement portfolio showcase sections, hero banner, and project cards',
-            'Add interactive contact form, skills breakdown, and animations',
-            'Finalize metadata, responsive optimizations, and README setup guide',
+            'Add interactive contact form, responsive styles, and documentation',
+          ];
+        } else if (hasExisting) {
+          generatedSteps = [
+            `Analyze workspace and implement requested features for "${prompt.slice(0, 40)}"`,
+            'Verify code integration, styling, and exports',
           ];
         } else {
           generatedSteps = [
-            'Initialize project architecture, package.json, and build configs',
-            'Create HTML entry point, main script, and root component structure',
-            'Build core interactive components and functional modules',
-            'Implement application state management and data handlers',
-            'Add polished CSS styling, responsive layout, and documentation',
+            'Initialize project architecture, package.json, and HTML shell',
+            'Build core interactive components, state management, and application views',
+            'Add polished styling, responsive layout, and documentation',
           ];
         }
       }
 
-      // Keep steps between 4 and 6 to guarantee swift, dependable completion
-      generatedSteps = generatedSteps.slice(0, 5);
+      // Keep steps between 2 and 4 to guarantee swift, dependable completion without stalling
+      generatedSteps = generatedSteps.slice(0, 4);
 
       runner.plan = generatedSteps.map((title, idx) => ({
         id: `step-${idx + 1}`,
@@ -224,7 +239,7 @@ Example:
       onEvent({
         type: 'thinking_end',
         durationSeconds: planDuration,
-        thoughtSummary: `Synthesized tailored ${runner.plan.length}-step architecture based on goal:\n"${prompt}"\n\nPrepared execution roadmap across all project phases.`,
+        thoughtSummary: `Analyzed user specifications: "${prompt}".\nSynthesized comprehensive ${runner.plan.length}-step software development plan.\nPreserving all existing workspace files.`,
       });
 
       onEvent({ type: 'plan', steps: runner.plan });
@@ -238,7 +253,7 @@ Example:
       });
 
       // ──────────────────────────────────────────────────────────
-      // PHASE 2: SEQUENTIAL STEP-BY-STEP AI EXECUTION
+      // PHASE 2: SEQUENTIAL STEP-BY-STEP AI EXECUTION (WRITES ALL FILES)
       // ──────────────────────────────────────────────────────────
       const execTools = AGENT_TOOLS_DEFINITIONS.filter((t) =>
         ['write_file', 'edit_file', 'run_command', 'read_file'].includes(t.function.name)
@@ -259,7 +274,7 @@ Example:
             .map((p) => `- ${p}`)
             .join('\n') || '(None yet)';
 
-        const stepMessages = [
+        const stepMessages: Array<Record<string, unknown>> = [
           {
             role: 'system',
             content: `You are HARPY AGENT, an elite autonomous AI code engineer (Cursor / Antigravity style).
@@ -273,14 +288,14 @@ ${runner.plan
   )
   .join('\n')}
 
-Workspace files created so far:
+Workspace files already created:
 ${existingFilesSummary}
 
-CURRENT MISSION:
+CRITICAL EXECUTION DIRECTIVE:
 Execute Step ${i + 1}: "${currentStep.title}".
-Call the "write_file" tool for ALL code files needed for this step.
-Write 100% complete, functional, production code. Never use placeholders or TODOs.
-Include all components, hooks, styles, configurations, and exports.`,
+You MUST call the "write_file" tool for ALL code files required in this step.
+If multiple files are needed (e.g. components, CSS, HTML, configs), write ALL of them.
+Do NOT leave any file out. Write complete, functional, production-ready code with no placeholders.`,
           },
           {
             role: 'user',
@@ -288,117 +303,137 @@ Include all components, hooks, styles, configurations, and exports.`,
           },
         ];
 
-        const stepResponse = await callLLM(stepMessages, execTools);
-        const choiceMessage = stepResponse?.choices?.[0]?.message;
+        let stepRounds = 0;
 
-        const rawThought = choiceMessage?.reasoning_content || choiceMessage?.thought || '';
-        let thoughtSummary = typeof rawThought === 'string' ? rawThought.trim() : '';
+        while (stepRounds < 3) {
+          stepRounds++;
+          const stepResponse = await callLLM(stepMessages, execTools);
+          const choiceMessage = stepResponse?.choices?.[0]?.message;
+          if (!choiceMessage) break;
 
-        if (!thoughtSummary) {
-          thoughtSummary = `Formulating implementation details for Step ${i + 1}: "${currentStep.title}".\nSynthesizing required code modules, component interfaces, and design styles.`;
-        }
+          stepMessages.push(choiceMessage);
 
-        const stepDuration = Math.max(1, Math.round((Date.now() - stepStartTime) / 1000));
-        onEvent({
-          type: 'thinking_end',
-          durationSeconds: stepDuration,
-          thoughtSummary,
-        });
+          if (stepRounds === 1) {
+            const rawThought = choiceMessage.reasoning_content || choiceMessage.thought || '';
+            let thoughtSummary = typeof rawThought === 'string' ? rawThought.trim() : '';
 
-        const toolCalls = choiceMessage?.tool_calls || [];
-
-        if (toolCalls.length > 0) {
-          for (const toolCall of toolCalls) {
-            if (abortController.signal.aborted) break;
-
-            const toolId = toolCall.id || `call_${Date.now()}`;
-            const toolName = toolCall.function?.name || '';
-            let toolArgs: Record<string, unknown> = {};
-            try {
-              toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
-            } catch {
-              toolArgs = {};
+            if (!thoughtSummary) {
+              thoughtSummary = `Executing Step ${i + 1}: "${currentStep.title}".\nArchitecting component structure and generating all required code files.`;
             }
 
-            let displayText = `Executing ${toolName}...`;
-            if (toolName === 'write_file') displayText = `Creating ${toolArgs.path || 'file'}...`;
-            else if (toolName === 'edit_file') displayText = `Editing ${toolArgs.path || 'file'}...`;
-            else if (toolName === 'run_command') displayText = `Running ${toolArgs.command || 'command'}...`;
-            else if (toolName === 'read_file') displayText = `Reading ${toolArgs.path || 'file'}...`;
-
+            const stepDuration = Math.max(1, Math.round((Date.now() - stepStartTime) / 1000));
             onEvent({
-              type: 'tool_start',
-              id: toolId,
-              tool: toolName,
-              args: toolArgs,
-              displayText,
+              type: 'thinking_end',
+              durationSeconds: stepDuration,
+              thoughtSummary,
             });
-
-            const toolResult = await runner.executeTool(toolName, toolArgs);
-
-            onEvent({
-              type: 'tool_end',
-              id: toolId,
-              tool: toolName,
-              status: toolResult.status,
-              resultSummary: toolResult.resultSummary,
-              output: toolResult.output,
-              exitCode: toolResult.exitCode,
-              filePath: toolResult.filePath,
-              lineRange: toolResult.lineRange,
-            });
-
-            if (toolResult.fileChange) {
-              onEvent({
-                type: 'file_changed',
-                path: toolResult.fileChange.path,
-                action: toolResult.fileChange.action === 'created' ? 'created' : 'edited',
-                added: toolResult.fileChange.addedLines,
-                removed: toolResult.fileChange.removedLines,
-                oldContent: toolResult.fileChange.oldContent,
-                newContent: toolResult.fileChange.newContent,
-              });
-            }
           }
-        } else if (choiceMessage?.content) {
-          // Fallback parser if model generated code directly in markdown
-          const extractedFiles = extractFilesFromMarkdown(choiceMessage.content);
-          for (const ef of extractedFiles) {
-            const toolId = `call_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-            onEvent({
-              type: 'tool_start',
-              id: toolId,
-              tool: 'write_file',
-              args: { path: ef.path, content: ef.content },
-              displayText: `Creating ${ef.path}...`,
-            });
 
-            const toolResult = await runner.executeTool('write_file', {
-              path: ef.path,
-              content: ef.content,
-            });
+          const toolCalls = choiceMessage.tool_calls || [];
 
-            onEvent({
-              type: 'tool_end',
-              id: toolId,
-              tool: 'write_file',
-              status: toolResult.status,
-              resultSummary: toolResult.resultSummary,
-              output: toolResult.output,
-              filePath: toolResult.filePath,
-            });
+          if (toolCalls.length > 0) {
+            for (const toolCall of toolCalls) {
+              if (abortController.signal.aborted) break;
 
-            if (toolResult.fileChange) {
+              const toolId = toolCall.id || `call_${Date.now()}`;
+              const toolName = toolCall.function?.name || '';
+              let toolArgs: Record<string, unknown> = {};
+              try {
+                toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
+              } catch {
+                toolArgs = {};
+              }
+
+              let displayText = `Executing ${toolName}...`;
+              if (toolName === 'write_file') displayText = `Creating ${toolArgs.path || 'file'}...`;
+              else if (toolName === 'edit_file') displayText = `Editing ${toolArgs.path || 'file'}...`;
+              else if (toolName === 'run_command') displayText = `Running ${toolArgs.command || 'command'}...`;
+              else if (toolName === 'read_file') displayText = `Reading ${toolArgs.path || 'file'}...`;
+
               onEvent({
-                type: 'file_changed',
-                path: toolResult.fileChange.path,
-                action: 'created',
-                added: toolResult.fileChange.addedLines,
-                removed: toolResult.fileChange.removedLines,
-                oldContent: toolResult.fileChange.oldContent,
-                newContent: toolResult.fileChange.newContent,
+                type: 'tool_start',
+                id: toolId,
+                tool: toolName,
+                args: toolArgs,
+                displayText,
+              });
+
+              const toolResult = await runner.executeTool(toolName, toolArgs);
+
+              onEvent({
+                type: 'tool_end',
+                id: toolId,
+                tool: toolName,
+                status: toolResult.status,
+                resultSummary: toolResult.resultSummary,
+                output: toolResult.output,
+                exitCode: toolResult.exitCode,
+                filePath: toolResult.filePath,
+                lineRange: toolResult.lineRange,
+              });
+
+              if (toolResult.fileChange) {
+                onEvent({
+                  type: 'file_changed',
+                  path: toolResult.fileChange.path,
+                  action: toolResult.fileChange.action === 'created' ? 'created' : 'edited',
+                  added: toolResult.fileChange.addedLines,
+                  removed: toolResult.fileChange.removedLines,
+                  oldContent: toolResult.fileChange.oldContent,
+                  newContent: toolResult.fileChange.newContent,
+                });
+              }
+
+              stepMessages.push({
+                role: 'tool',
+                tool_call_id: toolId,
+                name: toolName,
+                content: toolResult.output || toolResult.resultSummary,
               });
             }
+          } else if (choiceMessage.content) {
+            // Markdown code block fallback
+            const extractedFiles = extractFilesFromMarkdown(choiceMessage.content);
+            for (const ef of extractedFiles) {
+              const toolId = `call_${Date.now()}_${Math.random().toString(36).substring(7)}`;
+              onEvent({
+                type: 'tool_start',
+                id: toolId,
+                tool: 'write_file',
+                args: { path: ef.path, content: ef.content },
+                displayText: `Creating ${ef.path}...`,
+              });
+
+              const toolResult = await runner.executeTool('write_file', {
+                path: ef.path,
+                content: ef.content,
+              });
+
+              onEvent({
+                type: 'tool_end',
+                id: toolId,
+                tool: 'write_file',
+                status: toolResult.status,
+                resultSummary: toolResult.resultSummary,
+                output: toolResult.output,
+                filePath: toolResult.filePath,
+              });
+
+              if (toolResult.fileChange) {
+                onEvent({
+                  type: 'file_changed',
+                  path: toolResult.fileChange.path,
+                  action: 'created',
+                  added: toolResult.fileChange.addedLines,
+                  removed: toolResult.fileChange.removedLines,
+                  oldContent: toolResult.fileChange.oldContent,
+                  newContent: toolResult.fileChange.newContent,
+                });
+              }
+            }
+            break;
+          } else {
+            break;
           }
         }
 
@@ -411,7 +446,7 @@ Include all components, hooks, styles, configurations, and exports.`,
       // PHASE 3: MISSION COMPLETION & EXECUTIVE SUMMARY
       // ──────────────────────────────────────────────────────────
       const filesChangedList = Array.from(runner.filesChanged.values());
-      const finalSummary = `### Mission Accomplished\n\nSuccessfully completed all **${runner.plan.length}** execution steps for:\n> *"${prompt}"*\n\n**Generated Assets Summary:**\n- **${filesChangedList.length}** project files created.\n- Total additions: **+${filesChangedList.reduce((acc, f) => acc + f.addedLines, 0)}** lines of code.\n\nAll files are available in the **Workspace IDE** panel on the right. You can inspect any file with line numbers or click **Download ZIP** to save the full project.`;
+      const finalSummary = `### Mission Accomplished\n\nSuccessfully completed all **${runner.plan.length}** execution steps for:\n> *"${prompt}"*\n\n**Generated Project Summary:**\n- **${filesChangedList.length}** files created/preserved in workspace.\n- Total additions: **+${filesChangedList.reduce((acc, f) => acc + f.addedLines, 0)}** lines of code.\n\n**Interactive Workspace Features:**\n- **Preview Tab**: View your live running project at \`localhost:3000\` with interactive UI.\n- **Terminal CLI Tab**: Run workspace shell commands directly in the sandbox.\n- **Download ZIP**: Export the entire project instantly.`;
 
       onEvent({
         type: 'message_delta',

@@ -767,6 +767,14 @@ export default function DashboardPage() {
         const engine = detectEngineFromKey(apiKey || "gsk_default");
         const chosenModel = selectedModelId || engine.defaultModelId;
 
+        // Gather existing files from the session so the agent preserves and builds upon them
+        const existingWorkspaceFiles =
+          currentSession?.messages
+            ?.slice()
+            .reverse()
+            .find((m) => m.isAgent && m.agentRun?.filesChanged && m.agentRun.filesChanged.length > 0)
+            ?.agentRun?.filesChanged || [];
+
         const res = await fetch('/api/agent', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -776,6 +784,7 @@ export default function DashboardPage() {
             userId: authUser?.id || 'anonymous',
             model: chosenModel,
             apiKey: apiKey || '',
+            existingFiles: existingWorkspaceFiles,
           }),
           signal: abortController.signal,
         });
@@ -2248,6 +2257,10 @@ export default function DashboardPage() {
                 .find((m) => m.isAgent && m.agentRun?.filesChanged && m.agentRun.filesChanged.length > 0)
                 ?.agentRun?.filesChanged || []
             }
+            onOpenBrowserAgent={(goal) => {
+              if (goal) setBrowserGoal(goal);
+              setBrowserPanelOpen(true);
+            }}
           />
         </div>
       )}
