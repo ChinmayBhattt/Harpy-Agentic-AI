@@ -77,6 +77,13 @@ export default function VoiceAssistantModal({
   const transcriptsEndRef = useRef<HTMLDivElement>(null);
   const lastTriggeredRef = useRef<string>('');
   const prevIsOpenRef = useRef(false);
+  const isDraggingRef = useRef(false);
+
+  // Safe handler to open panel on click, but NOT on drag!
+  const handlePanelClick = useCallback((e: React.MouseEvent) => {
+    if (isDraggingRef.current) return;
+    setIsDocked(false);
+  }, [setIsDocked]);
 
   // Auto-scroll transcripts
   useEffect(() => {
@@ -367,136 +374,156 @@ export default function VoiceAssistantModal({
     <AnimatePresence>
       {/* 1. DOCKED MODE: FLOATING PLATE AT BOTTOM-CENTER SLIGHTLY ABOVE CHAT INPUT */}
       {isDocked ? (
-        <motion.div
-          key="docked-voice-plate"
-          drag
-          dragMomentum={false}
-          dragElastic={0.08}
-          initial={{ opacity: 0, y: 30, scale: 0.9 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: 30, scale: 0.9 }}
-          transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-          className="fixed bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex items-center gap-3 px-3.5 py-2.5 rounded-full bg-[#0A0A13]/95 backdrop-blur-2xl border border-[#C6A46A]/50 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_25px_rgba(198,164,106,0.35)] select-none max-w-[92vw] sm:max-w-md w-auto"
+        <div
+          key="docked-voice-plate-wrapper"
+          className="fixed bottom-24 sm:bottom-28 inset-x-0 z-50 pointer-events-none flex items-center justify-center px-4"
         >
-          {/* Subtle Drag Handle */}
-          <div
-            className="cursor-grab active:cursor-grabbing text-[#8C7A6B]/50 hover:text-[#C6A46A] transition-colors pl-0.5"
-            title="Drag to reposition panel"
+          <motion.div
+            key="docked-voice-plate"
+            drag
+            dragMomentum={false}
+            dragElastic={0.08}
+            onDragStart={() => {
+              isDraggingRef.current = true;
+            }}
+            onDragEnd={() => {
+              setTimeout(() => {
+                isDraggingRef.current = false;
+              }, 120);
+            }}
+            initial={{ opacity: 0, y: 30, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 30, scale: 0.9 }}
+            transition={{ type: 'spring', damping: 26, stiffness: 320 }}
+            className="pointer-events-auto flex items-center gap-2.5 sm:gap-3 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-full bg-[#0A0A13]/95 backdrop-blur-2xl border border-[#C6A46A]/50 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_25px_rgba(198,164,106,0.35)] select-none max-w-[94vw] sm:max-w-md w-auto cursor-grab active:cursor-grabbing"
           >
-            <GripVertical className="w-3.5 h-3.5" />
-          </div>
-
-          {/* Mini Animated Glowing Audio Orb */}
-          <div
-            onClick={() => setIsDocked(false)}
-            className="w-8 h-8 rounded-full border border-[#C6A46A]/60 bg-[#12121C] flex items-center justify-center relative cursor-pointer flex-shrink-0 group"
-            title="Click to Expand Full Assistant"
-          >
-            {/* Dynamic outer pulse ring */}
-            <motion.div
-              animate={{
-                scale: callStatus === 'connected' ? 1 + dynamicVolume * 0.45 : [1, 1.15, 1],
-                opacity: callStatus === 'connected' ? 0.4 + dynamicVolume * 0.5 : 0.3,
-              }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="absolute inset-0 rounded-full bg-[#C6A46A]/30 blur-xs"
-            />
-            {isSpeaking ? (
-              <div className="flex items-center gap-0.5 z-10">
-                <span className="w-1 h-3 bg-[#C6A46A] rounded-full animate-bounce [animation-delay:-0.2s]" />
-                <span className="w-1 h-4 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.1s]" />
-                <span className="w-1 h-2.5 bg-[#C6A46A] rounded-full animate-bounce" />
-              </div>
-            ) : isUserSpeaking || userMicLevel > 0.08 ? (
-              <div className="flex items-center gap-0.5 z-10">
-                <span className="w-1 h-3.5 bg-emerald-400 rounded-full animate-pulse" />
-                <span className="w-1 h-4.5 bg-[#C6A46A] rounded-full animate-pulse [animation-delay:0.1s]" />
-                <span className="w-1 h-3 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.2s]" />
-              </div>
-            ) : (
-              <Radio className="w-4 h-4 text-[#C6A46A] z-10 animate-pulse" />
-            )}
-          </div>
-
-          {/* Center Info / Live Transcription / Active Task */}
-          <div
-            onClick={() => setIsDocked(false)}
-            className="flex-1 min-w-0 cursor-pointer pr-1"
-            title="Click to Expand"
-          >
-            <div className="flex items-center gap-1.5">
-              <span className="relative flex h-2 w-2 flex-shrink-0">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span className="text-[10px] font-cinzel font-semibold text-[#C6A46A] tracking-wider uppercase truncate">
-                Harpy Voice AI
-              </span>
-              <span className="text-[9px] font-mono text-[#8C7A6B]">· Active</span>
+            {/* Subtle Drag Handle */}
+            <div
+              className="hidden sm:flex items-center cursor-grab active:cursor-grabbing text-[#8C7A6B]/50 hover:text-[#C6A46A] transition-colors pl-0.5"
+              title="Drag to reposition panel"
+            >
+              <GripVertical className="w-3.5 h-3.5" />
             </div>
 
-            {/* Dynamic Status / Caption */}
-            <div className="truncate text-xs font-mono mt-0.5">
-              {activeAction ? (
-                <span className="text-amber-300 font-medium flex items-center gap-1 truncate">
-                  {activeAction.type === 'agent' ? (
-                    <Sparkles className="w-3 h-3 text-[#C6A46A] shrink-0 animate-pulse" />
-                  ) : (
-                    <Compass className="w-3 h-3 text-emerald-400 shrink-0 animate-pulse" />
-                  )}
-                  <span className="truncate">{activeAction.title}</span>
-                </span>
-              ) : liveTranscript ? (
-                <span className="text-emerald-300 truncate">
-                  &ldquo;{liveTranscript}&rdquo;
-                </span>
-              ) : isSpeaking ? (
-                <span className="text-[#E8DDC7]/90 truncate">Speaking...</span>
+            {/* Mini Animated Glowing Audio Orb */}
+            <div
+              onClick={handlePanelClick}
+              className="w-8 h-8 rounded-full border border-[#C6A46A]/60 bg-[#12121C] flex items-center justify-center relative cursor-pointer flex-shrink-0 group"
+              title="Click to Open Full Voice Assistant"
+            >
+              {/* Dynamic outer pulse ring */}
+              <motion.div
+                animate={{
+                  scale: callStatus === 'connected' ? 1 + dynamicVolume * 0.45 : [1, 1.15, 1],
+                  opacity: callStatus === 'connected' ? 0.4 + dynamicVolume * 0.5 : 0.3,
+                }}
+                transition={{ duration: 0.2, ease: 'easeOut' }}
+                className="absolute inset-0 rounded-full bg-[#C6A46A]/30 blur-xs"
+              />
+              {isSpeaking ? (
+                <div className="flex items-center gap-0.5 z-10">
+                  <span className="w-1 h-3 bg-[#C6A46A] rounded-full animate-bounce [animation-delay:-0.2s]" />
+                  <span className="w-1 h-4 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.1s]" />
+                  <span className="w-1 h-2.5 bg-[#C6A46A] rounded-full animate-bounce" />
+                </div>
+              ) : isUserSpeaking || userMicLevel > 0.08 ? (
+                <div className="flex items-center gap-0.5 z-10">
+                  <span className="w-1 h-3.5 bg-emerald-400 rounded-full animate-pulse" />
+                  <span className="w-1 h-4.5 bg-[#C6A46A] rounded-full animate-pulse [animation-delay:0.1s]" />
+                  <span className="w-1 h-3 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.2s]" />
+                </div>
               ) : (
-                <span className="text-[#E8DDC7]/60 text-[11px] truncate">
-                  Listening in background (Hindi/English)
-                </span>
+                <Radio className="w-4 h-4 text-[#C6A46A] z-10 animate-pulse" />
               )}
             </div>
-          </div>
 
-          {/* Quick Actions (Mute, Expand, Cut Call) */}
-          <div className="flex items-center gap-1.5 flex-shrink-0">
-            <button
-              type="button"
-              onClick={toggleMute}
-              className={`p-1.5 rounded-full border transition-all ${
-                isMuted
-                  ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                  : 'bg-[#141420] text-[#E8DDC7] border-[#222230] hover:border-[#C6A46A]/50'
-              }`}
-              title={isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
+            {/* Center Info / Live Transcription / Active Task */}
+            <div
+              onClick={handlePanelClick}
+              className="flex-1 min-w-0 cursor-pointer pr-1"
+              title="Click to Open Full Assistant"
             >
-              {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
-            </button>
+              <div className="flex items-center gap-1.5">
+                <span className="relative flex h-2 w-2 flex-shrink-0">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                </span>
+                <span className="text-[10px] font-cinzel font-semibold text-[#C6A46A] tracking-wider uppercase truncate">
+                  Harpy Voice AI
+                </span>
+                <span className="text-[9px] font-mono text-[#8C7A6B]">· Active</span>
+              </div>
 
-            <button
-              type="button"
-              onClick={() => setIsDocked(false)}
-              className="p-1.5 rounded-full bg-[#141420] text-[#E8DDC7] border border-[#222230] hover:border-[#C6A46A] hover:text-[#C6A46A] transition-all cursor-pointer"
-              title="Expand to Full Voice Modal"
-            >
-              <Maximize2 className="w-3.5 h-3.5" />
-            </button>
+              {/* Dynamic Status / Caption */}
+              <div className="truncate text-xs font-mono mt-0.5 max-w-[140px] xs:max-w-[170px] sm:max-w-[210px]">
+                {activeAction ? (
+                  <span className="text-amber-300 font-medium flex items-center gap-1 truncate">
+                    {activeAction.type === 'agent' ? (
+                      <Sparkles className="w-3 h-3 text-[#C6A46A] shrink-0 animate-pulse" />
+                    ) : (
+                      <Compass className="w-3 h-3 text-emerald-400 shrink-0 animate-pulse" />
+                    )}
+                    <span className="truncate">{activeAction.title}</span>
+                  </span>
+                ) : liveTranscript ? (
+                  <span className="text-emerald-300 truncate">
+                    &ldquo;{liveTranscript}&rdquo;
+                  </span>
+                ) : isSpeaking ? (
+                  <span className="text-[#E8DDC7]/90 truncate">Speaking...</span>
+                ) : (
+                  <span className="text-[#E8DDC7]/60 text-[11px] truncate">
+                    Listening in background (Hindi/English)
+                  </span>
+                )}
+              </div>
+            </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                endCall();
-                onClose();
-              }}
-              className="p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-sm cursor-pointer"
-              title="Cut Call (Disconnect Call Completely)"
-            >
-              <PhoneOff className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </motion.div>
+            {/* Quick Actions (Mute, Expand, Cut Call) */}
+            <div className="flex items-center gap-1 sm:gap-1.5 flex-shrink-0">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleMute();
+                }}
+                className={`p-1.5 rounded-full border transition-all cursor-pointer ${
+                  isMuted
+                    ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
+                    : 'bg-[#141420] text-[#E8DDC7] border-[#222230] hover:border-[#C6A46A]/50'
+                }`}
+                title={isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
+              >
+                {isMuted ? <MicOff className="w-3.5 h-3.5" /> : <Mic className="w-3.5 h-3.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setIsDocked(false);
+                }}
+                className="p-1.5 rounded-full bg-[#141420] text-[#E8DDC7] border border-[#222230] hover:border-[#C6A46A] hover:text-[#C6A46A] transition-all cursor-pointer"
+                title="Expand to Full Voice Modal"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  endCall();
+                  onClose();
+                }}
+                className="p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-sm cursor-pointer"
+                title="Cut Call (Disconnect Call Completely)"
+              >
+                <PhoneOff className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </motion.div>
+        </div>
       ) : (
         /* 2. FULL MODAL VIEW (PERFECTLY CENTERED CIRCULAR ORB) */
         <div
