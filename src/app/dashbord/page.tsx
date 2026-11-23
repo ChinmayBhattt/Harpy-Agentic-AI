@@ -281,6 +281,7 @@ export default function DashboardPage() {
   // Vapi Voice Assistant AI State
   const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
   const [isVoiceAssistantActive, setIsVoiceAssistantActive] = useState(false);
+  const [isVoiceAssistantDocked, setIsVoiceAssistantDocked] = useState(false);
 
   const handleStopAgent = async () => {
     if (agentAbortControllerRef.current) {
@@ -2222,14 +2223,29 @@ export default function DashboardPage() {
               {/* Vapi Live Voice AI Assistant Button (Right side of Enter button) */}
               <button
                 type="button"
-                onClick={() => setIsVoiceAssistantOpen(true)}
+                onClick={() => {
+                  if (!isVoiceAssistantOpen) {
+                    setIsVoiceAssistantOpen(true);
+                    setIsVoiceAssistantDocked(false);
+                  } else if (isVoiceAssistantDocked) {
+                    setIsVoiceAssistantDocked(false);
+                  } else {
+                    setIsVoiceAssistantDocked(true);
+                  }
+                }}
                 className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 cursor-pointer ${
                   isVoiceAssistantActive
                     ? "bg-gradient-to-tr from-[#C6A46A] to-amber-200 text-[#050508] shadow-[0_0_16px_rgba(198,164,106,0.6)] animate-pulse"
                     : "bg-[#111118] text-[#C6A46A] border border-[#C6A46A]/30 hover:border-[#C6A46A] hover:bg-[#1A1A26] shadow-sm hover:shadow-[0_0_12px_rgba(198,164,106,0.25)]"
                 }`}
-                title="Start Voice Assistant (Vapi AI - Multilingual Voice with Auto-Agent & Browser Action)"
-                aria-label="Start Voice Assistant"
+                title={
+                  isVoiceAssistantActive
+                    ? isVoiceAssistantDocked
+                      ? "Expand Harpy Voice Assistant"
+                      : "Dock Harpy Voice Assistant to Plate"
+                    : "Start Voice Assistant (Vapi AI - Multilingual Voice with Auto-Agent & Browser Action)"
+                }
+                aria-label="Toggle Voice Assistant"
               >
                 <Radio className={`w-4 h-4 ${isVoiceAssistantActive ? "animate-pulse text-[#050508]" : "text-[#C6A46A]"}`} />
               </button>
@@ -2764,7 +2780,12 @@ export default function DashboardPage() {
       {/* Vapi Live Voice AI Assistant Modal */}
       <VoiceAssistantModal
         isOpen={isVoiceAssistantOpen}
-        onClose={() => setIsVoiceAssistantOpen(false)}
+        onClose={() => {
+          setIsVoiceAssistantOpen(false);
+          setIsVoiceAssistantDocked(false);
+        }}
+        isDocked={isVoiceAssistantDocked}
+        onDockChange={(docked) => setIsVoiceAssistantDocked(docked)}
         onActiveStateChange={(active) => setIsVoiceAssistantActive(active)}
         onTriggerAgentMode={(prompt) => {
           setAgentMode(true);
