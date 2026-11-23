@@ -2241,6 +2241,13 @@ export default function DashboardPage() {
             onClose={() => setIsWorkspacePanelOpen(false)}
             selectedFilePath={selectedWorkspaceFile}
             onSelectFile={(path) => setSelectedWorkspaceFile(path)}
+            filesChanged={
+              currentSession?.messages
+                ?.slice()
+                .reverse()
+                .find((m) => m.isAgent && m.agentRun?.filesChanged && m.agentRun.filesChanged.length > 0)
+                ?.agentRun?.filesChanged || []
+            }
           />
         </div>
       )}

@@ -10,10 +10,15 @@ Your workflow MUST be structured, rigorous, and completely self-contained:
 1. ALWAYS start by calling "create_plan" with a clean, logical checklist of steps (e.g. initialize project, configure dependencies, build core components, add styles, verify build).
 2. Before starting each phase, call "update_plan" with status: "in_progress".
 3. Write clean, complete, high-quality code. Do NOT leave placeholders, TODOs, or truncated snippets. Write the entire file contents.
-4. When editing files, use "edit_file" with precise string matching, or "write_file" if replacing the file entirely.
-5. Use "run_command" to verify syntax, install packages, or check build results (e.g. node -c, npm test, etc.).
-6. When a step is finished, call "update_plan" with status: "done".
-7. Once all tasks are complete, output a concise executive final summary in rich Markdown explaining what was constructed and how to run or review it.`;
+4. DEPENDENCIES & PROJECT SETUP:
+   - Declare all dependencies, scripts, and libraries completely inside "package.json".
+   - Do NOT stall or wait on long "npm install" processes in serverless environments. Proceed directly to building all components, style files, entrypoints, and configurations.
+5. Create every single file required for the project (e.g., App component, sub-components, CSS modules, HTML, utils, and README).
+6. When editing files, use "edit_file" with precise string matching, or "write_file" if creating or replacing the file.
+7. Use "run_command" only for fast verification or syntax validation if needed.
+8. When each step is finished, immediately call "update_plan" with status: "done".
+9. CRITICAL AUTONOMY DIRECTIVE: Continue calling tools continuously without stopping until EVERY step in your plan has status "done". Do NOT output conversational chit-chat while steps remain incomplete.
+10. Once ALL tasks are marked "done", output a comprehensive executive final summary in rich Markdown explaining the architecture, features built, and instructions to run.`;
 
 interface AgentLoopOptions {
   prompt: string;
@@ -159,7 +164,6 @@ export class AgentLoop {
         }
 
         const thinkingDuration = Math.max(1, Math.round((Date.now() - thinkingStartTime) / 1000));
-        onEvent({ type: 'thinking_end', durationSeconds: thinkingDuration });
 
         if (!responseData || !responseData.choices?.[0]?.message) {
           throw new Error(`Agent model failed to respond: ${lastInferenceError || 'Unknown error'}`);
@@ -168,16 +172,54 @@ export class AgentLoop {
         const choiceMessage = responseData.choices[0].message;
         conversationMessages.push(choiceMessage);
 
+        const toolCalls = choiceMessage.tool_calls;
+
+        // Extract deep reasoning content or formulate clear execution thought
+        const rawReasoning = choiceMessage.reasoning_content || choiceMessage.thought || '';
+        let thoughtSummary = typeof rawReasoning === 'string' ? rawReasoning.trim() : '';
+
+        if (!thoughtSummary && choiceMessage.content && toolCalls && toolCalls.length > 0) {
+          thoughtSummary = choiceMessage.content.trim();
+        }
+
+        if (!thoughtSummary) {
+          const activeStep = runner.plan.find((s) => s.status === 'in_progress') || runner.plan.find((s) => s.status === 'pending');
+          const stepDesc = activeStep ? `"${activeStep.title}"` : 'workspace files';
+          if (toolCalls && toolCalls.length > 0) {
+            const firstTool = toolCalls[0]?.function?.name || 'tool';
+            thoughtSummary = `Formulating implementation strategy for ${stepDesc}.\nAnalyzing code architecture, component hierarchy, and invoking ${firstTool}.`;
+          } else {
+            thoughtSummary = `Synthesizing architectural specifications and reviewing file dependencies for ${stepDesc}.`;
+          }
+        }
+
+        onEvent({
+          type: 'thinking_end',
+          durationSeconds: thinkingDuration,
+          thoughtSummary,
+        });
+
         // If assistant emitted content text, stream it
         if (choiceMessage.content) {
           finalSummary += choiceMessage.content;
           onEvent({ type: 'message_delta', delta: choiceMessage.content });
         }
 
-        const toolCalls = choiceMessage.tool_calls;
-
-        // If no tool calls were made, the agent finished its reasoning/plan!
+        // If no tool calls were made, check if there are remaining unfinished tasks in the plan!
         if (!toolCalls || !Array.isArray(toolCalls) || toolCalls.length === 0) {
+          const unfinishedSteps = runner.plan.filter((s) => s.status !== 'done');
+          if (unfinishedSteps.length > 0 && stepCount < maxSteps) {
+            const nextStep = runner.plan.find((s) => s.status === 'in_progress') || unfinishedSteps[0];
+            if (nextStep.status === 'pending') {
+              nextStep.status = 'in_progress';
+              onEvent({ type: 'plan', steps: runner.plan });
+            }
+            conversationMessages.push({
+              role: 'user',
+              content: `CRITICAL: You still have ${unfinishedSteps.length} unfinished step(s) in your plan checklist. Next target: "${nextStep.title}" (ID: ${nextStep.id}). You MUST continue immediately by invoking the required tool (write_file, edit_file, or run_command) to complete this step. When finished with the step, call update_plan with status: "done". Continue building until ALL steps are done.`,
+            });
+            continue;
+          }
           break;
         }
 

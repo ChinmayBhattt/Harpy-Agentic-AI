@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
+import JSZip from 'jszip';
 import {
   Folder,
   FolderOpen,
@@ -16,6 +17,7 @@ import {
   Layers,
   Code2,
 } from 'lucide-react';
+import { FileChangeRecord } from '@/lib/agent/events';
 
 interface FileNode {
   name: string;
@@ -32,6 +34,74 @@ interface AgentWorkspacePanelProps {
   onClose: () => void;
   selectedFilePath?: string;
   onSelectFile?: (path: string) => void;
+  filesChanged?: FileChangeRecord[];
+}
+
+function buildTreeFromFiles(files: FileChangeRecord[]): FileNode[] {
+  const root: Record<string, any> = {};
+
+  for (const f of files) {
+    const cleanPath = f.path.replace(/^[/\\]+/, '');
+    const parts = cleanPath.split(/[/\\]/);
+    let current = root;
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i];
+      const isFile = i === parts.length - 1;
+      const subPath = parts.slice(0, i + 1).join('/');
+
+      if (!current[part]) {
+        current[part] = isFile
+          ? {
+              name: part,
+              path: subPath,
+              isDirectory: false,
+              size: f.newContent?.length || 0,
+            }
+          : {
+              name: part,
+              path: subPath,
+              isDirectory: true,
+              _children: {},
+            };
+      }
+
+      if (!isFile) {
+        current = current[part]._children;
+      }
+    }
+  }
+
+  function convert(obj: Record<string, any>): FileNode[] {
+    const nodes: FileNode[] = [];
+    for (const key of Object.keys(obj)) {
+      if (key === '_children') continue;
+      const item = obj[key];
+      if (item.isDirectory) {
+        nodes.push({
+          name: item.name,
+          path: item.path,
+          isDirectory: true,
+          children: convert(item._children),
+        });
+      } else {
+        nodes.push({
+          name: item.name,
+          path: item.path,
+          isDirectory: false,
+          size: item.size,
+        });
+      }
+    }
+
+    return nodes.sort((a, b) => {
+      if (a.isDirectory && !b.isDirectory) return -1;
+      if (!a.isDirectory && b.isDirectory) return 1;
+      return a.name.localeCompare(b.name);
+    });
+  }
+
+  return convert(root);
 }
 
 export default function AgentWorkspacePanel({
@@ -41,26 +111,51 @@ export default function AgentWorkspacePanel({
   onClose,
   selectedFilePath,
   onSelectFile,
+  filesChanged = [],
 }: AgentWorkspacePanelProps) {
   const [tree, setTree] = useState<FileNode[]>([]);
   const [activeFile, setActiveFile] = useState<string>(selectedFilePath || '');
   const [fileContent, setFileContent] = useState<string>('');
   const [isLoadingTree, setIsLoadingTree] = useState(false);
   const [isLoadingContent, setIsLoadingContent] = useState(false);
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['.']));
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set(['.', 'src', 'components', 'pages', 'app']));
   const [copied, setCopied] = useState(false);
 
-  // Fetch Tree
+  // Sync tree with filesChanged in state/localStorage
+  useEffect(() => {
+    if (filesChanged && filesChanged.length > 0) {
+      const builtTree = buildTreeFromFiles(filesChanged);
+      setTree(builtTree);
+
+      // Auto-expand all parent folders
+      const allDirs = new Set<string>(['.']);
+      filesChanged.forEach((f) => {
+        const parts = f.path.split(/[/\\]/);
+        for (let i = 1; i < parts.length; i++) {
+          allDirs.add(parts.slice(0, i).join('/'));
+        }
+      });
+      setExpandedFolders((prev) => new Set([...Array.from(prev), ...Array.from(allDirs)]));
+
+      // Auto-select first file if activeFile is empty or not in filesChanged
+      if (!activeFile || !filesChanged.some((f) => f.path === activeFile)) {
+        setActiveFile(filesChanged[0].path);
+      }
+    } else if (isOpen) {
+      fetchTree();
+    }
+  }, [filesChanged, isOpen]);
+
+  // Fetch Tree from backend API (as fallback or for local filesystem)
   const fetchTree = async () => {
     if (!sessionId) return;
     setIsLoadingTree(true);
     try {
       const res = await fetch(`/api/agent/workspace?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(userId)}&action=tree`);
       const data = await res.json();
-      if (data.success && Array.isArray(data.tree)) {
+      if (data.success && Array.isArray(data.tree) && data.tree.length > 0) {
         setTree(data.tree);
-        // If no file selected yet, select first file if available
-        if (!activeFile && data.tree.length > 0) {
+        if (!activeFile) {
           const findFirstFile = (nodes: FileNode[]): string | null => {
             for (const n of nodes) {
               if (!n.isDirectory) return n.path;
@@ -72,9 +167,7 @@ export default function AgentWorkspacePanel({
             return null;
           };
           const first = findFirstFile(data.tree);
-          if (first) {
-            setActiveFile(first);
-          }
+          if (first) setActiveFile(first);
         }
       }
     } catch (err) {
@@ -84,17 +177,29 @@ export default function AgentWorkspacePanel({
     }
   };
 
-  // Fetch File Content
-  const fetchContent = async (path: string) => {
-    if (!path || !sessionId) return;
+  // Fetch File Content (checks in-memory filesChanged first, then backend API)
+  const fetchContent = async (filePath: string) => {
+    if (!filePath) return;
+
+    // Check filesChanged first (instant and guaranteed to work on Vercel)
+    const matching = filesChanged.find(
+      (f) => f.path === filePath || f.path === filePath.replace(/^[/\\]+/, '') || filePath.endsWith(f.path)
+    );
+
+    if (matching && typeof matching.newContent === 'string') {
+      setFileContent(matching.newContent);
+      return;
+    }
+
+    if (!sessionId) return;
     setIsLoadingContent(true);
     try {
-      const res = await fetch(`/api/agent/workspace?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(userId)}&action=read&path=${encodeURIComponent(path)}`);
+      const res = await fetch(`/api/agent/workspace?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(userId)}&action=read&path=${encodeURIComponent(filePath)}`);
       const data = await res.json();
       if (data.success && typeof data.content === 'string') {
         setFileContent(data.content);
       } else {
-        setFileContent(`// Unable to read file content: ${data.error || 'Unknown error'}`);
+        setFileContent(`// Unable to read file content: ${data.error || 'File not found'}`);
       }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Error reading file';
@@ -103,12 +208,6 @@ export default function AgentWorkspacePanel({
       setIsLoadingContent(false);
     }
   };
-
-  useEffect(() => {
-    if (isOpen) {
-      fetchTree();
-    }
-  }, [isOpen, sessionId]);
 
   useEffect(() => {
     if (selectedFilePath) {
@@ -120,7 +219,7 @@ export default function AgentWorkspacePanel({
     if (activeFile && isOpen) {
       fetchContent(activeFile);
     }
-  }, [activeFile, isOpen]);
+  }, [activeFile, isOpen, filesChanged]);
 
   const toggleFolder = (folderPath: string) => {
     setExpandedFolders((prev) => {
@@ -131,7 +230,29 @@ export default function AgentWorkspacePanel({
     });
   };
 
-  const handleDownloadZip = () => {
+  const handleDownloadZip = async () => {
+    if (filesChanged && filesChanged.length > 0) {
+      try {
+        const zip = new JSZip();
+        for (const file of filesChanged) {
+          if (file.newContent) {
+            zip.file(file.path, file.newContent);
+          }
+        }
+        const blob = await zip.generateAsync({ type: 'blob' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `harpy-project-${sessionId}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        return;
+      } catch (zipErr) {
+        console.warn('Browser zip export fallback to server:', zipErr);
+      }
+    }
     window.open(`/api/agent/workspace?sessionId=${encodeURIComponent(sessionId)}&userId=${encodeURIComponent(userId)}&action=zip`, '_blank');
   };
 

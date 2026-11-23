@@ -16,6 +16,7 @@ import {
   Eye,
   FilePlus,
   FileEdit,
+  Sparkles,
 } from 'lucide-react';
 import { AgentRunData, PlanStep, FileChangeRecord } from '@/lib/agent/events';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
@@ -32,15 +33,24 @@ export default function AgentTimeline({
   onReviewDiff,
 }: AgentTimelineProps) {
   const [expandedCommandIds, setExpandedCommandIds] = useState<Set<string>>(new Set());
+  const [expandedThinkingIndices, setExpandedThinkingIndices] = useState<Set<number>>(new Set());
   const [isPlanExpanded, setIsPlanExpanded] = useState(true);
   const [isFilesExpanded, setIsFilesExpanded] = useState(true);
-  const [isThinkingExpanded, setIsThinkingExpanded] = useState(false);
 
   const toggleCommand = (id: string) => {
     setExpandedCommandIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleThinking = (idx: number) => {
+    setExpandedThinkingIndices((prev) => {
+      const next = new Set(prev);
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
       return next;
     });
   };
@@ -116,24 +126,29 @@ export default function AgentTimeline({
         {events.map((ev, idx) => {
           // Thinking Duration Row
           if (ev.type === 'thinking_end') {
+            const isExpanded = expandedThinkingIndices.has(idx);
             return (
               <div key={`think-${idx}`} className="py-0.5">
                 <button
                   type="button"
-                  onClick={() => setIsThinkingExpanded(!isThinkingExpanded)}
-                  className="inline-flex items-center gap-1.5 text-[11px] text-[#A09885] hover:text-[#C6A46A] font-mono transition-colors group"
+                  onClick={() => toggleThinking(idx)}
+                  className="inline-flex items-center gap-1.5 text-[11px] text-[#A09885] hover:text-[#C6A46A] font-mono transition-colors group cursor-pointer"
                 >
                   <Brain className="w-3 h-3 text-[#C6A46A]" />
                   <span>Thinking for {ev.durationSeconds || 1}s</span>
-                  {isThinkingExpanded ? (
+                  {isExpanded ? (
                     <ChevronDown className="w-3 h-3 text-[#C6A46A]" />
                   ) : (
                     <ChevronRight className="w-3 h-3 text-[#C6A46A]" />
                   )}
                 </button>
-                {isThinkingExpanded && ev.thoughtSummary && (
-                  <div className="mt-1 p-2 rounded-lg bg-[#07070B] border border-[#1A1A24] text-[11px] font-mono text-[#D5C2A5]/70 whitespace-pre-wrap">
-                    {ev.thoughtSummary}
+                {isExpanded && (
+                  <div className="mt-1 p-2.5 rounded-xl bg-[#08080E] border border-[#1E1E2C] text-[11px] font-mono text-[#D5C2A5]/90 whitespace-pre-wrap leading-relaxed shadow-lg">
+                    <div className="flex items-center gap-1.5 text-[10px] text-[#C6A46A] uppercase font-cinzel font-semibold mb-1">
+                      <Sparkles className="w-3 h-3 text-[#C6A46A]" />
+                      <span>Reasoning Process &amp; Architecture</span>
+                    </div>
+                    {ev.thoughtSummary || "Synthesizing architectural specifications and reviewing file dependencies."}
                   </div>
                 )}
               </div>
@@ -227,15 +242,19 @@ export default function AgentTimeline({
             return (
               <div
                 key={`file-${ev.path}-${idx}`}
-                className="flex items-center justify-between py-1 px-2 rounded-lg border border-[#1A1A24] bg-[#07070B] font-mono text-[11px]"
+                className="flex items-center justify-between py-1 px-2 rounded-lg border border-[#1A1A24] bg-[#07070B] font-mono text-[11px] hover:border-[#C6A46A]/40 transition-colors"
               >
-                <div className="flex items-center gap-2 truncate min-w-0 pr-2">
+                <div
+                  onClick={() => onSelectFile && onSelectFile(ev.path)}
+                  className="flex items-center gap-2 truncate min-w-0 pr-2 cursor-pointer group"
+                  title="Click to view file in Workspace IDE"
+                >
                   {isCreated ? (
                     <FilePlus className="w-3 h-3 text-emerald-400 shrink-0" />
                   ) : (
                     <FileEdit className="w-3 h-3 text-amber-400 shrink-0" />
                   )}
-                  <span className="text-[#E8DDC7] font-medium truncate">{ev.path}</span>
+                  <span className="text-[#E8DDC7] group-hover:text-[#C6A46A] font-medium truncate">{ev.path}</span>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -243,6 +262,17 @@ export default function AgentTimeline({
                     <span className="text-emerald-400 font-bold">+{ev.added}</span>
                     <span className="text-rose-400 font-bold">-{ev.removed}</span>
                   </div>
+
+                  {onSelectFile && (
+                    <button
+                      type="button"
+                      onClick={() => onSelectFile(ev.path)}
+                      className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-[#E8DDC7]/80 hover:bg-white/10 hover:text-white transition-colors"
+                      title="Inspect code in Workspace"
+                    >
+                      View
+                    </button>
+                  )}
 
                   {onReviewDiff && (
                     <button

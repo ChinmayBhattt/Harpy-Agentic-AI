@@ -309,9 +309,20 @@ export class AgentToolRunner {
 
         case 'update_plan': {
           const parsed = updatePlanSchema.parse(args);
+          const cleanTarget = (parsed.stepId || '').toLowerCase().trim();
           let found = false;
-          this.plan = this.plan.map((step) => {
-            if (step.id === parsed.stepId || step.title.toLowerCase().includes(parsed.stepId.toLowerCase())) {
+
+          this.plan = this.plan.map((step, idx) => {
+            const stepIdNorm = step.id.toLowerCase();
+            const stepNum = `${idx + 1}`;
+            if (
+              stepIdNorm === cleanTarget ||
+              cleanTarget === stepNum ||
+              cleanTarget === `step ${stepNum}` ||
+              cleanTarget === `step-${stepNum}` ||
+              step.title.toLowerCase().includes(cleanTarget) ||
+              cleanTarget.includes(step.title.toLowerCase())
+            ) {
               found = true;
               return { ...step, status: parsed.status };
             }
