@@ -79,9 +79,6 @@ export default function ConnectorsWorkspace({
   // ──────────────────────────────────────────────────────────
   // Workflows & Nodes State
   // Clean circular logo nodes placed symmetrically around Harpy Core (0, 0)
-  // Left: Inputs/Triggers (x = -240)
-  // Center: Harpy AI Core (0, 0)
-  // Right: Outputs/Actions (x = +240)
   // ──────────────────────────────────────────────────────────
   const [workflows, setWorkflows] = useState<Workflow[]>([
     {
@@ -209,7 +206,7 @@ export default function ConnectorsWorkspace({
       const rect = canvasRef.current.getBoundingClientRect();
       setPan({
         x: Math.round(rect.width / 2),
-        y: Math.round(rect.height / 2 - 20),
+        y: Math.round(rect.height / 2 - 10),
       });
       setZoom(0.85);
     }
@@ -236,18 +233,6 @@ export default function ConnectorsWorkspace({
     });
   }, [apps, selectedCategory, searchQuery]);
 
-  // Core Connection Check
-  const isWorkflowConnectedToCore = useCallback(
-    (wfId: string) => {
-      return connections.some(
-        (c) =>
-          c.workflowId === wfId &&
-          (c.fromNodeId === 'harpy-core' || c.toNodeId === 'harpy-core')
-      );
-    },
-    [connections]
-  );
-
   // Sync Node Status
   useEffect(() => {
     setNodes((prev) =>
@@ -268,7 +253,6 @@ export default function ConnectorsWorkspace({
   // GLITCH-FREE SMOOTH WINDOW-LEVEL DRAGGING (Figma / React Flow Style)
   // ──────────────────────────────────────────────────────────
   const handleNodeMouseDown = (e: React.MouseEvent, node: WorkflowNode) => {
-    // Only left click
     if (e.button !== 0) return;
     e.stopPropagation();
 
@@ -279,14 +263,10 @@ export default function ConnectorsWorkspace({
     const startClientY = e.clientY;
     const startNodeX = node.x;
     const startNodeY = node.y;
-    let hasMoved = false;
 
     const onMouseMove = (moveEvent: MouseEvent) => {
       const dx = (moveEvent.clientX - startClientX) / zoom;
       const dy = (moveEvent.clientY - startClientY) / zoom;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
-        hasMoved = true;
-      }
       setNodes((currentNodes) =>
         currentNodes.map((n) =>
           n.id === node.id
@@ -307,7 +287,6 @@ export default function ConnectorsWorkspace({
 
   // Canvas Panning (Smooth window listener)
   const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    // If clicking a port or element, return
     if ((e.target as HTMLElement).closest('.pointer-events-auto') && e.target !== canvasRef.current) {
       return;
     }
@@ -371,7 +350,6 @@ export default function ConnectorsWorkspace({
         const fromId = connectingSource.port === 'output' ? connectingSource.nodeId : targetNodeId;
         const toId = connectingSource.port === 'output' ? targetNodeId : connectingSource.nodeId;
 
-        // Check if connection already exists
         const exists = connections.some(
           (c) => c.fromNodeId === fromId && c.toNodeId === toId
         );
@@ -676,22 +654,26 @@ export default function ConnectorsWorkspace({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-[#050508] text-[#E8DDC7] font-inter select-none overflow-hidden animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-50 flex flex-col bg-[#07070B] text-[#D8D4CF] font-inter select-none overflow-hidden animate-in fade-in duration-200">
       {/* ──────────────────────────────────────────────────────────
-          1. TOP NAVIGATION BAR (CLEAN & UNCLUTTERED)
+          1. TOP NAVIGATION BAR (DARK METALLIC THEME)
          ────────────────────────────────────────────────────────── */}
-      <header className="h-14 border-b border-[#1A1A28] bg-[#07070C]/95 backdrop-blur-xl px-4 flex items-center justify-between z-30 shrink-0">
-        {/* Left: Branding & Sidebar Toggle */}
+      <header className="h-14 border-b border-[#181824] bg-[#0A0A10]/95 backdrop-blur-xl px-4 flex items-center justify-between z-30 shrink-0">
+        {/* Left: Branding with Official Harpy Logo & Sidebar Toggle */}
         <div className="flex items-center gap-3">
-          <div className="flex items-center gap-2 pr-3 border-r border-[#1E1E2C] shrink-0">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#C6A46A] to-amber-200 flex items-center justify-center p-1.5 shadow-[0_0_15px_rgba(198,164,106,0.3)]">
-              <Layers className="w-4 h-4 text-[#050508]" />
+          <div className="flex items-center gap-2.5 pr-3 border-r border-[#1C1C28] shrink-0">
+            <div className="w-8 h-8 rounded-lg bg-[#141420] border border-[#242436] flex items-center justify-center p-1 shadow-sm">
+              <img
+                src="/icon.png"
+                alt="Harpy AI"
+                className="w-5 h-5 object-contain"
+              />
             </div>
             <div>
-              <span className="font-cinzel text-xs font-bold text-[#E8DDC7] tracking-wider uppercase block leading-tight">
+              <span className="font-cinzel text-xs font-semibold text-[#E8DDC7] tracking-wider uppercase block leading-tight">
                 Harpy Connectors
               </span>
-              <span className="text-[9px] font-mono text-[#8C7A6B] block leading-tight">
+              <span className="text-[9px] font-mono text-[#7A7A8E] block leading-tight">
                 Automation Workspace
               </span>
             </div>
@@ -703,8 +685,8 @@ export default function ConnectorsWorkspace({
             onClick={() => setIsSidebarOpen((v) => !v)}
             className={`p-1.5 rounded-lg border text-xs transition-colors shrink-0 ${
               isSidebarOpen
-                ? 'bg-[#181824] border-[#2A2A3E] text-[#C6A46A]'
-                : 'bg-[#0B0B12] border-[#1C1C28] text-[#8C7A6B] hover:text-[#E8DDC7]'
+                ? 'bg-[#161622] border-[#2A2A3E] text-[#C6A46A]'
+                : 'bg-[#0E0E16] border-[#1C1C28] text-[#7A7A8E] hover:text-[#E8DDC7]'
             }`}
             title={isSidebarOpen ? 'Collapse Apps Sidebar' : 'Expand Apps Sidebar'}
           >
@@ -712,60 +694,10 @@ export default function ConnectorsWorkspace({
           </button>
         </div>
 
-        {/* Center: Canvas View & Zoom Controls */}
-        <div className="flex items-center gap-1 bg-[#090912] p-1 rounded-xl border border-[#1A1A28] shrink-0">
-          <button
-            onClick={() => setActiveTool('select')}
-            className={`p-1.5 rounded-lg text-xs transition-colors ${
-              activeTool === 'select' ? 'bg-[#C6A46A] text-[#050508]' : 'text-[#8C7A6B] hover:text-[#E8DDC7]'
-            }`}
-            title="Select & Move Nodes (V)"
-          >
-            <Move className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => setActiveTool('hand')}
-            className={`p-1.5 rounded-lg text-xs transition-colors ${
-              activeTool === 'hand' ? 'bg-[#C6A46A] text-[#050508]' : 'text-[#8C7A6B] hover:text-[#E8DDC7]'
-            }`}
-            title="Hand Pan Canvas (H)"
-          >
-            <GripVertical className="w-3.5 h-3.5" />
-          </button>
-
-          <div className="h-4 w-px bg-[#1A1A28] mx-1" />
-
-          {/* Zoom Controls */}
-          <button
-            onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.1).toFixed(2))))}
-            className="p-1.5 rounded-lg text-[#8C7A6B] hover:text-[#E8DDC7] transition-colors"
-            title="Zoom Out (-)"
-          >
-            <ZoomOut className="w-3.5 h-3.5" />
-          </button>
-          <span className="text-[11px] font-mono text-[#8C7A6B] px-1 min-w-[38px] text-center">
-            {Math.round(zoom * 100)}%
-          </span>
-          <button
-            onClick={() => setZoom((z) => Math.min(2.0, Number((z + 0.1).toFixed(2))))}
-            className="p-1.5 rounded-lg text-[#8C7A6B] hover:text-[#E8DDC7] transition-colors"
-            title="Zoom In (+)"
-          >
-            <ZoomIn className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={centerCanvas}
-            className="p-1.5 rounded-lg text-[#8C7A6B] hover:text-[#C6A46A] transition-colors"
-            title="Center View"
-          >
-            <Maximize2 className="w-3.5 h-3.5" />
-          </button>
-        </div>
-
         {/* Right: Live Status, Execution Logs, Run Button & Close */}
         <div className="flex items-center gap-2.5 shrink-0">
           {/* Active Connections Pill */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0C0C14] border border-[#1C1C28] text-[11px] font-mono text-emerald-400">
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0E0E16] border border-[#1E1E2C] text-[11px] font-mono text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span>{connections.length} Active Connections</span>
           </div>
@@ -774,27 +706,27 @@ export default function ConnectorsWorkspace({
           <button
             type="button"
             onClick={() => setIsLogsModalOpen(true)}
-            className="px-2.5 py-1.5 rounded-xl bg-[#12121C] border border-[#222232] text-xs font-mono text-[#8C7A6B] hover:text-[#E8DDC7] hover:border-[#C6A46A]/40 transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-[#12121C] border border-[#222232] text-xs font-mono text-[#8C7A6B] hover:text-[#E8DDC7] hover:border-[#3A3A52] transition-colors flex items-center gap-1.5 cursor-pointer"
             title="View Execution Audit Logs"
           >
             <ScrollText className="w-3.5 h-3.5" />
             <span className="hidden sm:inline">Logs</span>
           </button>
 
-          {/* Run Workflows Button */}
+          {/* Run Workflows Button (Dark Metallic Titanium Button) */}
           <button
             type="button"
             onClick={handleExecuteAllActive}
             disabled={isExecutingGlobal}
-            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-[#C6A46A] to-amber-200 text-[#050508] text-xs font-cinzel font-semibold tracking-wider uppercase hover:shadow-[0_0_20px_rgba(198,164,106,0.35)] transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-4 py-1.5 rounded-xl bg-gradient-to-b from-[#222234] via-[#181826] to-[#10101C] text-[#E8DDC7] border border-[#323248] hover:border-[#C6A46A]/60 text-xs font-cinzel font-semibold tracking-wider uppercase hover:shadow-[0_0_15px_rgba(198,164,106,0.15)] transition-all flex items-center gap-1.5 cursor-pointer"
           >
             {isExecutingGlobal ? (
               <>
-                <Activity className="w-3.5 h-3.5 animate-spin" /> Running...
+                <Activity className="w-3.5 h-3.5 animate-spin text-[#C6A46A]" /> Running...
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-[#050508]" /> Run Workflows
+                <Play className="w-3.5 h-3.5 fill-[#C6A46A] text-[#C6A46A]" /> Run Workflows
               </>
             )}
           </button>
@@ -803,7 +735,7 @@ export default function ConnectorsWorkspace({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-[#12121C] border border-[#222232] text-[#8C7A6B] hover:text-[#E8DDC7] hover:border-[#C6A46A]/40 transition-colors"
+            className="p-1.5 rounded-xl bg-[#12121C] border border-[#222232] text-[#7A7A8E] hover:text-[#E8DDC7] hover:border-[#3A3A52] transition-colors"
             title="Exit Canvas"
           >
             <X className="w-4 h-4" />
@@ -825,18 +757,18 @@ export default function ConnectorsWorkspace({
               animate={{ width: 280, opacity: 1 }}
               exit={{ width: 0, opacity: 0 }}
               transition={{ duration: 0.2 }}
-              className="bg-[#08080E]/95 backdrop-blur-xl border-r border-[#181826] flex flex-col z-20 shrink-0 overflow-hidden"
+              className="bg-[#090910]/95 backdrop-blur-xl border-r border-[#181824] flex flex-col z-20 shrink-0 overflow-hidden"
             >
               {/* Search App */}
               <div className="p-3 border-b border-[#141420]">
                 <div className="relative">
-                  <Search className="w-3.5 h-3.5 text-[#8C7A6B] absolute left-3 top-2.5" />
+                  <Search className="w-3.5 h-3.5 text-[#7A7A8E] absolute left-3 top-2.5" />
                   <input
                     type="text"
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     placeholder="Search apps (Gmail, Slack)..."
-                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#0E0E18] border border-[#1E1E2C] text-xs font-mono text-[#E8DDC7] placeholder-[#8C7A6B]/50 focus:outline-none focus:border-[#C6A46A]/60"
+                    className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-[#0E0E18] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF] placeholder-[#7A7A8E]/60 focus:outline-none focus:border-[#3A3A52]"
                   />
                 </div>
 
@@ -848,8 +780,8 @@ export default function ConnectorsWorkspace({
                       onClick={() => setSelectedCategory(cat)}
                       className={`px-2 py-0.5 rounded-lg text-[10px] font-mono uppercase tracking-wider transition-colors shrink-0 ${
                         selectedCategory === cat
-                          ? 'bg-[#C6A46A]/20 text-[#C6A46A] border border-[#C6A46A]/40 font-semibold'
-                          : 'text-[#8C7A6B] hover:text-[#E8DDC7]'
+                          ? 'bg-[#1C1C2C] text-[#E8DDC7] border border-[#323248] font-semibold'
+                          : 'text-[#7A7A8E] hover:text-[#D8D4CF]'
                       }`}
                     >
                       {cat}
@@ -861,10 +793,10 @@ export default function ConnectorsWorkspace({
               {/* Applications List */}
               <div className="flex-1 overflow-y-auto p-2.5 space-y-2 [scrollbar-width:thin]">
                 <div className="flex items-center justify-between px-1">
-                  <span className="text-[10px] font-mono text-[#8C7A6B] uppercase tracking-wider">
+                  <span className="text-[10px] font-mono text-[#7A7A8E] uppercase tracking-wider">
                     Applications ({filteredApps.length})
                   </span>
-                  <span className="text-[9px] font-mono text-[#C6A46A]">Click to add</span>
+                  <span className="text-[9px] font-mono text-[#8C7A6B]">Click to add</span>
                 </div>
 
                 {filteredApps.map((app) => {
@@ -881,21 +813,21 @@ export default function ConnectorsWorkspace({
                           handleAddNodeFromApp(app, { x: dropX, y: dropY });
                         }
                       }}
-                      className="p-2.5 rounded-xl bg-[#0C0C14] border border-[#181826] hover:border-[#C6A46A]/40 transition-all group flex flex-col gap-2 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md"
+                      className="p-2.5 rounded-xl bg-[#0C0C14] border border-[#181824] hover:border-[#2C2C40] transition-all group flex flex-col gap-2 cursor-grab active:cursor-grabbing shadow-sm hover:shadow-md"
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2.5 min-w-0">
                           <div
-                            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/10"
-                            style={{ backgroundColor: `${app.color}18`, color: app.color }}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/5"
+                            style={{ backgroundColor: `${app.color}15`, color: app.color }}
                           >
                             <Icon className="w-3.5 h-3.5" />
                           </div>
                           <div className="truncate">
-                            <span className="text-xs font-semibold text-[#E8DDC7] block truncate">
+                            <span className="text-xs font-semibold text-[#D8D4CF] block truncate">
                               {app.name}
                             </span>
-                            <span className="text-[10px] text-[#8C7A6B] font-mono block truncate">
+                            <span className="text-[10px] text-[#7A7A8E] font-mono block truncate">
                               {app.category}
                             </span>
                           </div>
@@ -905,14 +837,14 @@ export default function ConnectorsWorkspace({
                         <button
                           type="button"
                           onClick={() => handleAddNodeFromApp(app)}
-                          className="p-1 rounded-lg bg-[#141420] text-[#8C7A6B] hover:text-[#C6A46A] hover:bg-[#1E1E30] transition-colors"
+                          className="p-1 rounded-lg bg-[#141420] text-[#7A7A8E] hover:text-[#E8DDC7] hover:bg-[#1E1E30] transition-colors"
                           title={`Add ${app.name} to canvas`}
                         >
                           <Plus className="w-3.5 h-3.5" />
                         </button>
                       </div>
 
-                      <p className="text-[10px] text-[#8C7A6B] line-clamp-2 leading-relaxed">
+                      <p className="text-[10px] text-[#7A7A8E] line-clamp-2 leading-relaxed">
                         {app.description}
                       </p>
 
@@ -932,7 +864,7 @@ export default function ConnectorsWorkspace({
                         <button
                           type="button"
                           onClick={() => setAuthenticatingApp(app)}
-                          className="text-[10px] font-mono text-[#C6A46A] hover:underline"
+                          className="text-[10px] font-mono text-[#8C7A6B] hover:text-[#C6A46A] hover:underline"
                         >
                           Configure
                         </button>
@@ -943,9 +875,9 @@ export default function ConnectorsWorkspace({
               </div>
 
               {/* Sidebar Footer */}
-              <div className="p-3 border-t border-[#141420] bg-[#06060B]">
+              <div className="p-3 border-t border-[#141420] bg-[#07070E]">
                 <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-[#8C7A6B]">Harpy Core</span>
+                  <span className="text-[#7A7A8E]">Harpy Core</span>
                   <span className="text-emerald-400 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     ONLINE (120B)
@@ -958,6 +890,7 @@ export default function ConnectorsWorkspace({
 
         {/* ──────────────────────────────────────────────────────────
             FIGMA-INSPIRED INFINITE MOVABLE CANVAS
+            (Dark Metallic Background with subtle dot grid)
            ────────────────────────────────────────────────────────── */}
         <div
           ref={canvasRef}
@@ -967,11 +900,75 @@ export default function ConnectorsWorkspace({
           className="flex-1 h-full relative overflow-hidden cursor-crosshair bg-[#06060A]"
           style={{
             backgroundImage:
-              'radial-gradient(rgba(198, 164, 106, 0.14) 1px, transparent 1px), radial-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px)',
+              'radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), radial-gradient(rgba(198, 164, 106, 0.03) 1px, transparent 1px)',
             backgroundSize: `${32 * zoom}px ${32 * zoom}px`,
             backgroundPosition: `${pan.x}px ${pan.y}px`,
           }}
         >
+          {/* ──────────────────────────────────────────────────────────
+              FLOATING LEFT CANVAS TOOLBAR (Figma / Miro Style)
+              Select, Hand/Drag, Zoom In/Out, Recenter moved from top to left!
+             ────────────────────────────────────────────────────────── */}
+          <div className="absolute top-6 left-6 z-30 flex flex-col items-center gap-1 bg-[#0C0C14]/92 backdrop-blur-xl p-1.5 rounded-2xl border border-[#222232] shadow-[0_12px_32px_rgba(0,0,0,0.7)] select-none">
+            <button
+              type="button"
+              onClick={() => setActiveTool('select')}
+              className={`p-2 rounded-xl text-xs transition-colors ${
+                activeTool === 'select'
+                  ? 'bg-[#1C1C2C] text-[#E8DDC7] border border-[#303046]'
+                  : 'text-[#7A7A8E] hover:text-[#E8DDC7] hover:bg-white/5'
+              }`}
+              title="Select & Move Nodes (V)"
+            >
+              <Move className="w-4 h-4" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTool('hand')}
+              className={`p-2 rounded-xl text-xs transition-colors ${
+                activeTool === 'hand'
+                  ? 'bg-[#1C1C2C] text-[#E8DDC7] border border-[#303046]'
+                  : 'text-[#7A7A8E] hover:text-[#E8DDC7] hover:bg-white/5'
+              }`}
+              title="Hand Pan Canvas (H)"
+            >
+              <GripVertical className="w-4 h-4" />
+            </button>
+
+            <div className="w-5 h-px bg-[#1E1E2C] my-1" />
+
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.min(2.0, Number((z + 0.1).toFixed(2))))}
+              className="p-2 rounded-xl text-[#7A7A8E] hover:text-[#E8DDC7] hover:bg-white/5 transition-colors"
+              title="Zoom In (+)"
+            >
+              <ZoomIn className="w-4 h-4" />
+            </button>
+            <span className="text-[10px] font-mono text-[#8C7A6B] py-0.5">
+              {Math.round(zoom * 100)}%
+            </span>
+            <button
+              type="button"
+              onClick={() => setZoom((z) => Math.max(0.4, Number((z - 0.1).toFixed(2))))}
+              className="p-2 rounded-xl text-[#7A7A8E] hover:text-[#E8DDC7] hover:bg-white/5 transition-colors"
+              title="Zoom Out (-)"
+            >
+              <ZoomOut className="w-4 h-4" />
+            </button>
+
+            <div className="w-5 h-px bg-[#1E1E2C] my-1" />
+
+            <button
+              type="button"
+              onClick={centerCanvas}
+              className="p-2 rounded-xl text-[#7A7A8E] hover:text-[#C6A46A] hover:bg-white/5 transition-colors"
+              title="Center View (Fit)"
+            >
+              <Maximize2 className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* AI Success Toast */}
           <AnimatePresence>
             {aiSuccessToast && (
@@ -981,7 +978,7 @@ export default function ConnectorsWorkspace({
                 exit={{ opacity: 0, y: -20, scale: 0.95 }}
                 className="absolute top-4 inset-x-0 z-40 pointer-events-none flex justify-center px-4"
               >
-                <div className="px-4 py-2 rounded-xl bg-emerald-950/90 border border-emerald-500/50 text-emerald-200 text-xs font-mono shadow-2xl flex items-center gap-2">
+                <div className="px-4 py-2 rounded-xl bg-[#0E1612]/95 border border-emerald-500/40 text-emerald-200 text-xs font-mono shadow-2xl flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
                   <span>{aiSuccessToast}</span>
                 </div>
@@ -1004,20 +1001,18 @@ export default function ConnectorsWorkspace({
             <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
               <defs>
                 <linearGradient id="activeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#C6A46A" />
+                  <stop offset="0%" stopColor="#8C7A6B" />
                   <stop offset="50%" stopColor="#34D399" />
-                  <stop offset="100%" stopColor="#C6A46A" />
+                  <stop offset="100%" stopColor="#8C7A6B" />
                 </linearGradient>
                 <filter id="wireGlow" x="-20%" y="-20%" width="140%" height="140%">
-                  <feGaussianBlur stdDeviation="3" result="blur" />
+                  <feGaussianBlur stdDeviation="2.5" result="blur" />
                   <feComposite in="SourceGraphic" in2="blur" operator="over" />
                 </filter>
               </defs>
 
               {/* Render Existing Connections */}
               {connections.map((conn) => {
-                // Circular nodes: radius is 34px (w-68px)
-                // Harpy Core circle: radius is 48px (w-96px)
                 const NODE_RADIUS = 34;
                 const CORE_RADIUS = 48;
 
@@ -1071,13 +1066,13 @@ export default function ConnectorsWorkspace({
                       }}
                     />
 
-                    {/* Outer Glowing Wire */}
+                    {/* Outer Metallic Dark Wire with light subtle champagne accent */}
                     <path
                       d={pathD}
                       fill="none"
-                      stroke={conn.isActive ? '#C6A46A' : '#333346'}
-                      strokeWidth={conn.isActive ? 2.5 : 2}
-                      strokeOpacity={conn.isActive ? 0.75 : 0.4}
+                      stroke={conn.isActive ? '#8C7A6B' : '#2A2A3C'}
+                      strokeWidth={conn.isActive ? 2 : 1.5}
+                      strokeOpacity={conn.isActive ? 0.6 : 0.35}
                       filter={conn.isActive ? 'url(#wireGlow)' : undefined}
                     />
 
@@ -1087,11 +1082,11 @@ export default function ConnectorsWorkspace({
                         d={pathD}
                         fill="none"
                         stroke="url(#activeGrad)"
-                        strokeWidth={2}
-                        strokeDasharray="6 8"
+                        strokeWidth={1.5}
+                        strokeDasharray="5 7"
                         className="animate-flow-dash"
                         style={{
-                          animation: 'flowDash 1.2s linear infinite',
+                          animation: 'flowDash 1.4s linear infinite',
                         }}
                       />
                     )}
@@ -1114,7 +1109,7 @@ export default function ConnectorsWorkspace({
                       : nodes.find((n) => n.id === connectingSource.nodeId)?.y || 0
                   } L ${mousePos.x} ${mousePos.y}`}
                   fill="none"
-                  stroke="#C6A46A"
+                  stroke="#8C7A6B"
                   strokeWidth={2}
                   strokeDasharray="4 4"
                 />
@@ -1122,7 +1117,8 @@ export default function ConnectorsWorkspace({
             </svg>
 
             {/* ──────────────────────────────────────────────────────────
-                CENTRAL HARPY AI SYSTEM NODE (CIRCULAR LOGO AT 0, 0)
+                CENTRAL HARPY AI SYSTEM NODE (EXACT LOGO FROM /icon.png)
+                Positioned at (0, 0) in dark metallic disc
                ────────────────────────────────────────────────────────── */}
             <div
               className="absolute pointer-events-auto select-none"
@@ -1132,72 +1128,76 @@ export default function ConnectorsWorkspace({
                 transform: 'translate(-50%, -50%)',
               }}
             >
-              {/* Rotating Golden Orbital Rings */}
-              <div className="absolute inset-0 -m-10 rounded-full bg-gradient-to-tr from-[#C6A46A]/20 via-amber-500/10 to-emerald-500/15 blur-2xl animate-pulse pointer-events-none" />
-              <div className="absolute inset-0 -m-6 rounded-full border border-[#C6A46A]/30 animate-spin [animation-duration:25s] pointer-events-none" />
-              <div className="absolute inset-0 -m-3 rounded-full border border-dashed border-[#C6A46A]/40 animate-spin [animation-duration:15s] [animation-direction:reverse] pointer-events-none" />
+              {/* Subtle Ambient Rings (Metallic & Light Champagne) */}
+              <div className="absolute inset-0 -m-8 rounded-full bg-gradient-to-tr from-white/[0.03] to-[#C6A46A]/[0.06] blur-xl pointer-events-none" />
+              <div className="absolute inset-0 -m-5 rounded-full border border-[#242436] animate-spin [animation-duration:35s] pointer-events-none" />
+              <div className="absolute inset-0 -m-2.5 rounded-full border border-dashed border-[#C6A46A]/20 animate-spin [animation-duration:20s] [animation-direction:reverse] pointer-events-none" />
 
-              {/* Circle Logo Node */}
+              {/* Circular Harpy Core Disc */}
               <div
                 onClick={(e) => {
                   e.stopPropagation();
                   setSelectedNodeId('harpy-core');
                 }}
-                className={`relative w-24 h-24 rounded-full bg-gradient-to-b from-[#141420] via-[#0D0D18] to-[#07070C] border-2 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_40px_rgba(198,164,106,0.35)] group ${
+                className={`relative w-24 h-24 rounded-full bg-gradient-to-b from-[#161622] via-[#0E0E16] to-[#08080E] border transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_30px_rgba(0,0,0,0.8)] group ${
                   selectedNodeId === 'harpy-core'
-                    ? 'border-[#C6A46A] shadow-[0_0_60px_rgba(198,164,106,0.6)] ring-2 ring-[#C6A46A]'
-                    : 'border-[#C6A46A]/70 hover:border-[#C6A46A] hover:scale-105'
+                    ? 'border-[#C6A46A]/80 shadow-[0_0_40px_rgba(198,164,106,0.3)] ring-1 ring-[#C6A46A]/50'
+                    : 'border-[#26263A] hover:border-[#383850] hover:scale-105'
                 }`}
               >
-                {/* Harpy Logo Emblem */}
-                <div className="w-10 h-10 rounded-full bg-[#08080E] border border-[#C6A46A]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
-                  <Bot className="w-6 h-6 text-[#C6A46A] animate-pulse" />
+                {/* Official Harpy Logo Image from /icon.png */}
+                <div className="w-14 h-14 rounded-full bg-[#101018] border border-[#262638] flex items-center justify-center shadow-inner group-hover:scale-105 transition-transform overflow-hidden p-1.5">
+                  <img
+                    src="/icon.png"
+                    alt="Harpy AI"
+                    className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(198,164,106,0.25)]"
+                  />
                 </div>
 
                 {/* 4 Connection Port Dots (North, South, East, West) */}
                 <button
                   type="button"
                   onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
-                  className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
+                  className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
                   title="North Port: Click to connect"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
                 </button>
 
                 <button
                   type="button"
                   onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
-                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
+                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
                   title="South Port: Click to connect"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
                 </button>
 
                 <button
                   type="button"
                   onClick={(e) => handlePortClick(e, 'harpy-core', 'input')}
-                  className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
+                  className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
                   title="West Inflow: Connect triggers here"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
                 </button>
 
                 <button
                   type="button"
                   onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
-                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
+                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
                   title="East Outflow: Connect actions here"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
                 </button>
               </div>
 
-              {/* Harpy AI Label */}
+              {/* Harpy AI Subtle Label */}
               <div className="text-center mt-2 pointer-events-none">
-                <span className="font-cinzel text-xs font-bold text-[#E8DDC7] tracking-wider uppercase block drop-shadow-md">
+                <span className="font-cinzel text-xs font-semibold text-[#D8D4CF] tracking-wider uppercase block drop-shadow-md">
                   Harpy AI
                 </span>
-                <span className="text-[9px] font-mono text-[#C6A46A] block">Autonomous Core</span>
+                <span className="text-[9px] font-mono text-[#7A7A8E] block">Autonomous Core</span>
               </div>
             </div>
 
@@ -1220,39 +1220,32 @@ export default function ConnectorsWorkspace({
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
-                  {/* Circular / Squircle App Logo Node */}
+                  {/* Circular / Squircle App Logo Node (Dark Metallic) */}
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
-                      // Clicking app node opens the right-side inspector
                       setSelectedNodeId(node.id);
                     }}
                     className={`relative w-[68px] h-[68px] rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${
                       isSelected
-                        ? 'ring-2 ring-[#C6A46A] shadow-[0_0_30px_rgba(198,164,106,0.6)] scale-105'
-                        : 'hover:scale-105 shadow-xl hover:shadow-[0_0_20px_rgba(0,0,0,0.8)]'
+                        ? 'border-[#C6A46A]/80 shadow-[0_0_20px_rgba(198,164,106,0.3)] scale-105 ring-1 ring-[#C6A46A]/40'
+                        : 'border-[#1E1E2C] hover:border-[#323246] hover:scale-105 shadow-lg'
                     }`}
                     style={{
-                      backgroundColor: '#090912',
-                      border: `2px solid ${
-                        isSelected
-                          ? '#C6A46A'
-                          : node.isConnectedToCore
-                          ? '#10B98188'
-                          : '#252538'
-                      }`,
+                      backgroundColor: '#0A0A12',
+                      borderWidth: '1.5px',
                     }}
                   >
                     {/* App Brand Color Soft Glow inside */}
                     <div
-                      className="absolute inset-0 rounded-2xl opacity-15 pointer-events-none"
-                      style={{ backgroundColor: app?.color || '#C6A46A' }}
+                      className="absolute inset-0 rounded-2xl opacity-10 pointer-events-none"
+                      style={{ backgroundColor: app?.color || '#FFFFFF' }}
                     />
 
                     {/* App Icon */}
                     <div
                       className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform"
-                      style={{ color: app?.color || '#E8DDC7' }}
+                      style={{ color: app?.color || '#D8D4CF' }}
                     >
                       <Icon className="w-6 h-6" />
                     </div>
@@ -1269,21 +1262,21 @@ export default function ConnectorsWorkspace({
                       />
                     </div>
 
-                    {/* Left Input Port Handle */}
+                    {/* Left Input Port Handle (Dark Metallic) */}
                     <button
                       type="button"
                       onClick={(e) => handlePortClick(e, node.id, 'input')}
-                      className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
+                      className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#323246] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
                       title="Input Port: Click to connect wire"
                     >
-                      <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
                     </button>
 
-                    {/* Right Output Port Handle */}
+                    {/* Right Output Port Handle (Dark Metallic) */}
                     <button
                       type="button"
                       onClick={(e) => handlePortClick(e, node.id, 'output')}
-                      className="absolute -right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#34D399] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
+                      className="absolute -right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#323246] hover:border-[#34D399] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
                       title="Output Port: Click to connect wire"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-[#34D399]" />
@@ -1292,7 +1285,7 @@ export default function ConnectorsWorkspace({
 
                   {/* App Name Label Below Node */}
                   <div className="text-center mt-1.5 pointer-events-none">
-                    <span className="text-[11px] font-mono text-[#E8DDC7] block truncate max-w-[80px] drop-shadow-md">
+                    <span className="text-[11px] font-mono text-[#D8D4CF] block truncate max-w-[80px] drop-shadow-md">
                       {app?.name || node.title}
                     </span>
                   </div>
@@ -1302,12 +1295,12 @@ export default function ConnectorsWorkspace({
           </div>
 
           {/* ──────────────────────────────────────────────────────────
-              3. FLOATING AI AUTOMATION PROMPT BAR (BOTTOM DOCK)
+              3. FLOATING AI AUTOMATION PROMPT BAR (DARK METALLIC DOCK)
              ────────────────────────────────────────────────────────── */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center w-full max-w-xl px-4">
-            <div className="pointer-events-auto w-full p-2 bg-[#0A0A14]/90 backdrop-blur-2xl border border-[#C6A46A]/60 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_30px_rgba(198,164,106,0.25)] flex items-center gap-3">
+            <div className="pointer-events-auto w-full p-2 bg-[#0C0C14]/92 backdrop-blur-2xl border border-[#222232] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex items-center gap-3">
               <div className="pl-2">
-                <Sparkles className="w-4 h-4 text-[#C6A46A] animate-pulse" />
+                <Sparkles className="w-4 h-4 text-[#8C7A6B]" />
               </div>
               <input
                 type="text"
@@ -1317,7 +1310,7 @@ export default function ConnectorsWorkspace({
                   if (e.key === 'Enter') handleGenerateWorkflowFromAi();
                 }}
                 placeholder="Describe automation (e.g. 'Summarize new Gmail emails and sync to Notion')..."
-                className="flex-1 bg-transparent text-xs text-[#E8DDC7] placeholder-[#8C7A6B] font-inter focus:outline-none"
+                className="flex-1 bg-transparent text-xs text-[#D8D4CF] placeholder-[#7A7A8E]/70 font-inter focus:outline-none"
               />
               <button
                 type="button"
@@ -1325,17 +1318,17 @@ export default function ConnectorsWorkspace({
                 disabled={isGeneratingAi || !aiPrompt.trim()}
                 className={`px-4 py-2 rounded-xl font-cinzel text-xs font-semibold tracking-wider uppercase transition-all flex items-center gap-1.5 ${
                   aiPrompt.trim()
-                    ? 'bg-[#C6A46A] text-[#050508] hover:bg-[#E2C99A] cursor-pointer shadow-md'
-                    : 'bg-[#181824] text-[#8C7A6B] cursor-not-allowed'
+                    ? 'bg-[#1C1C2C] text-[#E8DDC7] border border-[#323246] hover:border-[#C6A46A]/50 hover:text-white cursor-pointer shadow-md'
+                    : 'bg-[#12121A] text-[#606072] border border-[#1A1A24] cursor-not-allowed'
                 }`}
               >
                 {isGeneratingAi ? (
                   <>
-                    <Activity className="w-3.5 h-3.5 animate-spin" /> Generating...
+                    <Activity className="w-3.5 h-3.5 animate-spin text-[#8C7A6B]" /> Generating...
                   </>
                 ) : (
                   <>
-                    Build <Send className="w-3 h-3" />
+                    Build <Send className="w-3 h-3 text-[#8C7A6B]" />
                   </>
                 )}
               </button>
