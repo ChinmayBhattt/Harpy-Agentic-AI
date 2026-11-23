@@ -53,12 +53,14 @@ interface ConnectorsWorkspaceProps {
   isOpen: boolean;
   onClose: () => void;
   onRunWorkflowFromChat?: (prompt: string) => void;
+  theme?: 'dark' | 'light';
 }
 
 export default function ConnectorsWorkspace({
   isOpen,
   onClose,
   onRunWorkflowFromChat,
+  theme = 'dark',
 }: ConnectorsWorkspaceProps) {
   // ──────────────────────────────────────────────────────────
   // Canvas State: Pan & Zoom
@@ -898,7 +900,9 @@ export default function ConnectorsWorkspace({
           className="flex-1 h-full relative overflow-hidden cursor-crosshair bg-[#06060A]"
           style={{
             backgroundImage:
-              'radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), radial-gradient(rgba(198, 164, 106, 0.03) 1px, transparent 1px)',
+              theme === 'light'
+                ? 'radial-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 1px), radial-gradient(rgba(154, 111, 46, 0.05) 1px, transparent 1px)'
+                : 'radial-gradient(rgba(255, 255, 255, 0.05) 1px, transparent 1px), radial-gradient(rgba(198, 164, 106, 0.03) 1px, transparent 1px)',
             backgroundSize: `${32 * zoom}px ${32 * zoom}px`,
             backgroundPosition: `${pan.x}px ${pan.y}px`,
           }}

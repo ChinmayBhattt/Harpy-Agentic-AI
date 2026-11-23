@@ -52,6 +52,9 @@ import {
   FolderGit2,
   Square,
   Radio,
+  Sun,
+  Moon,
+  Palette,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import BrowserPanel from "@/components/BrowserPanel";
@@ -261,8 +264,38 @@ export default function DashboardPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [connectorsModalOpen, setConnectorsModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"models" | "system">("models");
+  const [settingsTab, setSettingsTab] = useState<"models" | "appearance" | "system">("models");
+  const [theme, setTheme] = useState<"dark" | "light">("dark");
   const [isExecuting, setIsExecuting] = useState(false);
+
+  // Sync theme with localStorage and document classes
+  useEffect(() => {
+    try {
+      const saved = (localStorage.getItem("harpy_theme") as "dark" | "light") || "dark";
+      setTheme(saved);
+      applyTheme(saved);
+    } catch {}
+  }, []);
+
+  const applyTheme = (t: "dark" | "light") => {
+    if (t === "light") {
+      document.documentElement.classList.add("light", "theme-light");
+      document.documentElement.classList.remove("dark", "theme-dark");
+      document.documentElement.setAttribute("data-theme", "light");
+    } else {
+      document.documentElement.classList.add("dark", "theme-dark");
+      document.documentElement.classList.remove("light", "theme-light");
+      document.documentElement.setAttribute("data-theme", "dark");
+    }
+  };
+
+  const handleSelectTheme = (t: "dark" | "light") => {
+    setTheme(t);
+    applyTheme(t);
+    try {
+      localStorage.setItem("harpy_theme", t);
+    } catch {}
+  };
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
@@ -1328,7 +1361,7 @@ export default function DashboardPage() {
     customModels.length > 0 ? customModels : currentEngine ? currentEngine.models : [];
 
   return (
-    <div className="flex h-screen w-full bg-[#050508] text-[#E8DDC7] overflow-hidden select-none font-inter relative">
+    <div className={`flex h-screen w-full bg-[#050508] text-[#E8DDC7] overflow-hidden select-none font-inter relative ${theme === "light" ? "light theme-light" : "dark theme-dark"}`} data-theme={theme}>
       {/* Mobile Backdrop for Sidebar */}
       {sidebarOpen && (
         <div
@@ -1642,7 +1675,12 @@ export default function DashboardPage() {
               <Settings className="w-3.5 h-3.5 text-[#C6A46A]/80 group-hover:text-[#C6A46A]" />
               <span className="font-cinzel text-[11px] tracking-wider uppercase">System Settings</span>
             </div>
-            <span className="text-[10px] font-mono text-[#E8DDC7]/30">v2.6</span>
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] font-mono text-[#C6A46A] uppercase px-1.5 py-0.5 rounded bg-[#C6A46A]/10 border border-[#C6A46A]/20">
+                {theme === "light" ? "Light" : "Dark"}
+              </span>
+              <span className="text-[10px] font-mono text-[#E8DDC7]/30">v2.6</span>
+            </div>
           </button>
 
           {/* User Profile (Below System Settings) */}
@@ -2313,6 +2351,7 @@ export default function DashboardPage() {
       <ConnectorsWorkspace
         isOpen={connectorsModalOpen}
         onClose={() => setConnectorsModalOpen(false)}
+        theme={theme}
         onRunWorkflowFromChat={(prompt) => {
           setConnectorsModalOpen(false);
           setInputValue(prompt);
@@ -2337,25 +2376,46 @@ export default function DashboardPage() {
                 <div className="space-y-0.5">
                   <div className="inline-flex items-center gap-2 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase">
                     <Settings className="w-3.5 h-3.5" />
-                    <span>Configuration &amp; Inference</span>
+                    <span>Configuration &amp; System</span>
                   </div>
                   <h3 className="font-cinzel text-xl text-[#E8DDC7]">System Settings</h3>
                 </div>
-                <button
-                  onClick={() => setSettingsModalOpen(false)}
-                  className="p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors rounded-lg hover:bg-[#12121A]"
-                  title="Close Settings"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* Quick Theme Toggle Button */}
+                  <button
+                    type="button"
+                    onClick={() => handleSelectTheme(theme === "dark" ? "light" : "dark")}
+                    className="px-2.5 py-1.5 text-[#E8DDC7]/80 hover:text-[#C6A46A] transition-all rounded-lg bg-[#0B0B10] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/40 flex items-center gap-1.5 text-xs font-mono shadow-sm"
+                    title={`Switch to ${theme === "dark" ? "Pure White / Light" : "Dark Metallic"} Theme`}
+                  >
+                    {theme === "dark" ? (
+                      <>
+                        <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
+                        <span className="text-[11px] font-cinzel uppercase tracking-wider font-semibold">White Theme</span>
+                      </>
+                    ) : (
+                      <>
+                        <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                        <span className="text-[11px] font-cinzel uppercase tracking-wider font-semibold">Dark Theme</span>
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => setSettingsModalOpen(false)}
+                    className="p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors rounded-lg hover:bg-[#12121A]"
+                    title="Close Settings"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
 
               {/* Tab Selector */}
-              <div className="flex items-center gap-2 border-b border-[#14141C] pb-2 flex-shrink-0">
+              <div className="flex items-center gap-2 border-b border-[#14141C] pb-2 flex-shrink-0 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setSettingsTab("models")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all flex-shrink-0 ${
                     settingsTab === "models"
                       ? "bg-[#C6A46A] text-[#050508] shadow-sm"
                       : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
@@ -2367,8 +2427,21 @@ export default function DashboardPage() {
 
                 <button
                   type="button"
+                  onClick={() => setSettingsTab("appearance")}
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all flex-shrink-0 ${
+                    settingsTab === "appearance"
+                      ? "bg-[#C6A46A] text-[#050508] shadow-sm"
+                      : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
+                  }`}
+                >
+                  <Palette className="w-3.5 h-3.5" />
+                  <span>Appearance &amp; Theme</span>
+                </button>
+
+                <button
+                  type="button"
                   onClick={() => setSettingsTab("system")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all flex-shrink-0 ${
                     settingsTab === "system"
                       ? "bg-[#C6A46A] text-[#050508] shadow-sm"
                       : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
@@ -2533,6 +2606,145 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   </>
+                ) : settingsTab === "appearance" ? (
+                  <div className="space-y-4">
+                    {/* Header Details */}
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <label className="font-cinzel text-xs uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                          Interface Theme &amp; Appearance
+                        </label>
+                        <span className="text-[10px] text-[#C6A46A] font-mono uppercase px-2 py-0.5 rounded bg-[#C6A46A]/10 border border-[#C6A46A]/20">
+                          Active: {theme === "light" ? "Pure White" : "Dark Metallic"}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-[#E8DDC7]/65 font-light leading-relaxed">
+                        Switch between deep obsidian dark mode and pure white light mode. Your selection is automatically persisted across all chat sessions, history, modals, and connectors.
+                      </p>
+                    </div>
+
+                    {/* Theme Cards Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
+                      {/* Dark Theme Card */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTheme("dark")}
+                        className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
+                          theme === "dark"
+                            ? "bg-[#14141E] border-[#C6A46A] text-[#E8DDC7] shadow-[0_0_20px_rgba(198,164,106,0.18)] ring-1 ring-[#C6A46A]/50"
+                            : "bg-[#0A0A0F] border-[#161622] text-[#E8DDC7]/70 hover:border-[#C6A46A]/40 hover:bg-[#101018]"
+                        }`}
+                      >
+                        <div className="space-y-3 w-full">
+                          {/* Mini Visual Preview */}
+                          <div className="h-16 w-full rounded-lg bg-[#050508] border border-[#1C1C26] p-2 flex gap-1.5 items-stretch shadow-inner">
+                            <div className="w-1/4 rounded bg-[#07070B] border border-[#14141C] flex flex-col justify-between p-1">
+                              <div className="w-2.5 h-2.5 rounded-full bg-[#C6A46A]/60" />
+                              <div className="w-full h-1 bg-[#1C1C26] rounded-full" />
+                            </div>
+                            <div className="flex-1 rounded bg-[#0B0B10] border border-[#171720] p-1.5 flex flex-col justify-between">
+                              <div className="w-1/2 h-1.5 bg-[#C6A46A]/70 rounded-full" />
+                              <div className="w-3/4 h-1 bg-[#22222E] rounded-full" />
+                              <div className="w-full h-2.5 bg-[#050508] rounded border border-[#1C1C26]" />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Moon className="w-4 h-4 text-[#C6A46A]" />
+                                <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
+                                  Dark Metallic
+                                </span>
+                              </div>
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-[#C6A46A]/40 bg-[#C6A46A]/10 text-[#C6A46A] uppercase">
+                                DEFAULT
+                              </span>
+                            </div>
+                            <p className="text-[10.5px] text-[#E8DDC7]/60 leading-relaxed font-light">
+                              Deep obsidian canvas with warm parchment typography and gold metallic highlights.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-2.5 border-t border-[#1C1C26] flex items-center justify-between w-full">
+                          <span className="text-[10px] font-mono text-[#E8DDC7]/50">Titanium Dark</span>
+                          {theme === "dark" ? (
+                            <div className="w-4 h-4 rounded-full bg-[#C6A46A] flex items-center justify-center text-[#050508] shadow-sm">
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </div>
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border border-[#22222E] group-hover:border-[#C6A46A]/50 transition-colors" />
+                          )}
+                        </div>
+                      </button>
+
+                      {/* Pure White Theme Card */}
+                      <button
+                        type="button"
+                        onClick={() => handleSelectTheme("light")}
+                        className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
+                          theme === "light"
+                            ? "bg-[#14141E] border-[#C6A46A] text-[#E8DDC7] shadow-[0_0_20px_rgba(198,164,106,0.18)] ring-1 ring-[#C6A46A]/50"
+                            : "bg-[#0A0A0F] border-[#161622] text-[#E8DDC7]/70 hover:border-[#C6A46A]/40 hover:bg-[#101018]"
+                        }`}
+                      >
+                        <div className="space-y-3 w-full">
+                          {/* Mini Visual Preview */}
+                          <div className="h-16 w-full rounded-lg bg-[#FFFFFF] border border-[#E2E4E9] p-2 flex gap-1.5 items-stretch shadow-inner">
+                            <div className="w-1/4 rounded bg-[#F1F3F6] border border-[#E2E4E9] flex flex-col justify-between p-1">
+                              <div className="w-2.5 h-2.5 rounded-full bg-[#9A6F2E]" />
+                              <div className="w-full h-1 bg-[#CBD5E1] rounded-full" />
+                            </div>
+                            <div className="flex-1 rounded bg-[#FFFFFF] border border-[#E2E4E9] p-1.5 flex flex-col justify-between">
+                              <div className="w-1/2 h-1.5 bg-[#9A6F2E] rounded-full" />
+                              <div className="w-3/4 h-1 bg-[#E2E4E9] rounded-full" />
+                              <div className="w-full h-2.5 bg-[#F8F9FA] rounded border border-[#E2E4E9]" />
+                            </div>
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <Sun className="w-4 h-4 text-amber-400" />
+                                <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
+                                  Pure White
+                                </span>
+                              </div>
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-amber-500/40 bg-amber-500/10 text-amber-500 uppercase">
+                                DAYLIGHT
+                              </span>
+                            </div>
+                            <p className="text-[10.5px] text-[#E8DDC7]/60 leading-relaxed font-light">
+                              Luminous white canvas with crystal-clear slate typography and refined metallic borders.
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="mt-3 pt-2.5 border-t border-[#1C1C26] flex items-center justify-between w-full">
+                          <span className="text-[10px] font-mono text-[#E8DDC7]/50">Alabaster White</span>
+                          {theme === "light" ? (
+                            <div className="w-4 h-4 rounded-full bg-[#C6A46A] flex items-center justify-center text-[#050508] shadow-sm">
+                              <Check className="w-2.5 h-2.5 stroke-[3]" />
+                            </div>
+                          ) : (
+                            <div className="w-4 h-4 rounded-full border border-[#22222E] group-hover:border-[#C6A46A]/50 transition-colors" />
+                          )}
+                        </div>
+                      </button>
+                    </div>
+
+                    {/* Feature Details Notice */}
+                    <div className="p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720] space-y-1">
+                      <div className="flex items-center gap-2 text-[#C6A46A] font-cinzel text-xs font-semibold">
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Sovereign Theme Synchronization</span>
+                      </div>
+                      <p className="text-[11px] text-[#E8DDC7]/65 leading-relaxed font-light">
+                        Harpy AI preserves high-performance contrast in both modes. All autonomous capabilities including Groq inference, the Voice AI agent, Browser Automation, and Figma-style Connectors adapt instantly to your selected theme.
+                      </p>
+                    </div>
+                  </div>
                 ) : (
                   <>
                     {/* Kernel & Safety Details */}

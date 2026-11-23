@@ -47,7 +47,15 @@ export default function RootLayout({
     <html
       lang="en"
       className={`${cinzel.variable} ${cormorant.variable} ${inter.variable} scroll-smooth`}
+      suppressHydrationWarning
     >
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var t=localStorage.getItem('harpy_theme');if(t==='light'){document.documentElement.classList.add('light','theme-light');document.documentElement.setAttribute('data-theme','light');}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body className="bg-obsidian text-parchment antialiased selection:bg-gold selection:text-obsidian flex flex-col min-h-screen">
         <FloatingFeathers />
         <Navigation />

@@ -108,3 +108,447 @@ input {
   stroke-dasharray: 6 8;
   animation: flowDash 1.2s linear infinite;
 }
+
+/* ──────────────────────────────────────────────────────────
+   WHITE / LIGHT THEME DESIGN SYSTEM (Harmonious & High Contrast)
+   Activated via html.light, html.theme-light, [data-theme="light"]
+   ────────────────────────────────────────────────────────── */
+
+html.light,
+html.theme-light,
+.theme-light,
+[data-theme="light"] {
+  color-scheme: light;
+  --color-obsidian: #F8F9FA;
+  --color-parchment: #111827;
+  --color-gold: #9A6F2E;
+  --color-bronze: #8A6225;
+}
+
+html.light body,
+html.theme-light body,
+.theme-light body,
+[data-theme="light"] body {
+  background-color: #F8F9FB !important;
+  color: #111827 !important;
+}
+
+/* Base Canvas & Workspace Backgrounds */
+html.light .bg-\[\#050508\],
+.theme-light .bg-\[\#050508\],
+[data-theme="light"] .bg-\[\#050508\],
+html.light .bg-\[\#07070B\],
+.theme-light .bg-\[\#07070B\],
+[data-theme="light"] .bg-\[\#07070B\] {
+  background-color: #F8F9FB !important;
+}
+
+/* Sidebar background */
+html.light aside.bg-\[\#07070B\],
+.theme-light aside.bg-\[\#07070B\],
+[data-theme="light"] aside.bg-\[\#07070B\] {
+  background-color: #F1F3F6 !important;
+}
+
+/* Top operational header bar */
+html.light .bg-\[\#07070B\]\/90,
+.theme-light .bg-\[\#07070B\]\/90,
+[data-theme="light"] .bg-\[\#07070B\]\/90 {
+  background-color: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+/* Modal and Popover Dialogs */
+html.light .bg-\[\#08080C\],
+.theme-light .bg-\[\#08080C\],
+[data-theme="light"] .bg-\[\#08080C\],
+html.light .bg-\[\#0E0E16\],
+.theme-light .bg-\[\#0E0E16\],
+[data-theme="light"] .bg-\[\#0E0E16\],
+html.light .bg-\[\#14141A\],
+.theme-light .bg-\[\#14141A\],
+[data-theme="light"] .bg-\[\#14141A\] {
+  background-color: #FFFFFF !important;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+}
+
+/* Cards, Surface Elements, and Badges */
+html.light .bg-\[\#09090E\],
+.theme-light .bg-\[\#09090E\],
+[data-theme="light"] .bg-\[\#09090E\],
+html.light .bg-\[\#0A0A0F\],
+.theme-light .bg-\[\#0A0A0F\],
+[data-theme="light"] .bg-\[\#0A0A0F\],
+html.light .bg-\[\#0B0B0F\],
+.theme-light .bg-\[\#0B0B0F\],
+[data-theme="light"] .bg-\[\#0B0B0F\],
+html.light .bg-\[\#0B0B10\],
+.theme-light .bg-\[\#0B0B10\],
+[data-theme="light"] .bg-\[\#0B0B10\],
+html.light .bg-\[\#0D0D12\],
+.theme-light .bg-\[\#0D0D12\],
+[data-theme="light"] .bg-\[\#0D0D12\],
+html.light .bg-\[\#0C0C12\],
+.theme-light .bg-\[\#0C0C12\],
+[data-theme="light"] .bg-\[\#0C0C12\] {
+  background-color: #FFFFFF !important;
+}
+
+/* Nested cards, input containers, subtle chips */
+html.light .bg-\[\#111118\],
+.theme-light .bg-\[\#111118\],
+[data-theme="light"] .bg-\[\#111118\],
+html.light .bg-\[\#12121A\],
+.theme-light .bg-\[\#12121A\],
+[data-theme="light"] .bg-\[\#12121A\],
+html.light .bg-\[\#14141C\],
+.theme-light .bg-\[\#14141C\],
+[data-theme="light"] .bg-\[\#14141C\],
+html.light .bg-\[\#14141E\],
+.theme-light .bg-\[\#14141E\],
+[data-theme="light"] .bg-\[\#14141E\],
+html.light .bg-\[\#161622\],
+.theme-light .bg-\[\#161622\],
+[data-theme="light"] .bg-\[\#161622\],
+html.light .bg-\[\#171720\],
+.theme-light .bg-\[\#171720\],
+[data-theme="light"] .bg-\[\#171720\],
+html.light .bg-\[\#171722\],
+.theme-light .bg-\[\#171722\],
+[data-theme="light"] .bg-\[\#171722\],
+html.light .bg-\[\#1A1A24\],
+.theme-light .bg-\[\#1A1A24\],
+[data-theme="light"] .bg-\[\#1A1A24\],
+html.light .bg-\[\#1C1C26\],
+.theme-light .bg-\[\#1C1C26\],
+[data-theme="light"] .bg-\[\#1C1C26\],
+html.light .bg-\[\#1C1C28\],
+.theme-light .bg-\[\#1C1C28\],
+[data-theme="light"] .bg-\[\#1C1C28\],
+html.light .bg-\[\#1E1E28\],
+.theme-light .bg-\[\#1E1E28\],
+[data-theme="light"] .bg-\[\#1E1E28\] {
+  background-color: #F3F4F6 !important;
+}
+
+/* Connectors Titanium Palette in Light Mode */
+html.light .bg-\[\#06060A\],
+.theme-light .bg-\[\#06060A\],
+[data-theme="light"] .bg-\[\#06060A\],
+html.light .bg-\[\#06060C\],
+.theme-light .bg-\[\#06060C\],
+[data-theme="light"] .bg-\[\#06060C\],
+html.light .bg-\[\#08080E\],
+.theme-light .bg-\[\#08080E\],
+[data-theme="light"] .bg-\[\#08080E\],
+html.light .bg-\[\#0A0A10\],
+.theme-light .bg-\[\#0A0A10\],
+[data-theme="light"] .bg-\[\#0A0A10\],
+html.light .bg-\[\#0A0A12\],
+.theme-light .bg-\[\#0A0A12\],
+[data-theme="light"] .bg-\[\#0A0A12\],
+html.light .bg-\[\#0A0A13\],
+.theme-light .bg-\[\#0A0A13\],
+[data-theme="light"] .bg-\[\#0A0A13\],
+html.light .bg-\[\#0B0B12\],
+.theme-light .bg-\[\#0B0B12\],
+[data-theme="light"] .bg-\[\#0B0B12\] {
+  background-color: #F8F9FA !important;
+}
+
+html.light .bg-\[\#0C0C14\],
+.theme-light .bg-\[\#0C0C14\],
+[data-theme="light"] .bg-\[\#0C0C14\],
+html.light .bg-\[\#0C0C14\]\/92,
+.theme-light .bg-\[\#0C0C14\]\/92,
+[data-theme="light"] .bg-\[\#0C0C14\]\/92,
+html.light .bg-\[\#101018\],
+.theme-light .bg-\[\#101018\],
+[data-theme="light"] .bg-\[\#101018\],
+html.light .bg-\[\#12121C\],
+.theme-light .bg-\[\#12121C\],
+[data-theme="light"] .bg-\[\#12121C\],
+html.light .bg-\[\#141420\],
+.theme-light .bg-\[\#141420\],
+[data-theme="light"] .bg-\[\#141420\],
+html.light .bg-\[\#141422\],
+.theme-light .bg-\[\#141422\],
+[data-theme="light"] .bg-\[\#141422\],
+html.light .bg-\[\#161624\],
+.theme-light .bg-\[\#161624\],
+[data-theme="light"] .bg-\[\#161624\],
+html.light .bg-\[\#181824\],
+.theme-light .bg-\[\#181824\],
+[data-theme="light"] .bg-\[\#181824\] {
+  background-color: #FFFFFF !important;
+}
+
+html.light .bg-\[\#1E1E2C\],
+.theme-light .bg-\[\#1E1E2C\],
+[data-theme="light"] .bg-\[\#1E1E2C\],
+html.light .bg-\[\#222230\],
+.theme-light .bg-\[\#222230\],
+[data-theme="light"] .bg-\[\#222230\],
+html.light .bg-\[\#222232\],
+.theme-light .bg-\[\#222232\],
+[data-theme="light"] .bg-\[\#222232\],
+html.light .bg-\[\#2C2C40\],
+.theme-light .bg-\[\#2C2C40\],
+[data-theme="light"] .bg-\[\#2C2C40\],
+html.light .bg-\[\#303046\],
+.theme-light .bg-\[\#303046\],
+[data-theme="light"] .bg-\[\#303046\],
+html.light .bg-\[\#323246\],
+.theme-light .bg-\[\#323246\],
+[data-theme="light"] .bg-\[\#323246\] {
+  background-color: #EEF2F6 !important;
+}
+
+/* Hover Backgrounds */
+html.light .hover\:bg-\[\#0E0E14\]:hover,
+.theme-light .hover\:bg-\[\#0E0E14\]:hover,
+[data-theme="light"] .hover\:bg-\[\#0E0E14\]:hover,
+html.light .hover\:bg-\[\#0E0E16\]:hover,
+.theme-light .hover\:bg-\[\#0E0E16\]:hover,
+[data-theme="light"] .hover\:bg-\[\#0E0E16\]:hover,
+html.light .hover\:bg-\[\#101018\]:hover,
+.theme-light .hover\:bg-\[\#101018\]:hover,
+[data-theme="light"] .hover\:bg-\[\#101018\]:hover,
+html.light .hover\:bg-\[\#12121A\]:hover,
+.theme-light .hover\:bg-\[\#12121A\]:hover,
+[data-theme="light"] .hover\:bg-\[\#12121A\]:hover,
+html.light .hover\:bg-\[\#14141C\]:hover,
+.theme-light .hover\:bg-\[\#14141C\]:hover,
+[data-theme="light"] .hover\:bg-\[\#14141C\]:hover,
+html.light .hover\:bg-\[\#161622\]:hover,
+.theme-light .hover\:bg-\[\#161622\]:hover,
+[data-theme="light"] .hover\:bg-\[\#161622\]:hover,
+html.light .hover\:bg-\[\#1A1A26\]:hover,
+.theme-light .hover\:bg-\[\#1A1A26\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1A1A26\]:hover,
+html.light .hover\:bg-\[\#1C1C26\]:hover,
+.theme-light .hover\:bg-\[\#1C1C26\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1C1C26\]:hover,
+html.light .hover\:bg-\[\#1E1E28\]:hover,
+.theme-light .hover\:bg-\[\#1E1E28\]:hover,
+[data-theme="light"] .hover\:bg-\[\#1E1E28\]:hover {
+  background-color: #E5E7EB !important;
+}
+
+/* Subtle Neutral Borders in Light Mode */
+html.light .border-\[\#14141C\],
+.theme-light .border-\[\#14141C\],
+[data-theme="light"] .border-\[\#14141C\],
+html.light .border-\[\#161622\],
+.theme-light .border-\[\#161622\],
+[data-theme="light"] .border-\[\#161622\],
+html.light .border-\[\#171720\],
+.theme-light .border-\[\#171720\],
+[data-theme="light"] .border-\[\#171720\],
+html.light .border-\[\#171722\],
+.theme-light .border-\[\#171722\],
+[data-theme="light"] .border-\[\#171722\],
+html.light .border-\[\#1A1A24\],
+.theme-light .border-\[\#1A1A24\],
+[data-theme="light"] .border-\[\#1A1A24\],
+html.light .border-\[\#1A1A26\],
+.theme-light .border-\[\#1A1A26\],
+[data-theme="light"] .border-\[\#1A1A26\],
+html.light .border-\[\#1C1C26\],
+.theme-light .border-\[\#1C1C26\],
+[data-theme="light"] .border-\[\#1C1C26\],
+html.light .border-\[\#1C1C28\],
+.theme-light .border-\[\#1C1C28\],
+[data-theme="light"] .border-\[\#1C1C28\],
+html.light .border-\[\#1E1E28\],
+.theme-light .border-\[\#1E1E28\],
+[data-theme="light"] .border-\[\#1E1E28\],
+html.light .border-\[\#22222E\],
+.theme-light .border-\[\#22222E\],
+[data-theme="light"] .border-\[\#22222E\],
+html.light .border-\[\#252530\],
+.theme-light .border-\[\#252530\],
+[data-theme="light"] .border-\[\#252530\],
+html.light .border-\[\#222232\],
+.theme-light .border-\[\#222232\],
+[data-theme="light"] .border-\[\#222232\],
+html.light .border-\[\#303046\],
+.theme-light .border-\[\#303046\],
+[data-theme="light"] .border-\[\#303046\],
+html.light .border-\[\#262635\],
+.theme-light .border-\[\#262635\],
+[data-theme="light"] .border-\[\#262635\],
+html.light .border-\[\#262638\],
+.theme-light .border-\[\#262638\],
+[data-theme="light"] .border-\[\#262638\] {
+  border-color: #E2E4E9 !important;
+}
+
+html.light .hover\:border-\[\#1C1C26\]:hover,
+.theme-light .hover\:border-\[\#1C1C26\]:hover,
+[data-theme="light"] .hover\:border-\[\#1C1C26\]:hover,
+html.light .hover\:border-\[\#22222E\]:hover,
+.theme-light .hover\:border-\[\#22222E\]:hover,
+[data-theme="light"] .hover\:border-\[\#22222E\]:hover {
+  border-color: #CBD5E1 !important;
+}
+
+/* High Contrast Slate & Charcoal Typography */
+html.light .text-\[\#E8DDC7\],
+.theme-light .text-\[\#E8DDC7\],
+[data-theme="light"] .text-\[\#E8DDC7\] {
+  color: #111827 !important;
+}
+
+html.light .text-\[\#E8DDC7\]\/90,
+.theme-light .text-\[\#E8DDC7\]\/90,
+[data-theme="light"] .text-\[\#E8DDC7\]\/90,
+html.light .text-\[\#E8DDC7\]\/85,
+.theme-light .text-\[\#E8DDC7\]\/85,
+[data-theme="light"] .text-\[\#E8DDC7\]\/85,
+html.light .text-\[\#E8DDC7\]\/80,
+.theme-light .text-\[\#E8DDC7\]\/80,
+[data-theme="light"] .text-\[\#E8DDC7\]\/80,
+html.light .text-\[\#E8DDC7\]\/75,
+.theme-light .text-\[\#E8DDC7\]\/75,
+[data-theme="light"] .text-\[\#E8DDC7\]\/75,
+html.light .text-\[\#E8DDC7\]\/70,
+.theme-light .text-\[\#E8DDC7\]\/70,
+[data-theme="light"] .text-\[\#E8DDC7\]\/70 {
+  color: #374151 !important;
+}
+
+html.light .text-\[\#E8DDC7\]\/65,
+.theme-light .text-\[\#E8DDC7\]\/65,
+[data-theme="light"] .text-\[\#E8DDC7\]\/65,
+html.light .text-\[\#E8DDC7\]\/60,
+.theme-light .text-\[\#E8DDC7\]\/60,
+[data-theme="light"] .text-\[\#E8DDC7\]\/60,
+html.light .text-\[\#E8DDC7\]\/50,
+.theme-light .text-\[\#E8DDC7\]\/50,
+[data-theme="light"] .text-\[\#E8DDC7\]\/50,
+html.light .text-\[\#E8DDC7\]\/45,
+.theme-light .text-\[\#E8DDC7\]\/45,
+[data-theme="light"] .text-\[\#E8DDC7\]\/45,
+html.light .text-\[\#E8DDC7\]\/40,
+.theme-light .text-\[\#E8DDC7\]\/40,
+[data-theme="light"] .text-\[\#E8DDC7\]\/40 {
+  color: #6B7280 !important;
+}
+
+html.light .text-\[\#E8DDC7\]\/35,
+.theme-light .text-\[\#E8DDC7\]\/35,
+[data-theme="light"] .text-\[\#E8DDC7\]\/35,
+html.light .text-\[\#E8DDC7\]\/30,
+.theme-light .text-\[\#E8DDC7\]\/30,
+[data-theme="light"] .text-\[\#E8DDC7\]\/30,
+html.light .text-\[\#E8DDC7\]\/20,
+.theme-light .text-\[\#E8DDC7\]\/20,
+[data-theme="light"] .text-\[\#E8DDC7\]\/20 {
+  color: #9CA3AF !important;
+}
+
+/* Connectors Text in Light Mode */
+html.light .text-\[\#D8D4CF\],
+.theme-light .text-\[\#D8D4CF\],
+[data-theme="light"] .text-\[\#D8D4CF\] {
+  color: #111827 !important;
+}
+
+html.light .text-\[\#7A7A8E\],
+.theme-light .text-\[\#7A7A8E\],
+[data-theme="light"] .text-\[\#7A7A8E\],
+html.light .text-\[\#8C7A6B\],
+.theme-light .text-\[\#8C7A6B\],
+[data-theme="light"] .text-\[\#8C7A6B\] {
+  color: #4B5563 !important;
+}
+
+/* Gold Text Contrast Enhancement for White Surfaces */
+html.light .text-\[\#C6A46A\],
+.theme-light .text-\[\#C6A46A\],
+[data-theme="light"] .text-\[\#C6A46A\] {
+  color: #9A6F2E !important;
+}
+
+html.light .text-\[\#C6A46A\]\/80,
+.theme-light .text-\[\#C6A46A\]\/80,
+[data-theme="light"] .text-\[\#C6A46A\]\/80,
+html.light .text-\[\#C6A46A\]\/70,
+.theme-light .text-\[\#C6A46A\]\/70,
+[data-theme="light"] .text-\[\#C6A46A\]\/70,
+html.light .text-\[\#C6A46A\]\/60,
+.theme-light .text-\[\#C6A46A\]\/60,
+[data-theme="light"] .text-\[\#C6A46A\]\/60 {
+  color: #8A6225 !important;
+}
+
+/* User Message bubble in Light Mode */
+html.light .rounded-2xl.bg-\[\#12121A\],
+.theme-light .rounded-2xl.bg-\[\#12121A\],
+[data-theme="light"] .rounded-2xl.bg-\[\#12121A\] {
+  background-color: #EEF2F6 !important;
+  color: #111827 !important;
+  border-color: #D1D5DB !important;
+}
+
+/* AI Message bubble in Light Mode */
+html.light .rounded-2xl.bg-\[\#0B0B10\],
+.theme-light .rounded-2xl.bg-\[\#0B0B10\],
+[data-theme="light"] .rounded-2xl.bg-\[\#0B0B10\] {
+  background-color: #FFFFFF !important;
+  color: #111827 !important;
+  border-color: rgba(184, 134, 11, 0.28) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.04) !important;
+}
+
+/* Bottom Chat Input Fading Gradient */
+html.light .from-\[\#050508\],
+.theme-light .from-\[\#050508\],
+[data-theme="light"] .from-\[\#050508\] {
+  --tw-gradient-from: #F8F9FB var(--tw-gradient-from-position) !important;
+}
+html.light .via-\[\#050508\]\/95,
+.theme-light .via-\[\#050508\]\/95,
+[data-theme="light"] .via-\[\#050508\]\/95 {
+  --tw-gradient-stops: var(--tw-gradient-from), rgba(248, 249, 251, 0.95) var(--tw-gradient-via-position), var(--tw-gradient-to) !important;
+}
+
+/* Modal Backdrops in Light Mode */
+html.light .bg-black\/85,
+.theme-light .bg-black\/85,
+[data-theme="light"] .bg-black\/85,
+html.light .bg-black\/75,
+.theme-light .bg-black\/75,
+[data-theme="light"] .bg-black\/75 {
+  background-color: rgba(15, 23, 42, 0.45) !important;
+  backdrop-filter: blur(8px) !important;
+}
+
+/* Light Mode Scrollbars */
+html.light ::-webkit-scrollbar-track,
+.theme-light ::-webkit-scrollbar-track,
+[data-theme="light"] ::-webkit-scrollbar-track {
+  background: #F1F3F6;
+}
+
+html.light ::-webkit-scrollbar-thumb,
+.theme-light ::-webkit-scrollbar-thumb,
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: #CBD5E1;
+  border-radius: 3px;
+}
+
+html.light ::-webkit-scrollbar-thumb:hover,
+.theme-light ::-webkit-scrollbar-thumb:hover,
+[data-theme="light"] ::-webkit-scrollbar-thumb:hover {
+  background: #9A6F2E;
+}
+
+/* Subtle Dot Grid in Light Mode */
+html.light .bg-grain,
+.theme-light .bg-grain,
+[data-theme="light"] .bg-grain {
+  background-image: radial-gradient(rgba(0, 0, 0, 0.08) 1px, transparent 0);
+  background-size: 24px 24px;
+}
