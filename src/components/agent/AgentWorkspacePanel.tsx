@@ -26,6 +26,9 @@ import {
   Compass,
   ArrowRight,
   Sparkles,
+  Maximize2,
+  Minimize2,
+  Trash2,
 } from 'lucide-react';
 import { FileChangeRecord } from '@/lib/agent/events';
 
@@ -273,8 +276,15 @@ export default function AgentWorkspacePanel({
   const [previewViewport, setPreviewViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [previewKey, setPreviewKey] = useState(0);
 
-  // Terminal CLI State (Authentic macOS zsh terminal replica)
-  const [terminalLines, setTerminalLines] = useState<TerminalEntry[]>([]);
+  // Terminal CLI State (Online Workspace Sandbox Terminal)
+  const [terminalLines, setTerminalLines] = useState<TerminalEntry[]>([
+    {
+      id: 'init-1',
+      type: 'output',
+      text: 'Harpy Cloud Workspace Environment v2.6 (x86_64-linux)\nConnected to /workspace container sandbox. Type shell commands (e.g., ls, pwd, cat, mkdir, help).',
+      timestamp: new Date().toLocaleTimeString(),
+    },
+  ]);
   const [terminalInput, setTerminalInput] = useState('');
   const [isRunningCmd, setIsRunningCmd] = useState(false);
   const [currentDir, setCurrentDir] = useState('~');
@@ -285,11 +295,8 @@ export default function AgentWorkspacePanel({
   const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
 
-  const terminalUsername =
-    (userDisplayName || 'chinmaybhatt')
-      .toLowerCase()
-      .replace(/[^a-z0-9_-]/g, '') || 'chinmaybhatt';
-  const terminalPromptPrefix = `${terminalUsername}@Chinmays-MacBook-Air-760 ${currentDir} % `;
+  const currentPathDisplay = currentDir === '~' ? '/workspace' : `/workspace/${currentDir}`;
+  const terminalPromptPrefix = `harpy@workspace:${currentPathDisplay}$ `;
 
   // Compute preview HTML whenever files change
   const previewHtml = useMemo(() => {
@@ -554,8 +561,8 @@ export default function AgentWorkspacePanel({
     if (baseCmd === 'pwd') {
       const dirOutput =
         currentDir === '~'
-          ? '/Users/chinmaybhatt/workspace'
-          : `/Users/chinmaybhatt/workspace/${currentDir}`;
+          ? '/workspace'
+          : `/workspace/${currentDir}`;
       setTerminalLines((prev) => [
         ...prev,
         promptEntry,
@@ -576,7 +583,7 @@ export default function AgentWorkspacePanel({
         {
           id: `out-${Date.now()}`,
           type: 'output',
-          text: terminalUsername,
+          text: 'harpy',
           timestamp: new Date().toLocaleTimeString(),
         },
       ]);
@@ -590,7 +597,7 @@ export default function AgentWorkspacePanel({
         {
           id: `out-${Date.now()}`,
           type: 'output',
-          text: new Date().toString(),
+          text: new Date().toUTCString(),
           timestamp: new Date().toLocaleTimeString(),
         },
       ]);
@@ -605,8 +612,8 @@ export default function AgentWorkspacePanel({
           id: `out-${Date.now()}`,
           type: 'output',
           text: args.includes('-a')
-            ? 'Darwin Chinmays-MacBook-Air-760 23.4.0 Darwin Kernel Version 23.4.0 arm64'
-            : 'Darwin',
+            ? 'Linux harpy-workspace 6.6.0-generic x86_64 GNU/Linux'
+            : 'Linux',
           timestamp: new Date().toLocaleTimeString(),
         },
       ]);
@@ -682,16 +689,16 @@ export default function AgentWorkspacePanel({
 
       if (isLa) {
         const lines = [
-          `total ${Math.max(8, (currentFiles.length + activeDirs.length) * 8)}`,
-          `drwxr-xr-x   5 ${terminalUsername}  staff   160 Nov 23 12:30 .`,
-          `drwxr-xr-x   3 ${terminalUsername}  staff    96 Nov 23 12:20 ..`,
+          `total ${Math.max(8, (currentFiles.length + activeDirs.length) * 4)}`,
+          `drwxr-xr-x 4 harpy workspace  4096 Nov 23 13:20 .`,
+          `drwxr-xr-x 3 harpy workspace  4096 Nov 23 13:15 ..`,
           ...activeDirs.map(
-            (d) => `drwxr-xr-x   2 ${terminalUsername}  staff    64 Nov 23 12:35 ${d}`
+            (d) => `drwxr-xr-x 2 harpy workspace  4096 Nov 23 13:20 ${d}`
           ),
           ...currentFiles.map((f) => {
             const fileName = f.path.split('/').pop() || f.path;
             const size = f.newContent?.length || 512;
-            return `-rw-r--r--   1 ${terminalUsername}  staff  ${size.toString().padStart(5, ' ')} Nov 23 12:30 ${fileName}`;
+            return `-rw-r--r-- 1 harpy workspace ${size.toString().padStart(5, ' ')} Nov 23 13:20 ${fileName}`;
           }),
         ];
         setTerminalLines((prev) => [
@@ -763,18 +770,18 @@ export default function AgentWorkspacePanel({
     }
 
     if (baseCmd === 'help') {
-      const helpMsg = `Harpy macOS Terminal (zsh 5.9)
+      const helpMsg = `Harpy Cloud Workspace Terminal (Linux/Bash Sandbox)
 Available commands:
-  ls [-la]       List files and directories
-  cd <dir>       Change working directory
-  pwd            Print working directory
-  cat <file>     Print file contents
-  mkdir <dir>    Make directory
-  touch <file>   Create file
-  echo <text>    Write arguments to stdout
+  ls [-la]       List workspace files and directories
+  cd <dir>       Change working directory inside /workspace
+  pwd            Print current workspace directory
+  cat <file>     Display contents of a file
+  mkdir <dir>    Create directory in workspace
+  touch <file>   Create empty file
+  echo <text>    Write arguments to standard output
   clear (Ctrl+L) Clear terminal screen
-  whoami, date   Display system information
-  <any command>  Executes inside sandboxed workspace`;
+  whoami, date   Display cloud sandbox identity
+  <any command>  Executes commands in container sandbox (e.g. npm, node, git)`;
 
       setTerminalLines((prev) => [
         ...prev,
@@ -1201,69 +1208,74 @@ Available commands:
             </div>
           )}
 
-          {/* TAB 3: macOS Terminal (zsh replica) */}
+          {/* TAB 3: ONLINE WORKSPACE TERMINAL */}
           {activeTab === 'terminal' && (
             <div
-              className={`flex-1 flex flex-col min-h-0 bg-[#000000] font-mono text-[13px] leading-relaxed select-text ${
+              className={`flex-1 flex flex-col min-h-0 bg-[#06060A] font-mono text-[13px] leading-relaxed select-text ${
                 isTerminalMaximized
-                  ? 'fixed inset-4 z-50 rounded-xl shadow-2xl border border-[#3A3A4A] overflow-hidden'
+                  ? 'fixed inset-3 sm:inset-6 z-50 rounded-2xl shadow-2xl border border-[#C6A46A]/40 overflow-hidden'
                   : ''
               }`}
             >
-              {/* macOS Window Titlebar */}
-              <div className="h-9 px-3 bg-[#1C1C22] border-b border-[#282832] flex items-center justify-between select-none shrink-0">
-                {/* Traffic Light Buttons (Red, Yellow, Green) */}
+              {/* Clean Workspace Terminal Header */}
+              <div className="h-10 px-3.5 bg-[#0B0B12] border-b border-[#1A1A26] flex items-center justify-between select-none shrink-0">
+                {/* Left: Terminal Title & /workspace badge */}
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setTerminalLines([])}
-                    className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] hover:brightness-110 active:scale-95 transition-all shadow-sm"
-                    title="Clear Terminal Buffer"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setTerminalLines([])}
-                    className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123] hover:brightness-110 active:scale-95 transition-all shadow-sm"
-                    title="Reset Terminal"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setIsTerminalMaximized(!isTerminalMaximized)}
-                    className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29] hover:brightness-110 active:scale-95 transition-all shadow-sm"
-                    title="Toggle Maximize Terminal"
-                  />
+                  <TerminalIcon className="w-4 h-4 text-[#C6A46A]" />
+                  <span className="font-cinzel text-xs font-semibold tracking-wider text-[#E8DDC7] uppercase">
+                    Workspace Terminal
+                  </span>
+                  <span className="px-2 py-0.5 rounded font-mono text-[10px] bg-[#141420] text-[#C6A46A] border border-[#C6A46A]/25">
+                    {currentPathDisplay}
+                  </span>
                 </div>
 
-                {/* macOS Terminal Title: 📁 chinmaybhatt — -zsh — 80×24 */}
-                <div className="flex items-center gap-1.5 text-xs text-[#B2B2C0] font-mono tracking-tight font-medium">
-                  <span className="text-sm">📁</span>
-                  <span>{terminalUsername} — -zsh — 80×24</span>
-                </div>
-
-                {/* Window Right Action */}
-                <div className="flex items-center gap-2">
+                {/* Right: Simple Clear, Full Window, Close Buttons */}
+                <div className="flex items-center gap-1.5">
                   <button
                     type="button"
                     onClick={() => setTerminalLines([])}
-                    className="text-[11px] font-mono text-[#8C8C9C] hover:text-white transition-colors"
-                    title="Clear Console"
+                    className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono text-[#8C7A6B] hover:text-[#E8DDC7] hover:bg-white/5 transition-colors"
+                    title="Clear Console Output"
                   >
-                    clear
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">Clear</span>
                   </button>
-                  <div
+
+                  <button
+                    type="button"
                     onClick={() => setIsTerminalMaximized(!isTerminalMaximized)}
-                    className="w-3.5 h-3.5 border border-[#3A3A4A] rounded-sm flex items-center justify-center opacity-60 hover:opacity-100 cursor-pointer"
-                    title="Toggle Window Scale"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono text-[#8C7A6B] hover:text-[#C6A46A] hover:bg-white/5 transition-colors"
+                    title={isTerminalMaximized ? 'Exit Full Window' : 'Full Window (Expand)'}
                   >
-                    <div className="w-1.5 h-2 border-r border-[#3A3A4A]" />
-                  </div>
+                    {isTerminalMaximized ? (
+                      <Minimize2 className="w-3.5 h-3.5" />
+                    ) : (
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {isTerminalMaximized ? 'Exit Full' : 'Full Window'}
+                    </span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsTerminalMaximized(false);
+                      setActiveTab('code');
+                    }}
+                    className="p-1.5 rounded text-[#8C7A6B] hover:text-rose-400 hover:bg-rose-500/10 transition-colors ml-1"
+                    title="Close Terminal (Return to Code)"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
 
               {/* Terminal Screen & Body */}
               <div
                 onClick={() => terminalInputRef.current?.focus()}
-                className="flex-1 overflow-y-auto p-4 bg-black font-mono text-[13px] leading-relaxed text-[#F0F0F5] [scrollbar-width:thin] cursor-text"
+                className="flex-1 overflow-y-auto p-4 bg-[#06060A] font-mono text-[13px] leading-relaxed text-[#F0F0F5] [scrollbar-width:thin] cursor-text"
               >
                 {terminalLines.map((entry) => (
                   <div key={entry.id} className="mb-1.5">
@@ -1276,7 +1288,7 @@ Available commands:
                         {entry.text}
                       </div>
                     ) : (
-                      <div className="text-[#E0E0E6] whitespace-pre-wrap break-all">
+                      <div className="text-[#D8D8E2] whitespace-pre-wrap break-all">
                         {entry.text}
                       </div>
                     )}
@@ -1285,14 +1297,21 @@ Available commands:
 
                 {/* Active Interactive Prompt Line */}
                 <div className="flex items-baseline flex-wrap gap-0 leading-normal">
-                  <span className="text-[#F0F0F5] select-none whitespace-pre font-medium">
-                    {terminalPromptPrefix}
+                  <span className="text-emerald-400 font-semibold select-none">
+                    harpy@workspace
+                  </span>
+                  <span className="text-[#E8DDC7]/60 select-none">:</span>
+                  <span className="text-[#59A2F6] font-semibold select-none">
+                    {currentPathDisplay}
+                  </span>
+                  <span className="text-[#E8DDC7] font-bold select-none whitespace-pre">
+                    $&nbsp;
                   </span>
                   <span className="text-[#FFFFFF] whitespace-pre font-mono">
                     {terminalInput}
                   </span>
-                  {/* Blinking Solid Block Cursor (Mac Terminal Style) */}
-                  <span className="inline-block w-2.5 h-[1.15em] bg-[#FFFFFF] animate-pulse ml-0.5 align-text-bottom select-none" />
+                  {/* Blinking Solid Block Cursor */}
+                  <span className="inline-block w-2.5 h-[1.15em] bg-[#C6A46A] animate-pulse ml-0.5 align-text-bottom select-none" />
                 </div>
 
                 {isRunningCmd && (
