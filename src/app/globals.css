@@ -96,3 +96,15 @@ input {
   scrollbar-width: none !important;
   overflow-x: hidden !important;
 }
+
+/* Figma-Style Connectors Flowing Energy Line Animation */
+@keyframes flowDash {
+  to {
+    stroke-dashoffset: -32;
+  }
+}
+
+.animate-flow-dash {
+  stroke-dasharray: 6 8;
+  animation: flowDash 1.2s linear infinite;
+}

@@ -59,6 +59,7 @@ import AgentTimeline from "@/components/agent/AgentTimeline";
 import DiffModal from "@/components/agent/DiffModal";
 import AgentWorkspacePanel from "@/components/agent/AgentWorkspacePanel";
 import VoiceAssistantModal from "@/components/voice/VoiceAssistantModal";
+import ConnectorsWorkspace from "@/components/connectors/ConnectorsWorkspace";
 import { AgentRunData, FileChangeRecord, AgentEvent } from "@/lib/agent/events";
 
 interface Message {
@@ -2307,82 +2308,17 @@ export default function DashboardPage() {
   </main>
 
       {/* ──────────────────────────────────────────────────────────
-          CONNECTORS MODAL (Gmail, Notion, WhatsApp, Discord, etc.)
+          CONNECTORS FULL-SCREEN WORKSPACE (FIGMA-INSPIRED AUTOMATION CANVAS)
          ────────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {connectorsModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-2xl bg-[#08080C] border border-[#1C1C26] rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl relative"
-            >
-              <div className="flex items-center justify-between border-b border-[#14141C] pb-4">
-                <div className="space-y-1">
-                  <div className="inline-flex items-center gap-2 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase">
-                    <Layers className="w-4 h-4" />
-                    <span>Application Connectors</span>
-                  </div>
-                  <h3 className="font-cinzel text-xl text-[#E8DDC7]">Connected Ecosystem</h3>
-                </div>
-                <button
-                  onClick={() => setConnectorsModalOpen(false)}
-                  className="p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors rounded-lg hover:bg-[#12121A]"
-                >
-                  <X className="w-5 h-5" />
-                </button>
-              </div>
-
-              <div className="space-y-2.5 max-h-[60vh] overflow-y-auto pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                {CONNECTORS.map((c) => {
-                  const Icon = c.icon;
-                  return (
-                    <div
-                      key={c.id}
-                      className="p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720] flex items-center justify-between hover:border-[#C6A46A]/40 transition-colors"
-                    >
-                      <div className="flex items-center gap-3.5">
-                        <div
-                          className="w-9 h-9 rounded-lg flex items-center justify-center border border-white/5"
-                          style={{ backgroundColor: `${c.color}15` }}
-                        >
-                          <Icon className="w-4 h-4" style={{ color: c.color }} />
-                        </div>
-                        <div>
-                          <h4 className="font-cinzel text-sm text-[#E8DDC7] font-semibold">
-                            {c.name}
-                          </h4>
-                          <p className="font-inter text-xs text-[#E8DDC7]/60 font-light">
-                            {c.desc}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center gap-3">
-                        <span className="inline-flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-mono bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 rounded-md">
-                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                          Active
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="pt-2 border-t border-[#14141C] flex items-center justify-between text-xs text-[#E8DDC7]/60 font-light">
-                <span>All connections use secure OAuth 2.0 with zero credential storage.</span>
-                <button
-                  onClick={() => setConnectorsModalOpen(false)}
-                  className="px-5 py-2 rounded-xl bg-[#C6A46A] text-[#050508] font-cinzel text-xs tracking-wider uppercase font-semibold hover:bg-[#E2C99A] transition-colors"
-                >
-                  Close
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+      <ConnectorsWorkspace
+        isOpen={connectorsModalOpen}
+        onClose={() => setConnectorsModalOpen(false)}
+        onRunWorkflowFromChat={(prompt) => {
+          setConnectorsModalOpen(false);
+          setInputValue(prompt);
+          handleSendMessage(prompt);
+        }}
+      />
 
       {/* ──────────────────────────────────────────────────────────
           SETTINGS MODAL: API & MODELS + SYSTEM CONFIG
