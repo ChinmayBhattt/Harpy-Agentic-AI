@@ -14,6 +14,7 @@ import {
   Compass,
   X,
   Volume2,
+  GripVertical,
 } from 'lucide-react';
 
 interface VoiceAssistantModalProps {
@@ -84,6 +85,17 @@ export default function VoiceAssistantModal({
       setIsDocked(false);
     }
   }, [isOpen, setIsDocked]);
+
+  // Handle Escape key: minimize to docked panel without cutting the call
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isDocked) {
+        setIsDocked(true);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, isDocked, setIsDocked]);
 
   // Handle Intent Detection from speech text
   const checkIntentAndExecute = useCallback(
@@ -351,12 +363,23 @@ export default function VoiceAssistantModal({
       {isDocked ? (
         <motion.div
           key="docked-voice-plate"
+          drag
+          dragMomentum={false}
+          dragElastic={0.08}
           initial={{ opacity: 0, y: 30, scale: 0.9 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: 30, scale: 0.9 }}
           transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-          className="fixed bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex items-center gap-3.5 px-4 py-2.5 rounded-full bg-[#0A0A13]/95 backdrop-blur-2xl border border-[#C6A46A]/50 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_25px_rgba(198,164,106,0.35)] select-none max-w-[92vw] sm:max-w-md w-auto"
+          className="fixed bottom-24 sm:bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-auto flex items-center gap-3 px-3.5 py-2.5 rounded-full bg-[#0A0A13]/95 backdrop-blur-2xl border border-[#C6A46A]/50 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_25px_rgba(198,164,106,0.35)] select-none max-w-[92vw] sm:max-w-md w-auto"
         >
+          {/* Subtle Drag Handle */}
+          <div
+            className="cursor-grab active:cursor-grabbing text-[#8C7A6B]/50 hover:text-[#C6A46A] transition-colors pl-0.5"
+            title="Drag to reposition panel"
+          >
+            <GripVertical className="w-3.5 h-3.5" />
+          </div>
+
           {/* Mini Animated Glowing Audio Orb */}
           <div
             onClick={() => setIsDocked(false)}
@@ -431,7 +454,7 @@ export default function VoiceAssistantModal({
             </div>
           </div>
 
-          {/* Quick Actions (Mute, Expand, End Call) */}
+          {/* Quick Actions (Mute, Expand, Cut Call) */}
           <div className="flex items-center gap-1.5 flex-shrink-0">
             <button
               type="button"
@@ -449,8 +472,8 @@ export default function VoiceAssistantModal({
             <button
               type="button"
               onClick={() => setIsDocked(false)}
-              className="p-1.5 rounded-full bg-[#141420] text-[#E8DDC7] border border-[#222230] hover:border-[#C6A46A] hover:text-[#C6A46A] transition-all"
-              title="Expand to Full Modal"
+              className="p-1.5 rounded-full bg-[#141420] text-[#E8DDC7] border border-[#222230] hover:border-[#C6A46A] hover:text-[#C6A46A] transition-all cursor-pointer"
+              title="Expand to Full Voice Modal"
             >
               <Maximize2 className="w-3.5 h-3.5" />
             </button>
@@ -461,8 +484,8 @@ export default function VoiceAssistantModal({
                 endCall();
                 onClose();
               }}
-              className="p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-sm"
-              title="End Voice Call"
+              className="p-1.5 rounded-full bg-rose-600 hover:bg-rose-700 text-white transition-all shadow-sm cursor-pointer"
+              title="Cut Call (Disconnect Call Completely)"
             >
               <PhoneOff className="w-3.5 h-3.5" />
             </button>
@@ -474,13 +497,14 @@ export default function VoiceAssistantModal({
           key="full-voice-modal-backdrop"
           className="fixed inset-0 z-50 pointer-events-none flex items-center justify-center p-4"
         >
-          {/* Backdrop */}
+          {/* Backdrop - Clicking outside minimizes to docked panel without cutting the call! */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/65 backdrop-blur-md pointer-events-auto"
+            onClick={() => setIsDocked(true)}
+            className="fixed inset-0 bg-black/65 backdrop-blur-md pointer-events-auto cursor-pointer"
+            title="Click to minimize to background panel (keeps call active)"
           />
 
           {/* Voice Assistant Centered Modal */}
@@ -516,24 +540,21 @@ export default function VoiceAssistantModal({
                 </div>
               </div>
 
-              {/* Header Actions: Minimize to dock, Close */}
+              {/* Header Actions: Minimize to dock, Close to dock (both keep call active) */}
               <div className="flex items-center gap-1.5 text-[#E8DDC7]/60">
                 <button
                   type="button"
                   onClick={() => setIsDocked(true)}
-                  className="p-1.5 rounded-lg hover:text-white hover:bg-white/5 transition-colors"
-                  title="Minimize to Floating Dock"
+                  className="p-1.5 rounded-lg hover:text-[#C6A46A] hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Minimize to Floating Panel (Keeps Call Active)"
                 >
                   <Minimize2 className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    endCall();
-                    onClose();
-                  }}
-                  className="p-1.5 rounded-lg hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
-                  title="Close"
+                  onClick={() => setIsDocked(true)}
+                  className="p-1.5 rounded-lg hover:text-[#C6A46A] hover:bg-white/5 transition-colors cursor-pointer"
+                  title="Close to Background Panel (Keeps Call Active)"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -688,7 +709,7 @@ export default function VoiceAssistantModal({
                     onClose();
                   }}
                   className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-[0_0_22px_rgba(225,29,72,0.5)] transition-all hover:scale-105 active:scale-95 cursor-pointer"
-                  title="End Voice Call"
+                  title="Cut Call (Disconnect Call Completely)"
                 >
                   <PhoneOff className="w-6 h-6" />
                 </button>
