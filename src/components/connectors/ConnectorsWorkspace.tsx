@@ -256,7 +256,6 @@ export default function ConnectorsWorkspace({
     if (e.button !== 0) return;
     e.stopPropagation();
 
-    // Selecting node opens the right-side inspector
     setSelectedNodeId(node.id);
 
     const startClientX = e.clientX;
@@ -291,7 +290,6 @@ export default function ConnectorsWorkspace({
       return;
     }
 
-    // Clicking empty canvas deselects and closes right sidebar
     setSelectedNodeId(null);
     if (connectingSource) {
       setConnectingSource(null);
@@ -336,16 +334,14 @@ export default function ConnectorsWorkspace({
   };
 
   // ──────────────────────────────────────────────────────────
-  // Port Connection Click Handlers (Smooth & Magnetic)
+  // Port Connection Click Handlers
   // ──────────────────────────────────────────────────────────
   const handlePortClick = (e: React.MouseEvent, targetNodeId: string, portType: 'input' | 'output') => {
     e.stopPropagation();
 
     if (!connectingSource) {
-      // Start connecting wire
       setConnectingSource({ nodeId: targetNodeId, port: portType });
     } else {
-      // Complete connection
       if (connectingSource.nodeId !== targetNodeId) {
         const fromId = connectingSource.port === 'output' ? connectingSource.nodeId : targetNodeId;
         const toId = connectingSource.port === 'output' ? targetNodeId : connectingSource.nodeId;
@@ -631,7 +627,7 @@ export default function ConnectorsWorkspace({
     category: 'ai',
     description: 'Central autonomous orchestrator connecting all applications and tools.',
     iconName: 'Bot',
-    color: '#C6A46A',
+    color: '#8C7A6B',
     isConnected: true,
     accountName: 'Harpy Kernel v2.6',
     authType: 'session',
@@ -685,7 +681,7 @@ export default function ConnectorsWorkspace({
             onClick={() => setIsSidebarOpen((v) => !v)}
             className={`p-1.5 rounded-lg border text-xs transition-colors shrink-0 ${
               isSidebarOpen
-                ? 'bg-[#161622] border-[#2A2A3E] text-[#C6A46A]'
+                ? 'bg-[#161622] border-[#2A2A3E] text-[#D8D4CF]'
                 : 'bg-[#0E0E16] border-[#1C1C28] text-[#7A7A8E] hover:text-[#E8DDC7]'
             }`}
             title={isSidebarOpen ? 'Collapse Apps Sidebar' : 'Expand Apps Sidebar'}
@@ -697,7 +693,7 @@ export default function ConnectorsWorkspace({
         {/* Right: Live Status, Execution Logs, Run Button & Close */}
         <div className="flex items-center gap-2.5 shrink-0">
           {/* Active Connections Pill */}
-          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0E0E16] border border-[#1E1E2C] text-[11px] font-mono text-emerald-400">
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-[#0E0E16] border border-[#1C1C28] text-[11px] font-mono text-emerald-400">
             <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
             <span>{connections.length} Active Connections</span>
           </div>
@@ -706,7 +702,7 @@ export default function ConnectorsWorkspace({
           <button
             type="button"
             onClick={() => setIsLogsModalOpen(true)}
-            className="px-2.5 py-1.5 rounded-xl bg-[#12121C] border border-[#222232] text-xs font-mono text-[#8C7A6B] hover:text-[#E8DDC7] hover:border-[#3A3A52] transition-colors flex items-center gap-1.5 cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-[#101018] hover:bg-[#161622] border border-[#1E1E2C] hover:border-[#2C2C40] text-xs font-mono text-[#8C8880] hover:text-[#D8D4CF] transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm"
             title="View Execution Audit Logs"
           >
             <ScrollText className="w-3.5 h-3.5" />
@@ -718,15 +714,17 @@ export default function ConnectorsWorkspace({
             type="button"
             onClick={handleExecuteAllActive}
             disabled={isExecutingGlobal}
-            className="px-4 py-1.5 rounded-xl bg-gradient-to-b from-[#222234] via-[#181826] to-[#10101C] text-[#E8DDC7] border border-[#323248] hover:border-[#C6A46A]/60 text-xs font-cinzel font-semibold tracking-wider uppercase hover:shadow-[0_0_15px_rgba(198,164,106,0.15)] transition-all flex items-center gap-1.5 cursor-pointer"
+            className="px-3.5 py-1.5 rounded-xl bg-gradient-to-b from-[#1E1E2C] via-[#161622] to-[#101018] hover:bg-[#1E1E2E] text-[#D8D4CF] hover:text-white border border-[#2A2A3E] hover:border-[#3E3E58] text-xs font-mono font-medium tracking-wide transition-all flex items-center gap-1.5 cursor-pointer shadow-sm"
           >
             {isExecutingGlobal ? (
               <>
-                <Activity className="w-3.5 h-3.5 animate-spin text-[#C6A46A]" /> Running...
+                <Activity className="w-3.5 h-3.5 animate-spin text-[#8C7A6B]" />
+                <span>Running...</span>
               </>
             ) : (
               <>
-                <Play className="w-3.5 h-3.5 fill-[#C6A46A] text-[#C6A46A]" /> Run Workflows
+                <Play className="w-3 h-3 fill-[#8C7A6B] text-[#8C7A6B]" />
+                <span>Run Workflows</span>
               </>
             )}
           </button>
@@ -735,7 +733,7 @@ export default function ConnectorsWorkspace({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-xl bg-[#12121C] border border-[#222232] text-[#7A7A8E] hover:text-[#E8DDC7] hover:border-[#3A3A52] transition-colors"
+            className="p-1.5 rounded-xl bg-[#101018] border border-[#1E1E2C] text-[#7A7A8E] hover:text-[#D8D4CF] hover:border-[#2C2C40] transition-colors"
             title="Exit Canvas"
           >
             <X className="w-4 h-4" />
@@ -864,7 +862,7 @@ export default function ConnectorsWorkspace({
                         <button
                           type="button"
                           onClick={() => setAuthenticatingApp(app)}
-                          className="text-[10px] font-mono text-[#8C7A6B] hover:text-[#C6A46A] hover:underline"
+                          className="text-[10px] font-mono text-[#8C7A6B] hover:text-[#D8D4CF] hover:underline"
                         >
                           Configure
                         </button>
@@ -907,7 +905,7 @@ export default function ConnectorsWorkspace({
         >
           {/* ──────────────────────────────────────────────────────────
               FLOATING LEFT CANVAS TOOLBAR (Figma / Miro Style)
-              Select, Hand/Drag, Zoom In/Out, Recenter moved from top to left!
+              Select, Hand/Drag, Zoom In/Out, Recenter
              ────────────────────────────────────────────────────────── */}
           <div className="absolute top-6 left-6 z-30 flex flex-col items-center gap-1 bg-[#0C0C14]/92 backdrop-blur-xl p-1.5 rounded-2xl border border-[#222232] shadow-[0_12px_32px_rgba(0,0,0,0.7)] select-none">
             <button
@@ -962,7 +960,7 @@ export default function ConnectorsWorkspace({
             <button
               type="button"
               onClick={centerCanvas}
-              className="p-2 rounded-xl text-[#7A7A8E] hover:text-[#C6A46A] hover:bg-white/5 transition-colors"
+              className="p-2 rounded-xl text-[#7A7A8E] hover:text-[#D8D4CF] hover:bg-white/5 transition-colors"
               title="Center View (Fit)"
             >
               <Maximize2 className="w-4 h-4" />
@@ -1001,9 +999,9 @@ export default function ConnectorsWorkspace({
             <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
               <defs>
                 <linearGradient id="activeGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#8C7A6B" />
+                  <stop offset="0%" stopColor="#5A5A72" />
                   <stop offset="50%" stopColor="#34D399" />
-                  <stop offset="100%" stopColor="#8C7A6B" />
+                  <stop offset="100%" stopColor="#5A5A72" />
                 </linearGradient>
                 <filter id="wireGlow" x="-20%" y="-20%" width="140%" height="140%">
                   <feGaussianBlur stdDeviation="2.5" result="blur" />
@@ -1011,40 +1009,40 @@ export default function ConnectorsWorkspace({
                 </filter>
               </defs>
 
-              {/* Render Existing Connections */}
+              {/* Render Existing Connections (Perimeter dynamic angle) */}
               {connections.map((conn) => {
-                const NODE_RADIUS = 34;
-                const CORE_RADIUS = 48;
-
                 let fromX = 0;
                 let fromY = 0;
                 let toX = 0;
                 let toY = 0;
 
-                // Resolve source position
                 if (conn.fromNodeId === 'harpy-core') {
                   const targetNode = nodes.find((n) => n.id === conn.toNodeId);
-                  const isTargetOnRight = targetNode ? targetNode.x >= 0 : true;
-                  fromX = isTargetOnRight ? CORE_RADIUS : -CORE_RADIUS;
-                  fromY = 0;
-                } else {
+                  if (targetNode) {
+                    const angle = Math.atan2(targetNode.y, targetNode.x);
+                    fromX = Math.round(48 * Math.cos(angle));
+                    fromY = Math.round(48 * Math.sin(angle));
+                    toX = targetNode.x - Math.round(34 * Math.cos(angle));
+                    toY = targetNode.y - Math.round(34 * Math.sin(angle));
+                  }
+                } else if (conn.toNodeId === 'harpy-core') {
                   const srcNode = nodes.find((n) => n.id === conn.fromNodeId);
                   if (srcNode) {
-                    fromX = srcNode.x + NODE_RADIUS;
-                    fromY = srcNode.y;
+                    const angle = Math.atan2(srcNode.y, srcNode.x);
+                    toX = Math.round(48 * Math.cos(angle));
+                    toY = Math.round(48 * Math.sin(angle));
+                    fromX = srcNode.x - Math.round(34 * Math.cos(angle));
+                    fromY = srcNode.y - Math.round(34 * Math.sin(angle));
                   }
-                }
-
-                // Resolve target position
-                if (conn.toNodeId === 'harpy-core') {
-                  const isSourceOnLeft = fromX <= 0;
-                  toX = isSourceOnLeft ? -CORE_RADIUS : CORE_RADIUS;
-                  toY = 0;
                 } else {
+                  const srcNode = nodes.find((n) => n.id === conn.fromNodeId);
                   const targetNode = nodes.find((n) => n.id === conn.toNodeId);
-                  if (targetNode) {
-                    toX = targetNode.x - NODE_RADIUS;
-                    toY = targetNode.y;
+                  if (srcNode && targetNode) {
+                    const angle = Math.atan2(targetNode.y - srcNode.y, targetNode.x - srcNode.x);
+                    fromX = srcNode.x + Math.round(34 * Math.cos(angle));
+                    fromY = srcNode.y + Math.round(34 * Math.sin(angle));
+                    toX = targetNode.x - Math.round(34 * Math.cos(angle));
+                    toY = targetNode.y - Math.round(34 * Math.sin(angle));
                   }
                 }
 
@@ -1061,18 +1059,17 @@ export default function ConnectorsWorkspace({
                       stroke="transparent"
                       strokeWidth={16}
                       onClick={() => {
-                        // Click connection wire to delete
                         setConnections((prev) => prev.filter((c) => c.id !== conn.id));
                       }}
                     />
 
-                    {/* Outer Metallic Dark Wire with light subtle champagne accent */}
+                    {/* Outer Metallic Dark Wire */}
                     <path
                       d={pathD}
                       fill="none"
-                      stroke={conn.isActive ? '#8C7A6B' : '#2A2A3C'}
+                      stroke={conn.isActive ? '#3E3E54' : '#222232'}
                       strokeWidth={conn.isActive ? 2 : 1.5}
-                      strokeOpacity={conn.isActive ? 0.6 : 0.35}
+                      strokeOpacity={conn.isActive ? 0.7 : 0.35}
                       filter={conn.isActive ? 'url(#wireGlow)' : undefined}
                     />
 
@@ -1094,31 +1091,41 @@ export default function ConnectorsWorkspace({
                 );
               })}
 
-              {/* Connecting Wire Preview while dragging/clicking port */}
+              {/* Connecting Wire Preview while dragging out from Harpy Core or port */}
               {connectingSource && (
-                <path
-                  d={`M ${
-                    connectingSource.nodeId === 'harpy-core'
-                      ? mousePos.x >= 0
-                        ? 48
-                        : -48
-                      : (nodes.find((n) => n.id === connectingSource.nodeId)?.x || 0) + 34
-                  } ${
-                    connectingSource.nodeId === 'harpy-core'
-                      ? 0
-                      : nodes.find((n) => n.id === connectingSource.nodeId)?.y || 0
-                  } L ${mousePos.x} ${mousePos.y}`}
-                  fill="none"
-                  stroke="#8C7A6B"
-                  strokeWidth={2}
-                  strokeDasharray="4 4"
-                />
+                (() => {
+                  let wireStartX = 0;
+                  let wireStartY = 0;
+                  if (connectingSource.nodeId === 'harpy-core') {
+                    const angle = Math.atan2(mousePos.y, mousePos.x);
+                    wireStartX = Math.round(48 * Math.cos(angle));
+                    wireStartY = Math.round(48 * Math.sin(angle));
+                  } else {
+                    const srcNode = nodes.find((n) => n.id === connectingSource.nodeId);
+                    if (srcNode) {
+                      const angle = Math.atan2(mousePos.y - srcNode.y, mousePos.x - srcNode.x);
+                      wireStartX = srcNode.x + Math.round(34 * Math.cos(angle));
+                      wireStartY = srcNode.y + Math.round(34 * Math.sin(angle));
+                    }
+                  }
+
+                  return (
+                    <path
+                      d={`M ${wireStartX} ${wireStartY} L ${mousePos.x} ${mousePos.y}`}
+                      fill="none"
+                      stroke="#8C7A6B"
+                      strokeWidth={2}
+                      strokeDasharray="4 4"
+                    />
+                  );
+                })()
               )}
             </svg>
 
             {/* ──────────────────────────────────────────────────────────
                 CENTRAL HARPY AI SYSTEM NODE (EXACT LOGO FROM /icon.png)
-                Positioned at (0, 0) in dark metallic disc
+                No spinning wire rings, no permanent dots!
+                Drag outward to pull a connection wire!
                ────────────────────────────────────────────────────────── */}
             <div
               className="absolute pointer-events-auto select-none"
@@ -1128,20 +1135,79 @@ export default function ConnectorsWorkspace({
                 transform: 'translate(-50%, -50%)',
               }}
             >
-              {/* Subtle Ambient Rings (Metallic & Light Champagne) */}
-              <div className="absolute inset-0 -m-8 rounded-full bg-gradient-to-tr from-white/[0.03] to-[#C6A46A]/[0.06] blur-xl pointer-events-none" />
-              <div className="absolute inset-0 -m-5 rounded-full border border-[#242436] animate-spin [animation-duration:35s] pointer-events-none" />
-              <div className="absolute inset-0 -m-2.5 rounded-full border border-dashed border-[#C6A46A]/20 animate-spin [animation-duration:20s] [animation-direction:reverse] pointer-events-none" />
-
               {/* Circular Harpy Core Disc */}
               <div
-                onClick={(e) => {
+                onMouseDown={(e) => {
+                  if (e.button !== 0) return;
                   e.stopPropagation();
-                  setSelectedNodeId('harpy-core');
+
+                  const startClientX = e.clientX;
+                  const startClientY = e.clientY;
+                  let isDraggingWire = false;
+
+                  const onMouseMove = (moveEvent: MouseEvent) => {
+                    const dist = Math.hypot(moveEvent.clientX - startClientX, moveEvent.clientY - startClientY);
+                    if (dist > 8 && !isDraggingWire) {
+                      isDraggingWire = true;
+                      setConnectingSource({ nodeId: 'harpy-core', port: 'output' });
+                    }
+                    if (isDraggingWire && canvasRef.current) {
+                      const canvasRect = canvasRef.current.getBoundingClientRect();
+                      setMousePos({
+                        x: (moveEvent.clientX - canvasRect.left - pan.x) / zoom,
+                        y: (moveEvent.clientY - canvasRect.top - pan.y) / zoom,
+                      });
+                    }
+                  };
+
+                  const onMouseUp = (upEvent: MouseEvent) => {
+                    window.removeEventListener('mousemove', onMouseMove);
+                    window.removeEventListener('mouseup', onMouseUp);
+
+                    if (isDraggingWire && canvasRef.current) {
+                      const canvasRect = canvasRef.current.getBoundingClientRect();
+                      const dropCanvasX = (upEvent.clientX - canvasRect.left - pan.x) / zoom;
+                      const dropCanvasY = (upEvent.clientY - canvasRect.top - pan.y) / zoom;
+
+                      // Find closest node within 65px
+                      const targetNode = nodes.find(
+                        (n) => Math.hypot(n.x - dropCanvasX, n.y - dropCanvasY) < 65
+                      );
+
+                      if (targetNode) {
+                        const exists = connections.some(
+                          (c) =>
+                            (c.fromNodeId === 'harpy-core' && c.toNodeId === targetNode.id) ||
+                            (c.fromNodeId === targetNode.id && c.toNodeId === 'harpy-core')
+                        );
+                        if (!exists) {
+                          setConnections((prev) => [
+                            ...prev,
+                            {
+                              id: `conn-core-${targetNode.id}-${Date.now()}`,
+                              workflowId: 'wf-1',
+                              fromNodeId: 'harpy-core',
+                              fromPort: 'output',
+                              toNodeId: targetNode.id,
+                              toPort: 'input',
+                              isActive: true,
+                            },
+                          ]);
+                        }
+                      }
+                      setConnectingSource(null);
+                    } else {
+                      // Click opens Harpy AI inspector
+                      setSelectedNodeId('harpy-core');
+                    }
+                  };
+
+                  window.addEventListener('mousemove', onMouseMove);
+                  window.addEventListener('mouseup', onMouseUp);
                 }}
                 className={`relative w-24 h-24 rounded-full bg-gradient-to-b from-[#161622] via-[#0E0E16] to-[#08080E] border transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_30px_rgba(0,0,0,0.8)] group ${
                   selectedNodeId === 'harpy-core'
-                    ? 'border-[#C6A46A]/80 shadow-[0_0_40px_rgba(198,164,106,0.3)] ring-1 ring-[#C6A46A]/50'
+                    ? 'border-[#C6A46A]/80 shadow-[0_0_35px_rgba(198,164,106,0.25)] ring-1 ring-[#C6A46A]/40'
                     : 'border-[#26263A] hover:border-[#383850] hover:scale-105'
                 }`}
               >
@@ -1153,43 +1219,6 @@ export default function ConnectorsWorkspace({
                     className="w-full h-full object-contain filter drop-shadow-[0_0_8px_rgba(198,164,106,0.25)]"
                   />
                 </div>
-
-                {/* 4 Connection Port Dots (North, South, East, West) */}
-                <button
-                  type="button"
-                  onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
-                  className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
-                  title="North Port: Click to connect"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
-                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
-                  title="South Port: Click to connect"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => handlePortClick(e, 'harpy-core', 'input')}
-                  className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
-                  title="West Inflow: Connect triggers here"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
-                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#3A3A52] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10 shadow-sm"
-                  title="East Outflow: Connect actions here"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
-                </button>
               </div>
 
               {/* Harpy AI Subtle Label */}
@@ -1224,6 +1253,31 @@ export default function ConnectorsWorkspace({
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
+                      if (connectingSource && connectingSource.nodeId !== node.id) {
+                        // Complete connection if one is being drawn
+                        const fromId = connectingSource.nodeId;
+                        const toId = node.id;
+                        const exists = connections.some(
+                          (c) => c.fromNodeId === fromId && c.toNodeId === toId
+                        );
+                        if (!exists) {
+                          setConnections((prev) => [
+                            ...prev,
+                            {
+                              id: `conn-${fromId}-${toId}-${Date.now()}`,
+                              workflowId: 'wf-1',
+                              fromNodeId: fromId,
+                              fromPort: 'output',
+                              toNodeId: toId,
+                              toPort: 'input',
+                              isActive: true,
+                            },
+                          ]);
+                        }
+                        setConnectingSource(null);
+                        return;
+                      }
+
                       setSelectedNodeId(node.id);
                     }}
                     className={`relative w-[68px] h-[68px] rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${
@@ -1266,7 +1320,7 @@ export default function ConnectorsWorkspace({
                     <button
                       type="button"
                       onClick={(e) => handlePortClick(e, node.id, 'input')}
-                      className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#323246] hover:border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
+                      className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#0E0E16] border-2 border-[#323246] hover:border-[#8C7A6B] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
                       title="Input Port: Click to connect wire"
                     >
                       <span className="w-1.5 h-1.5 rounded-full bg-[#8C7A6B]" />
@@ -1298,9 +1352,9 @@ export default function ConnectorsWorkspace({
               3. FLOATING AI AUTOMATION PROMPT BAR (DARK METALLIC DOCK)
              ────────────────────────────────────────────────────────── */}
           <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center w-full max-w-xl px-4">
-            <div className="pointer-events-auto w-full p-2 bg-[#0C0C14]/92 backdrop-blur-2xl border border-[#222232] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex items-center gap-3">
+            <div className="pointer-events-auto w-full p-2 bg-[#0A0A12]/95 backdrop-blur-xl border border-[#1E1E2C] rounded-2xl shadow-[0_20px_50px_rgba(0,0,0,0.85)] flex items-center gap-3">
               <div className="pl-2">
-                <Sparkles className="w-4 h-4 text-[#8C7A6B]" />
+                <Sparkles className="w-4 h-4 text-[#7A7A8E]" />
               </div>
               <input
                 type="text"
@@ -1310,25 +1364,27 @@ export default function ConnectorsWorkspace({
                   if (e.key === 'Enter') handleGenerateWorkflowFromAi();
                 }}
                 placeholder="Describe automation (e.g. 'Summarize new Gmail emails and sync to Notion')..."
-                className="flex-1 bg-transparent text-xs text-[#D8D4CF] placeholder-[#7A7A8E]/70 font-inter focus:outline-none"
+                className="flex-1 bg-transparent text-xs text-[#D8D4CF] placeholder-[#6A6A7E] font-mono focus:outline-none"
               />
               <button
                 type="button"
                 onClick={() => handleGenerateWorkflowFromAi()}
                 disabled={isGeneratingAi || !aiPrompt.trim()}
-                className={`px-4 py-2 rounded-xl font-cinzel text-xs font-semibold tracking-wider uppercase transition-all flex items-center gap-1.5 ${
+                className={`px-4 py-2 rounded-xl font-mono text-xs font-medium tracking-wide transition-all flex items-center gap-1.5 ${
                   aiPrompt.trim()
-                    ? 'bg-[#1C1C2C] text-[#E8DDC7] border border-[#323246] hover:border-[#C6A46A]/50 hover:text-white cursor-pointer shadow-md'
-                    : 'bg-[#12121A] text-[#606072] border border-[#1A1A24] cursor-not-allowed'
+                    ? 'bg-[#181824] hover:bg-[#202030] text-[#D8D4CF] border border-[#28283C] hover:border-[#3C3C56] hover:text-white cursor-pointer shadow-sm'
+                    : 'bg-[#0E0E14] text-[#505060] border border-[#161622] cursor-not-allowed'
                 }`}
               >
                 {isGeneratingAi ? (
                   <>
-                    <Activity className="w-3.5 h-3.5 animate-spin text-[#8C7A6B]" /> Generating...
+                    <Activity className="w-3.5 h-3.5 animate-spin text-[#7A7A8E]" />
+                    <span>Building...</span>
                   </>
                 ) : (
                   <>
-                    Build <Send className="w-3 h-3 text-[#8C7A6B]" />
+                    <span>Build</span>
+                    <Send className="w-3 h-3 text-[#7A7A8E]" />
                   </>
                 )}
               </button>

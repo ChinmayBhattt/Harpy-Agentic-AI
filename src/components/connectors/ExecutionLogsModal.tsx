@@ -38,7 +38,7 @@ export default function ExecutionLogsModal({
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 15 }}
           transition={{ duration: 0.2 }}
-          className="relative w-full max-w-2xl bg-[#09090F] border border-[#C6A46A]/40 rounded-2xl shadow-[0_0_50px_rgba(198,164,106,0.2)] overflow-hidden text-[#E8DDC7] flex flex-col max-h-[85vh]"
+          className="relative w-full max-w-2xl bg-[#090910] border border-[#1E1E2C] rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.9)] overflow-hidden text-[#D8D4CF] flex flex-col max-h-[85vh]"
         >
           {/* Header */}
           <div className="p-4 bg-[#0E0E18] border-b border-[#1A1A28] flex items-center justify-between shrink-0">
@@ -161,7 +161,7 @@ export default function ExecutionLogsModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="px-4 py-1.5 rounded-xl bg-[#C6A46A] text-[#050508] font-cinzel text-xs font-semibold tracking-wider uppercase hover:bg-[#E2C99A] transition-colors"
+                className="px-4 py-1.5 rounded-xl bg-gradient-to-b from-[#222232] via-[#181826] to-[#12121E] text-[#E8DDC7] border border-[#303046] hover:border-[#4A4A66] hover:text-white font-mono text-xs font-medium tracking-wide transition-colors"
               >
                 Done
               </button>
