@@ -49,9 +49,15 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Compass,
+  FolderGit2,
+  Square,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import BrowserPanel from "@/components/BrowserPanel";
+import AgentTimeline from "@/components/agent/AgentTimeline";
+import DiffModal from "@/components/agent/DiffModal";
+import AgentWorkspacePanel from "@/components/agent/AgentWorkspacePanel";
+import { AgentRunData, FileChangeRecord, AgentEvent } from "@/lib/agent/events";
 
 interface Message {
   id: string;
@@ -60,6 +66,8 @@ interface Message {
   timestamp: string;
   attachment?: string;
   isError?: boolean;
+  isAgent?: boolean;
+  agentRun?: AgentRunData;
 }
 
 interface ChatSession {
@@ -259,6 +267,29 @@ export default function DashboardPage() {
   const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
   const [browserExpanded, setBrowserExpanded] = useState(false);
   const [browserGoal, setBrowserGoal] = useState<string | undefined>(undefined);
+
+  // Autonomous Code Agent Mode State (Cursor / Antigravity Style)
+  const [agentMode, setAgentMode] = useState(false);
+  const [isWorkspacePanelOpen, setIsWorkspacePanelOpen] = useState(false);
+  const [activeWorkspaceSessionId, setActiveWorkspaceSessionId] = useState<string | null>(null);
+  const [reviewingDiffFile, setReviewingDiffFile] = useState<FileChangeRecord | null>(null);
+  const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<string | undefined>(undefined);
+  const agentAbortControllerRef = useRef<AbortController | null>(null);
+
+  const handleStopAgent = async () => {
+    if (agentAbortControllerRef.current) {
+      agentAbortControllerRef.current.abort();
+      agentAbortControllerRef.current = null;
+    }
+    try {
+      await fetch('/api/agent', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'abort', sessionId: currentSessionId }),
+      });
+    } catch {}
+    setIsExecuting(false);
+  };
 
   // Model & Auto-Detect API Key State
   const [apiKey, setApiKey] = useState<string>("");
@@ -693,6 +724,182 @@ export default function DashboardPage() {
     }
 
     setIsExecuting(true);
+
+    // ──────────────────────────────────────────────────────────
+    // AUTONOMOUS AGENT MODE EXECUTION (STREAMING SSE)
+    // ──────────────────────────────────────────────────────────
+    if (agentMode) {
+      const agentMsgId = `harpy-agent-${Date.now()}`;
+      const initialAgentRun: AgentRunData = {
+        sessionId: currentSessionId,
+        workspacePath: `workspaces/${authUser?.id || 'anonymous'}/${currentSessionId}`,
+        status: 'running',
+        plan: [],
+        events: [],
+        filesChanged: [],
+      };
+
+      const initialAgentMsg: Message = {
+        id: agentMsgId,
+        sender: 'harpy',
+        text: '',
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        isAgent: true,
+        agentRun: initialAgentRun,
+      };
+
+      setSessions((prev) => {
+        const next = prev.map((s) =>
+          s.id === currentSessionId
+            ? { ...s, messages: [...updatedMessages, initialAgentMsg] }
+            : s
+        );
+        try {
+          localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
+        } catch {}
+        return next;
+      });
+
+      const abortController = new AbortController();
+      agentAbortControllerRef.current = abortController;
+
+      try {
+        const engine = detectEngineFromKey(apiKey || "gsk_default");
+        const chosenModel = selectedModelId || engine.defaultModelId;
+
+        const res = await fetch('/api/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            prompt: textToSend,
+            sessionId: currentSessionId,
+            userId: authUser?.id || 'anonymous',
+            model: chosenModel,
+            apiKey: apiKey || '',
+          }),
+          signal: abortController.signal,
+        });
+
+        if (!res.ok) {
+          const errData = await res.json().catch(() => ({}));
+          throw new Error(errData.error || `HTTP ${res.status}: Failed to launch agent`);
+        }
+
+        const reader = res.body?.getReader();
+        if (!reader) throw new Error('No readable stream available');
+
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        const currentRun: AgentRunData = { ...initialAgentRun };
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed.startsWith('data:')) continue;
+            const jsonStr = trimmed.replace(/^data:\s*/, '');
+            try {
+              const event: AgentEvent = JSON.parse(jsonStr);
+
+              if (event.type === 'thinking_start') {
+                currentRun.events = [...currentRun.events, event];
+              } else if (event.type === 'thinking_end') {
+                currentRun.thinkingDuration = event.durationSeconds;
+                currentRun.events = [...currentRun.events, event];
+              } else if (event.type === 'plan') {
+                currentRun.plan = event.steps;
+              } else if (event.type === 'message_delta') {
+                currentRun.finalMessage = (currentRun.finalMessage || '') + event.delta;
+              } else if (event.type === 'tool_start') {
+                currentRun.events = [...currentRun.events, event];
+              } else if (event.type === 'tool_end') {
+                currentRun.events = [...currentRun.events, event];
+              } else if (event.type === 'file_changed') {
+                currentRun.events = [...currentRun.events, event];
+                const existingIdx = currentRun.filesChanged.findIndex((f) => f.path === event.path);
+                const rec: FileChangeRecord = {
+                  path: event.path,
+                  action: event.action,
+                  addedLines: event.added,
+                  removedLines: event.removed,
+                  oldContent: event.oldContent,
+                  newContent: event.newContent,
+                  timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+                };
+                if (existingIdx >= 0) {
+                  currentRun.filesChanged[existingIdx] = rec;
+                } else {
+                  currentRun.filesChanged = [...currentRun.filesChanged, rec];
+                }
+              } else if (event.type === 'done') {
+                currentRun.status = 'completed';
+                currentRun.filesChanged = event.filesChanged;
+                if (!currentRun.finalMessage) currentRun.finalMessage = event.summary;
+              } else if (event.type === 'error') {
+                currentRun.status = 'failed';
+                currentRun.error = event.message;
+              }
+
+              // Update sessions state live
+              setSessions((prev) => {
+                const next = prev.map((s) => {
+                  if (s.id !== currentSessionId) return s;
+                  return {
+                    ...s,
+                    messages: s.messages.map((m) =>
+                      m.id === agentMsgId
+                        ? { ...m, text: currentRun.finalMessage || '', agentRun: { ...currentRun } }
+                        : m
+                    ),
+                  };
+                });
+                try {
+                  localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
+                } catch {}
+                return next;
+              });
+            } catch (parseErr) {
+              console.warn('Agent event parse error:', parseErr);
+            }
+          }
+        }
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : 'Agent stream failed';
+        setSessions((prev) => {
+          const next = prev.map((s) => {
+            if (s.id !== currentSessionId) return s;
+            return {
+              ...s,
+              messages: s.messages.map((m) =>
+                m.id === agentMsgId
+                  ? {
+                      ...m,
+                      isError: true,
+                      text: `Agent Error: ${message}`,
+                      agentRun: m.agentRun ? { ...m.agentRun, status: 'failed' as const, error: message } : undefined,
+                    }
+                  : m
+              ),
+            };
+          });
+          try {
+            localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
+          } catch {}
+          return next;
+        });
+      } finally {
+        setIsExecuting(false);
+        agentAbortControllerRef.current = null;
+      }
+      return;
+    }
 
     try {
       const engine = detectEngineFromKey(apiKey || "gsk_default");
@@ -1588,10 +1795,37 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
+            {/* Agent Mode Workspace Panel Toggle */}
+            <button
+              type="button"
+              onClick={() => {
+                setIsWorkspacePanelOpen(!isWorkspacePanelOpen);
+                if (!isWorkspacePanelOpen) {
+                  setBrowserPanelOpen(false);
+                  setActiveWorkspaceSessionId(currentSessionId);
+                }
+              }}
+              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full border transition-all cursor-pointer shrink-0 ${
+                isWorkspacePanelOpen
+                  ? "border-[#C6A46A] bg-[#C6A46A]/20 text-[#C6A46A] shadow-[0_0_14px_rgba(198,164,106,0.3)]"
+                  : "border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] text-xs text-[#E8DDC7]/75 hover:text-[#C6A46A]"
+              }`}
+              title="Open Autonomous Code Workspace & Files"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 text-[#C6A46A] shrink-0" />
+              <span className="font-cinzel text-[10px] sm:text-[11px] tracking-wider uppercase font-semibold">
+                Workspace
+              </span>
+              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
+            </button>
+
             {/* Browser Agent Toggle Button */}
             <button
               type="button"
-              onClick={() => setBrowserPanelOpen(!browserPanelOpen)}
+              onClick={() => {
+                setBrowserPanelOpen(!browserPanelOpen);
+                if (!browserPanelOpen) setIsWorkspacePanelOpen(false);
+              }}
               className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full border transition-all cursor-pointer shrink-0 ${
                 browserPanelOpen
                   ? "border-[#C6A46A] bg-[#C6A46A]/20 text-[#C6A46A] shadow-[0_0_14px_rgba(198,164,106,0.3)]"
@@ -1617,12 +1851,12 @@ export default function DashboardPage() {
           </div>
         </header>
 
-        {/* Split Screen Container: Left (Chat Area) & Right (Browser Panel) */}
+        {/* Split Screen Container: Left (Chat Area) & Right (Browser Panel / Workspace Panel) */}
         <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative">
           {/* Chat Container */}
           <div
             className={`flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${
-              browserPanelOpen && !browserExpanded
+              (browserPanelOpen || isWorkspacePanelOpen) && !browserExpanded
                 ? "hidden lg:flex lg:w-1/2 border-r border-[#14141C]"
                 : browserExpanded
                 ? "hidden"
@@ -1739,9 +1973,22 @@ export default function DashboardPage() {
                         </div>
                       )}
 
-                      {/* Message Content with Rich Markdown Rendering */}
+                      {/* Message Content with Rich Markdown Rendering or Agent Timeline */}
                       <div className="text-sm text-[#E8DDC7]/90 leading-relaxed font-light">
-                        <MarkdownRenderer content={msg.text} />
+                        {msg.isAgent && msg.agentRun ? (
+                          <AgentTimeline
+                            runData={msg.agentRun}
+                            onSelectFile={(filePath) => {
+                              setSelectedWorkspaceFile(filePath);
+                              setActiveWorkspaceSessionId(currentSessionId);
+                              setIsWorkspacePanelOpen(true);
+                              setBrowserPanelOpen(false);
+                            }}
+                            onReviewDiff={(file) => setReviewingDiffFile(file)}
+                          />
+                        ) : (
+                          <MarkdownRenderer content={msg.text} />
+                        )}
                       </div>
 
                       {/* Bottom Message Bar */}
@@ -1878,6 +2125,22 @@ export default function DashboardPage() {
                 <Plus className="w-4 h-4 stroke-[2.2]" />
               </button>
 
+              {/* Agent Mode Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setAgentMode(!agentMode)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-cinzel tracking-wider uppercase transition-all duration-200 border shrink-0 ${
+                  agentMode
+                    ? "bg-[#C6A46A]/20 border-[#C6A46A] text-[#C6A46A] shadow-[0_0_12px_rgba(198,164,106,0.3)] font-semibold"
+                    : "bg-[#111118] border-[#22222E] text-[#E8DDC7]/50 hover:text-[#C6A46A] hover:border-[#C6A46A]/40"
+                }`}
+                title={agentMode ? "Agent Mode Active: Cursor / Antigravity Autonomous Code Editor" : "Switch to Agent Mode (Autonomous Code Editor)"}
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${agentMode ? "text-[#C6A46A] animate-pulse" : ""}`} />
+                <span className="hidden sm:inline">Agent Mode</span>
+                <span className="sm:hidden">Agent</span>
+              </button>
+
               {/* Textarea without scrollbars/sliders */}
               <textarea
                 ref={textareaRef}
@@ -1885,7 +2148,11 @@ export default function DashboardPage() {
                 value={inputValue}
                 onChange={handleTextareaInput}
                 onKeyDown={handleKeyDown}
-                placeholder={`Instruct Harpy AI (${selectedModelName})...`}
+                placeholder={
+                  agentMode
+                    ? "Instruct Harpy Agent (e.g. 'Build a portfolio website with Next.js')..."
+                    : `Instruct Harpy AI (${selectedModelName})...`
+                }
                 className="flex-1 max-h-40 py-1 px-1 bg-transparent text-[#E8DDC7] placeholder-[#E8DDC7]/35 text-sm focus:outline-none resize-none font-inter font-light leading-relaxed no-scrollbar"
                 style={{ overflowY: "hidden", resize: "none", scrollbarWidth: "none", msOverflowStyle: "none" }}
               />
@@ -1905,21 +2172,36 @@ export default function DashboardPage() {
                 {isRecording ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
               </button>
 
+              {/* Stop Button when executing in Agent Mode */}
+              {isExecuting && (
+                <button
+                  type="button"
+                  onClick={handleStopAgent}
+                  className="w-8 h-8 rounded-xl flex items-center justify-center bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 transition-all duration-200 flex-shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.3)] cursor-pointer"
+                  title="Stop Execution (Cancel)"
+                  aria-label="Stop Execution"
+                >
+                  <Square className="w-3.5 h-3.5 fill-rose-400" />
+                </button>
+              )}
+
               {/* Enter / Send Button */}
-              <button
-                type="button"
-                onClick={() => handleSendMessage()}
-                disabled={(!inputValue.trim() && !attachedFile) || isExecuting}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                  (inputValue.trim() || attachedFile) && !isExecuting
-                    ? "bg-[#C6A46A] text-[#050508] hover:bg-[#E2C99A] shadow-[0_0_12px_rgba(198,164,106,0.35)] cursor-pointer"
-                    : "bg-[#14141C] text-[#E8DDC7]/20 cursor-not-allowed"
-                }`}
-                title="Send Mission (Enter)"
-                aria-label="Send message"
-              >
-                <ArrowUp className="w-4 h-4 stroke-[2.4]" />
-              </button>
+              {!isExecuting && (
+                <button
+                  type="button"
+                  onClick={() => handleSendMessage()}
+                  disabled={(!inputValue.trim() && !attachedFile)}
+                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
+                    (inputValue.trim() || attachedFile)
+                      ? "bg-[#C6A46A] text-[#050508] hover:bg-[#E2C99A] shadow-[0_0_12px_rgba(198,164,106,0.35)] cursor-pointer"
+                      : "bg-[#14141C] text-[#E8DDC7]/20 cursor-not-allowed"
+                  }`}
+                  title="Send Mission (Enter)"
+                  aria-label="Send message"
+                >
+                  <ArrowUp className="w-4 h-4 stroke-[2.4]" />
+                </button>
+              )}
             </div>
 
             {/* Disclaimer Footer Note */}
@@ -1945,6 +2227,20 @@ export default function DashboardPage() {
             initialGoal={browserGoal}
             isExpanded={browserExpanded}
             onToggleExpand={() => setBrowserExpanded(!browserExpanded)}
+          />
+        </div>
+      )}
+
+      {/* Integrated Autonomous Code Workspace Panel */}
+      {isWorkspacePanelOpen && (
+        <div className="h-full min-h-0 transition-all duration-300 flex flex-col w-full lg:w-1/2">
+          <AgentWorkspacePanel
+            sessionId={activeWorkspaceSessionId || currentSessionId}
+            userId={authUser?.id || "anonymous"}
+            isOpen={isWorkspacePanelOpen}
+            onClose={() => setIsWorkspacePanelOpen(false)}
+            selectedFilePath={selectedWorkspaceFile}
+            onSelectFile={(path) => setSelectedWorkspaceFile(path)}
           />
         </div>
       )}
@@ -2415,6 +2711,12 @@ export default function DashboardPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Code Agent Diff Review Modal */}
+      <DiffModal
+        file={reviewingDiffFile}
+        onClose={() => setReviewingDiffFile(null)}
+      />
 
       {/* Floating Share Toast */}
       <AnimatePresence>
