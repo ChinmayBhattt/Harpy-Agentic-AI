@@ -1388,7 +1388,7 @@ export default function DashboardPage() {
                 <Plus className="w-3 h-3 stroke-[2.5]" />
               </div>
               <span className="font-cinzel text-xs tracking-wider uppercase font-semibold">
-                New Mission
+                New Chat
               </span>
             </div>
             <span className="text-[10px] font-mono text-[#C6A46A]/50">⌘K</span>
@@ -1877,7 +1877,7 @@ export default function DashboardPage() {
           {(!currentSession?.messages || currentSession.messages.length === 0) ? (
             /* Centered Greeting */
             <div className="flex-1 flex flex-col items-center justify-center min-h-0 py-6 sm:py-8">
-              <div className="max-w-3xl w-full mx-auto text-center space-y-8 px-2">
+              <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl w-full mx-auto text-center space-y-8 px-2">
                 <motion.div
                   initial={{ opacity: 0, y: 12 }}
                   animate={{ opacity: 1, y: 0 }}
@@ -1933,8 +1933,8 @@ export default function DashboardPage() {
               </div>
             </div>
           ) : (
-            /* Populated Message History */
-            <div className="max-w-3xl mx-auto w-full space-y-6 pb-4">
+            /* Populated Message History (Wider frame for rich AI outputs) */
+            <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto w-full space-y-6 pb-4">
               {currentSession.messages.map((msg) => {
                 const isUser = msg.sender === "user";
                 return (
@@ -1943,7 +1943,7 @@ export default function DashboardPage() {
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.25 }}
-                    className={`flex gap-3 sm:gap-4 ${isUser ? "justify-end" : "justify-start"}`}
+                    className={`flex gap-3 sm:gap-4 ${isUser ? "justify-end" : "justify-start w-full"}`}
                   >
                     {!isUser && (
                       <div className="w-7 h-7 rounded-full border border-[#C6A46A]/35 flex items-center justify-center bg-[#0B0B10] flex-shrink-0 mt-1 shadow-sm">
@@ -1958,12 +1958,12 @@ export default function DashboardPage() {
                     )}
 
                     <div
-                      className={`max-w-[85%] sm:max-w-[80%] space-y-3 rounded-2xl ${
+                      className={`space-y-3 rounded-2xl ${
                         isUser
-                          ? "rounded-tr-sm bg-[#12121A] border border-[#22222E] text-[#E8DDC7] p-4 shadow-md"
+                          ? "max-w-[85%] sm:max-w-[75%] rounded-tr-sm bg-[#12121A] border border-[#22222E] text-[#E8DDC7] p-4 shadow-md"
                           : msg.isError
-                          ? "rounded-tl-sm bg-[#180F12] border border-red-500/40 text-red-200 p-5 shadow-lg"
-                          : "rounded-tl-sm bg-[#0B0B10] border border-[#C6A46A]/25 text-[#E8DDC7] p-5 shadow-lg"
+                          ? "flex-1 min-w-0 w-full rounded-tl-sm bg-[#180F12] border border-red-500/40 text-red-200 p-5 sm:p-6 shadow-lg"
+                          : "flex-1 min-w-0 w-full rounded-tl-sm bg-[#0B0B10] border border-[#C6A46A]/25 text-[#E8DDC7] p-5 sm:p-6 shadow-lg"
                       }`}
                     >
                       {/* Attached File Pill */}
@@ -2056,7 +2056,7 @@ export default function DashboardPage() {
             CHAT INPUT: Centerpiece with Upward Model Selector
            ────────────────────────────────────────────────────────── */}
         <div className="p-3.5 sm:p-5 bg-gradient-to-t from-[#050508] via-[#050508]/95 to-transparent z-20 flex-shrink-0">
-          <div className="max-w-3xl mx-auto w-full">
+          <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-[1360px] mx-auto w-full">
             {/* Attachment preview banner */}
             {attachedFile && (
               <div className="mb-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#0E0E14] border border-[#C6A46A]/30 text-xs text-[#C6A46A]">
