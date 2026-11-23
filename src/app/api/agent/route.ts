@@ -3,7 +3,7 @@ import { AgentLoop } from '@/lib/agent/agentLoop';
 import { AgentEvent } from '@/lib/agent/events';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 300; // allow extended runs up to 5 minutes
+export const maxDuration = 60; // Max allowed serverless duration on standard Vercel accounts
 
 export async function POST(req: NextRequest) {
   try {
