@@ -51,12 +51,14 @@ import {
   Compass,
   FolderGit2,
   Square,
+  Radio,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import BrowserPanel from "@/components/BrowserPanel";
 import AgentTimeline from "@/components/agent/AgentTimeline";
 import DiffModal from "@/components/agent/DiffModal";
 import AgentWorkspacePanel from "@/components/agent/AgentWorkspacePanel";
+import VoiceAssistantModal from "@/components/voice/VoiceAssistantModal";
 import { AgentRunData, FileChangeRecord, AgentEvent } from "@/lib/agent/events";
 
 interface Message {
@@ -275,6 +277,10 @@ export default function DashboardPage() {
   const [reviewingDiffFile, setReviewingDiffFile] = useState<FileChangeRecord | null>(null);
   const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<string | undefined>(undefined);
   const agentAbortControllerRef = useRef<AbortController | null>(null);
+
+  // Vapi Voice Assistant AI State
+  const [isVoiceAssistantOpen, setIsVoiceAssistantOpen] = useState(false);
+  const [isVoiceAssistantActive, setIsVoiceAssistantActive] = useState(false);
 
   const handleStopAgent = async () => {
     if (agentAbortControllerRef.current) {
@@ -645,7 +651,7 @@ export default function DashboardPage() {
     }
   };
 
-  const handleSendMessage = async (customPrompt?: string) => {
+  const handleSendMessage = async (customPrompt?: string, forceAgentMode?: boolean) => {
     // If voice recording is running, stop it
     if (isRecordingRef.current) {
       stopRecording();
@@ -728,7 +734,8 @@ export default function DashboardPage() {
     // ──────────────────────────────────────────────────────────
     // AUTONOMOUS AGENT MODE EXECUTION (STREAMING SSE)
     // ──────────────────────────────────────────────────────────
-    if (agentMode) {
+    const isRunningAsAgent = forceAgentMode !== undefined ? forceAgentMode : agentMode;
+    if (isRunningAsAgent) {
       const agentMsgId = `harpy-agent-${Date.now()}`;
       const initialAgentRun: AgentRunData = {
         sessionId: currentSessionId,
@@ -2211,6 +2218,21 @@ export default function DashboardPage() {
                   <ArrowUp className="w-4 h-4 stroke-[2.4]" />
                 </button>
               )}
+
+              {/* Vapi Live Voice AI Assistant Button (Right side of Enter button) */}
+              <button
+                type="button"
+                onClick={() => setIsVoiceAssistantOpen(true)}
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 cursor-pointer ${
+                  isVoiceAssistantActive
+                    ? "bg-gradient-to-tr from-[#C6A46A] to-amber-200 text-[#050508] shadow-[0_0_16px_rgba(198,164,106,0.6)] animate-pulse"
+                    : "bg-[#111118] text-[#C6A46A] border border-[#C6A46A]/30 hover:border-[#C6A46A] hover:bg-[#1A1A26] shadow-sm hover:shadow-[0_0_12px_rgba(198,164,106,0.25)]"
+                }`}
+                title="Start Voice Assistant (Vapi AI - Multilingual Voice with Auto-Agent & Browser Action)"
+                aria-label="Start Voice Assistant"
+              >
+                <Radio className={`w-4 h-4 ${isVoiceAssistantActive ? "animate-pulse text-[#050508]" : "text-[#C6A46A]"}`} />
+              </button>
             </div>
 
             {/* Disclaimer Footer Note */}
@@ -2737,6 +2759,37 @@ export default function DashboardPage() {
       <DiffModal
         file={reviewingDiffFile}
         onClose={() => setReviewingDiffFile(null)}
+      />
+
+      {/* Vapi Live Voice AI Assistant Modal */}
+      <VoiceAssistantModal
+        isOpen={isVoiceAssistantOpen}
+        onClose={() => setIsVoiceAssistantOpen(false)}
+        onActiveStateChange={(active) => setIsVoiceAssistantActive(active)}
+        onTriggerAgentMode={(prompt) => {
+          setAgentMode(true);
+          setInputValue(prompt);
+          handleSendMessage(prompt, true);
+        }}
+        onTriggerBrowserAgent={(goal) => {
+          setBrowserGoal(goal);
+          setBrowserPanelOpen(true);
+        }}
+        onAddChatMessage={(text, sender) => {
+          const newMsg: Message = {
+            id: `msg-${Date.now()}`,
+            sender,
+            text,
+            timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+          };
+          setSessions((prev) =>
+            prev.map((s) =>
+              s.id === currentSessionId
+                ? { ...s, messages: [...s.messages, newMsg] }
+                : s
+            )
+          );
+        }}
       />
 
       {/* Floating Share Toast */}
