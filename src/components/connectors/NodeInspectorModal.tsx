@@ -23,6 +23,7 @@ interface NodeInspectorProps {
   onUpdateNode: (updatedNode: WorkflowNode) => void;
   onDeleteNode: (nodeId: string) => void;
   onRunSingleNode: (nodeId: string) => void;
+  theme?: 'dark' | 'light';
 }
 
 export default function NodeInspectorModal({
@@ -33,9 +34,11 @@ export default function NodeInspectorModal({
   onUpdateNode,
   onDeleteNode,
   onRunSingleNode,
+  theme = 'dark',
 }: NodeInspectorProps) {
   if (!isOpen || !node) return null;
 
+  const isLight = theme === 'light';
   const Icon = app ? APP_ICONS[app.iconName] || APP_ICONS.Globe : APP_ICONS.Sparkles;
 
   const handleActionChange = (action: string) => {
@@ -62,11 +65,31 @@ export default function NodeInspectorModal({
     });
   };
 
+  const inputClass = `w-full px-3 py-2 rounded-xl border text-xs font-mono transition-colors focus:outline-none ${
+    isLight
+      ? 'bg-white border-[#CBD5E1] text-[#0F172A] focus:border-[#C6A46A] placeholder-[#94A3B8]'
+      : 'bg-[#06060C] border-[#1E1E2C] text-[#D8D4CF] focus:border-[#383850]'
+  }`;
+
+  const selectClass = `w-full px-3 py-1.5 rounded-lg border text-xs font-mono transition-colors focus:outline-none ${
+    isLight
+      ? 'bg-white border-[#CBD5E1] text-[#0F172A] focus:border-[#C6A46A]'
+      : 'bg-[#06060C] border-[#1E1E2C] text-[#D8D4CF] focus:border-[#383850]'
+  }`;
+
   return (
     <AnimatePresence>
-      <div className="fixed inset-y-0 right-0 z-[60] w-full max-w-sm bg-[#090910]/98 backdrop-blur-2xl border-l border-[#1A1A26] shadow-2xl flex flex-col text-[#D8D4CF]">
+      <div
+        className={`fixed inset-y-0 right-0 z-[60] w-full max-w-sm backdrop-blur-2xl border-l shadow-2xl flex flex-col transition-colors ${
+          isLight ? 'bg-white/98 border-[#E2E4E9] text-[#0F172A]' : 'bg-[#090910]/98 border-[#1A1A26] text-[#D8D4CF]'
+        }`}
+      >
         {/* Header */}
-        <div className="h-14 px-4 bg-[#0D0D16] border-b border-[#181824] flex items-center justify-between shrink-0">
+        <div
+          className={`h-14 px-4 border-b flex items-center justify-between shrink-0 ${
+            isLight ? 'bg-[#F8F9FA] border-[#E2E4E9]' : 'bg-[#0D0D16] border-[#181824]'
+          }`}
+        >
           <div className="flex items-center gap-2.5 min-w-0">
             <div
               className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 border border-white/5"
@@ -75,16 +98,22 @@ export default function NodeInspectorModal({
               <Icon className="w-4 h-4" />
             </div>
             <div className="truncate">
-              <h3 className="font-cinzel text-xs font-semibold text-[#E8DDC7] truncate">
+              <h3
+                className={`font-cinzel text-xs font-semibold truncate ${
+                  isLight ? 'text-[#0F172A]' : 'text-[#E8DDC7]'
+                }`}
+              >
                 {node.title}
               </h3>
-              <p className="text-[10px] font-mono text-[#7A7A8E]">Node Inspector</p>
+              <p className={`text-[10px] font-mono ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Node Inspector</p>
             </div>
           </div>
 
           <button
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#7A7A8E] hover:text-[#E8DDC7] hover:bg-white/5 transition-colors"
+            className={`p-1.5 rounded-lg transition-colors ${
+              isLight ? 'text-[#64748B] hover:text-[#0F172A] hover:bg-black/5' : 'text-[#7A7A8E] hover:text-[#E8DDC7] hover:bg-white/5'
+            }`}
           >
             <X className="w-4 h-4" />
           </button>
@@ -93,16 +122,20 @@ export default function NodeInspectorModal({
         {/* Body Form */}
         <div className="flex-1 overflow-y-auto p-4 space-y-4 text-xs font-inter [scrollbar-width:thin]">
           {/* Status Banner */}
-          <div className="p-2.5 rounded-xl bg-[#0C0C14] border border-[#1A1A26] flex items-center justify-between">
-            <span className="text-[11px] font-mono text-[#7A7A8E]">Core Connectivity</span>
+          <div
+            className={`p-2.5 rounded-xl border flex items-center justify-between ${
+              isLight ? 'bg-[#F8F9FA] border-[#E2E4E9]' : 'bg-[#0C0C14] border-[#1A1A26]'
+            }`}
+          >
+            <span className={`text-[11px] font-mono ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Core Connectivity</span>
             {node.isConnectedToCore ? (
-              <span className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-400 bg-emerald-950/30 px-2 py-0.5 rounded-full border border-emerald-500/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="flex items-center gap-1.5 text-[10px] font-mono text-emerald-500 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
                 Active (Linked to Harpy)
               </span>
             ) : (
-              <span className="flex items-center gap-1.5 text-[10px] font-mono text-amber-400 bg-amber-950/30 px-2 py-0.5 rounded-full border border-amber-500/25">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
+              <span className="flex items-center gap-1.5 text-[10px] font-mono text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-500/25">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
                 Paused (Disconnected)
               </span>
             )}
@@ -110,27 +143,27 @@ export default function NodeInspectorModal({
 
           {/* Node Custom Label */}
           <div>
-            <label className="block text-[11px] font-mono text-[#7A7A8E] mb-1">Node Title</label>
+            <label className={`block text-[11px] font-mono mb-1 ${isLight ? 'text-[#475569]' : 'text-[#7A7A8E]'}`}>Node Title</label>
             <input
               type="text"
               value={node.title}
               onChange={(e) => handleTitleChange(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF] focus:outline-none focus:border-[#383850] transition-colors"
+              className={inputClass}
             />
           </div>
 
           {/* Action / Trigger Selector */}
           <div>
-            <label className="block text-[11px] font-mono text-[#7A7A8E] mb-1">
+            <label className={`block text-[11px] font-mono mb-1 ${isLight ? 'text-[#475569]' : 'text-[#7A7A8E]'}`}>
               {node.type === 'trigger' ? 'Trigger Event' : 'Autonomous Action'}
             </label>
             <select
               value={node.actionOrTrigger}
               onChange={(e) => handleActionChange(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF] focus:outline-none focus:border-[#383850] transition-colors"
+              className={inputClass}
             >
               {(node.type === 'trigger' ? app?.triggers : app?.actions)?.map((act, i) => (
-                <option key={i} value={act} className="bg-[#0B0B12] text-[#E8DDC7]">
+                <option key={i} value={act} className={isLight ? "bg-white text-[#0F172A]" : "bg-[#0B0B12] text-[#E8DDC7]"}>
                   {act}
                 </option>
               )) || <option value={node.actionOrTrigger}>{node.actionOrTrigger}</option>}
@@ -139,14 +172,14 @@ export default function NodeInspectorModal({
 
           {/* Dynamic Configuration Fields */}
           {node.appId === 'harpy-core' && (
-            <div className="space-y-3 pt-2 border-t border-[#181824]">
-              <p className="text-[11px] font-mono text-[#9E9B95] uppercase tracking-wider">Harpy Core Parameters</p>
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-[#E2E4E9]' : 'border-[#181824]'}`}>
+              <p className={`text-[11px] font-mono uppercase tracking-wider ${isLight ? 'text-[#9A6F2E]' : 'text-[#9E9B95]'}`}>Harpy Core Parameters</p>
               <div>
-                <label className="block text-[10px] font-mono text-[#7A7A8E] mb-1">Reasoning Model</label>
+                <label className={`block text-[10px] font-mono mb-1 ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Reasoning Model</label>
                 <select
                   defaultValue={node.config.model || 'GPT-OSS 120B'}
                   onChange={(e) => handleConfigChange('model', e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF]"
+                  className={selectClass}
                 >
                   <option value="GPT-OSS 120B">Harpy GPT-OSS 120B (High Reasoning)</option>
                   <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
@@ -155,11 +188,11 @@ export default function NodeInspectorModal({
                 </select>
               </div>
               <div>
-                <label className="block text-[10px] font-mono text-[#7A7A8E] mb-1">Execution Mode</label>
+                <label className={`block text-[10px] font-mono mb-1 ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Execution Mode</label>
                 <select
                   defaultValue={node.config.mode || 'Autonomous Multi-Agent'}
                   onChange={(e) => handleConfigChange('mode', e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF]"
+                  className={selectClass}
                 >
                   <option value="Autonomous Multi-Agent">Autonomous Multi-Agent</option>
                   <option value="Strict Sequential Pipeline">Strict Sequential Pipeline</option>
@@ -170,24 +203,24 @@ export default function NodeInspectorModal({
           )}
 
           {node.appId === 'gmail' && (
-            <div className="space-y-3 pt-2 border-t border-[#181824]">
-              <p className="text-[11px] font-mono text-[#9E9B95] uppercase tracking-wider">Gmail Parameters</p>
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-[#E2E4E9]' : 'border-[#181824]'}`}>
+              <p className={`text-[11px] font-mono uppercase tracking-wider ${isLight ? 'text-[#9A6F2E]' : 'text-[#9E9B95]'}`}>Gmail Parameters</p>
               <div>
-                <label className="block text-[10px] font-mono text-[#7A7A8E] mb-1">Search Filter Query</label>
+                <label className={`block text-[10px] font-mono mb-1 ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Search Filter Query</label>
                 <input
                   type="text"
                   defaultValue={node.config.filter || 'is:unread label:inbox'}
                   onChange={(e) => handleConfigChange('filter', e.target.value)}
                   placeholder="e.g. is:unread from:clients"
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF]"
+                  className={selectClass}
                 />
               </div>
               <div>
-                <label className="block text-[10px] font-mono text-[#7A7A8E] mb-1">Polling Interval</label>
+                <label className={`block text-[10px] font-mono mb-1 ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Polling Interval</label>
                 <select
                   defaultValue={node.config.interval || 'Real-time (Push)'}
                   onChange={(e) => handleConfigChange('interval', e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF]"
+                  className={selectClass}
                 >
                   <option value="Real-time (Push)">Real-time (Push Webhook)</option>
                   <option value="Every 5 mins">Every 5 mins</option>
@@ -199,25 +232,25 @@ export default function NodeInspectorModal({
           )}
 
           {node.appId === 'notion' && (
-            <div className="space-y-3 pt-2 border-t border-[#181824]">
-              <p className="text-[11px] font-mono text-[#9E9B95] uppercase tracking-wider">Notion Parameters</p>
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-[#E2E4E9]' : 'border-[#181824]'}`}>
+              <p className={`text-[11px] font-mono uppercase tracking-wider ${isLight ? 'text-[#9A6F2E]' : 'text-[#9E9B95]'}`}>Notion Parameters</p>
               <div>
-                <label className="block text-[10px] font-mono text-[#7A7A8E] mb-1">Target Database / Page</label>
+                <label className={`block text-[10px] font-mono mb-1 ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Target Database / Page</label>
                 <input
                   type="text"
                   defaultValue={node.config.database || 'Harpy AI Action Tasks'}
                   onChange={(e) => handleConfigChange('database', e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF]"
+                  className={selectClass}
                 />
               </div>
             </div>
           )}
 
           {node.appId === 'ai-models' && (
-            <div className="space-y-3 pt-2 border-t border-[#181824]">
-              <p className="text-[11px] font-mono text-[#9E9B95] uppercase tracking-wider">AI Reasoning Prompt</p>
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-[#E2E4E9]' : 'border-[#181824]'}`}>
+              <p className={`text-[11px] font-mono uppercase tracking-wider ${isLight ? 'text-[#9A6F2E]' : 'text-[#9E9B95]'}`}>AI Reasoning Prompt</p>
               <div>
-                <label className="block text-[10px] font-mono text-[#7A7A8E] mb-1">System Instructions</label>
+                <label className={`block text-[10px] font-mono mb-1 ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>System Instructions</label>
                 <textarea
                   rows={3}
                   defaultValue={
@@ -225,22 +258,24 @@ export default function NodeInspectorModal({
                     'Extract sender, key requirements, sentiment, and generate 3 clear bullet action points.'
                   }
                   onChange={(e) => handleConfigChange('prompt', e.target.value)}
-                  className="w-full px-3 py-2 rounded-lg bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF] leading-relaxed resize-none"
+                  className={`w-full px-3 py-2 rounded-lg border text-xs font-mono leading-relaxed resize-none focus:outline-none ${
+                    isLight ? 'bg-white border-[#CBD5E1] text-[#0F172A] focus:border-[#C6A46A]' : 'bg-[#06060C] border-[#1E1E2C] text-[#D8D4CF] focus:border-[#383850]'
+                  }`}
                 />
               </div>
             </div>
           )}
 
           {node.appId === 'slack' && (
-            <div className="space-y-3 pt-2 border-t border-[#181824]">
-              <p className="text-[11px] font-mono text-[#9E9B95] uppercase tracking-wider">Slack Parameters</p>
+            <div className={`space-y-3 pt-2 border-t ${isLight ? 'border-[#E2E4E9]' : 'border-[#181824]'}`}>
+              <p className={`text-[11px] font-mono uppercase tracking-wider ${isLight ? 'text-[#9A6F2E]' : 'text-[#9E9B95]'}`}>Slack Parameters</p>
               <div>
-                <label className="block text-[10px] font-mono text-[#7A7A8E] mb-1">Target Channel</label>
+                <label className={`block text-[10px] font-mono mb-1 ${isLight ? 'text-[#64748B]' : 'text-[#7A7A8E]'}`}>Target Channel</label>
                 <input
                   type="text"
                   defaultValue={node.config.channel || '#ai-alerts'}
                   onChange={(e) => handleConfigChange('channel', e.target.value)}
-                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060C] border border-[#1E1E2C] text-xs font-mono text-[#D8D4CF]"
+                  className={selectClass}
                 />
               </div>
             </div>
@@ -248,11 +283,19 @@ export default function NodeInspectorModal({
         </div>
 
         {/* Footer Actions */}
-        <div className="p-4 bg-[#0D0D16] border-t border-[#181824] flex items-center justify-between">
+        <div
+          className={`p-4 border-t flex items-center justify-between ${
+            isLight ? 'bg-[#F8F9FA] border-[#E2E4E9]' : 'bg-[#0D0D16] border-[#181824]'
+          }`}
+        >
           <button
             type="button"
             onClick={() => onDeleteNode(node.id)}
-            className="p-2 rounded-xl text-rose-400 hover:bg-rose-500/10 border border-rose-500/25 transition-colors text-xs font-mono flex items-center gap-1.5"
+            className={`p-2 rounded-xl transition-colors text-xs font-mono flex items-center gap-1.5 ${
+              isLight
+                ? 'text-rose-600 hover:bg-rose-50 border border-rose-200'
+                : 'text-rose-400 hover:bg-rose-500/10 border border-rose-500/25'
+            }`}
             title="Delete Node"
           >
             <Trash2 className="w-3.5 h-3.5" /> Delete
@@ -261,9 +304,13 @@ export default function NodeInspectorModal({
           <button
             type="button"
             onClick={() => onRunSingleNode(node.id)}
-            className="px-4 py-2 rounded-xl bg-gradient-to-b from-[#222232] via-[#181826] to-[#12121E] text-[#E8DDC7] border border-[#303046] hover:border-[#4A4A66] hover:text-white font-mono text-xs font-medium tracking-wide transition-colors flex items-center gap-1.5 shadow-sm"
+            className={`px-4 py-2 rounded-xl font-mono text-xs font-medium tracking-wide transition-all flex items-center gap-1.5 shadow-sm ${
+              isLight
+                ? 'bg-[#0F172A] hover:bg-[#1E293B] text-white border border-[#0F172A]'
+                : 'bg-gradient-to-b from-[#222232] via-[#181826] to-[#12121E] text-[#E8DDC7] border border-[#303046] hover:border-[#4A4A66] hover:text-white'
+            }`}
           >
-            <Play className="w-3.5 h-3.5 fill-[#C6A46A] text-[#C6A46A]" /> Test Node
+            <Play className={`w-3.5 h-3.5 ${isLight ? 'fill-amber-400 text-amber-400' : 'fill-[#C6A46A] text-[#C6A46A]'}`} /> Test Node
           </button>
         </div>
       </div>

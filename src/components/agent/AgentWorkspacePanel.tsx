@@ -50,6 +50,7 @@ interface AgentWorkspacePanelProps {
   onSelectFile?: (path: string) => void;
   filesChanged?: FileChangeRecord[];
   onOpenBrowserAgent?: (goal?: string) => void;
+  theme?: 'dark' | 'light';
 }
 
 interface TerminalEntry {
@@ -128,8 +129,11 @@ function buildTreeFromFiles(files: FileChangeRecord[]): FileNode[] {
 }
 
 // Generates live interactive web preview bundle for iframe
-function generatePreviewHtml(files: FileChangeRecord[]): string {
+function generatePreviewHtml(files: FileChangeRecord[], theme: 'dark' | 'light' = 'dark'): string {
   if (!files || files.length === 0) {
+    if (theme === 'light') {
+      return `<!DOCTYPE html><html><body style="background:#F8F9FB;color:#0F172A;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center;"><h2 style="color:#0F172A;font-size:18px;margin-bottom:8px;">No Web Assets Yet</h2><p style="color:#64748B;font-size:13px;margin:0;">Files created by Harpy Agent will render live here.</p></div></body></html>`;
+    }
     return `<!DOCTYPE html><html><body style="background:#09090E;color:#E8DDC7;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center;"><h2>No Web Assets Yet</h2><p style="opacity:0.6;">Files created by Harpy Agent will render live here.</p></div></body></html>`;
   }
 
@@ -224,7 +228,7 @@ function generatePreviewHtml(files: FileChangeRecord[]): string {
     body { margin: 0; padding: 0; min-height: 100vh; font-family: ui-sans-serif, system-ui, -apple-system, sans-serif; }
   </style>
 </head>
-<body class="bg-[#09090E] text-[#E8DDC7]">
+<body class="${theme === 'light' ? 'bg-[#F8F9FB] text-[#0F172A]' : 'bg-[#09090E] text-[#E8DDC7]'}">
   <div id="root"></div>
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
@@ -257,7 +261,9 @@ export default function AgentWorkspacePanel({
   onSelectFile,
   filesChanged = [],
   onOpenBrowserAgent,
+  theme = 'dark',
 }: AgentWorkspacePanelProps) {
+  const isLight = theme === 'light';
   // Navigation Tabs: 'code' | 'preview' | 'terminal'
   const [activeTab, setActiveTab] = useState<'code' | 'preview' | 'terminal'>('code');
 
@@ -300,8 +306,8 @@ export default function AgentWorkspacePanel({
 
   // Compute preview HTML whenever files change
   const previewHtml = useMemo(() => {
-    return generatePreviewHtml(filesChanged);
-  }, [filesChanged, previewKey]);
+    return generatePreviewHtml(filesChanged, theme);
+  }, [filesChanged, previewKey, theme]);
 
   // Sync tree with filesChanged in state/localStorage
   useEffect(() => {
@@ -919,23 +925,45 @@ Available commands:
   };
 
   return (
-    <div className="h-full flex flex-col bg-[#07070B] border-l border-[#1A1A24] text-[#E8DDC7] overflow-hidden select-none">
+    <div
+      className={`h-full flex flex-col border-l overflow-hidden select-none ${
+        isLight
+          ? 'bg-white border-[#E2E4E9] text-[#0F172A]'
+          : 'bg-[#07070B] border-[#1A1A24] text-[#E8DDC7]'
+      }`}
+    >
       {/* Top Header: Title, Navigation Tabs & Download */}
-      <div className="h-14 px-3 sm:px-4 border-b border-[#1A1A24] bg-[#0A0A10] flex items-center justify-between shrink-0 gap-2">
+      <div
+        className={`h-14 px-3 sm:px-4 border-b flex items-center justify-between shrink-0 gap-2 ${
+          isLight
+            ? 'bg-[#F8F9FA] border-[#E2E4E9] text-[#0F172A]'
+            : 'bg-[#0A0A10] border-[#1A1A24] text-[#E8DDC7]'
+        }`}
+      >
         <div className="flex items-center gap-2 min-w-0">
           <Layers className="w-4 h-4 text-[#C6A46A] shrink-0" />
-          <span className="font-cinzel text-xs font-semibold tracking-wider uppercase text-[#E8DDC7] hidden sm:inline truncate">
+          <span
+            className={`font-cinzel text-xs font-semibold tracking-wider uppercase hidden sm:inline truncate ${
+              isLight ? 'text-[#0F172A]' : 'text-[#E8DDC7]'
+            }`}
+          >
             Workspace IDE
           </span>
 
           {/* Sub Navigation Tabs */}
-          <div className="flex items-center bg-[#12121C] border border-[#222232] rounded-lg p-0.5 ml-1">
+          <div
+            className={`flex items-center border rounded-lg p-0.5 ml-1 ${
+              isLight ? 'bg-[#E2E4E9] border-[#CBD5E1]' : 'bg-[#12121C] border-[#222232]'
+            }`}
+          >
             <button
               type="button"
               onClick={() => setActiveTab('code')}
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
                 activeTab === 'code'
                   ? 'bg-[#C6A46A] text-[#050508] font-bold shadow-sm'
+                  : isLight
+                  ? 'text-[#64748B] hover:text-[#0F172A]'
                   : 'text-[#E8DDC7]/70 hover:text-[#C6A46A]'
               }`}
             >
@@ -949,6 +977,8 @@ Available commands:
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
                 activeTab === 'preview'
                   ? 'bg-[#C6A46A] text-[#050508] font-bold shadow-sm'
+                  : isLight
+                  ? 'text-[#64748B] hover:text-[#0F172A]'
                   : 'text-[#E8DDC7]/70 hover:text-[#C6A46A]'
               }`}
             >
@@ -963,6 +993,8 @@ Available commands:
               className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-mono transition-all ${
                 activeTab === 'terminal'
                   ? 'bg-[#C6A46A] text-[#050508] font-bold shadow-sm'
+                  : isLight
+                  ? 'text-[#64748B] hover:text-[#0F172A]'
                   : 'text-[#E8DDC7]/70 hover:text-[#C6A46A]'
               }`}
             >
@@ -977,7 +1009,11 @@ Available commands:
             type="button"
             onClick={fetchTree}
             disabled={isLoadingTree}
-            className="p-1.5 rounded-lg text-[#E8DDC7]/70 hover:text-white hover:bg-white/5 transition-colors"
+            className={`p-1.5 rounded-lg transition-colors ${
+              isLight
+                ? 'text-[#64748B] hover:text-[#0F172A] hover:bg-black/5'
+                : 'text-[#E8DDC7]/70 hover:text-white hover:bg-white/5'
+            }`}
             title="Refresh File Tree"
           >
             <RotateCw
@@ -988,7 +1024,11 @@ Available commands:
           <button
             type="button"
             onClick={handleDownloadZip}
-            className="flex items-center gap-1 px-2.5 py-1 text-xs font-cinzel rounded-md bg-[#C6A46A]/15 border border-[#C6A46A]/30 text-[#C6A46A] hover:bg-[#C6A46A]/25 transition-all shadow-sm"
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-cinzel rounded-md transition-all shadow-sm ${
+              isLight
+                ? 'bg-[#C6A46A] text-[#0A0A10] font-semibold hover:bg-[#B5935A]'
+                : 'bg-[#C6A46A]/15 border border-[#C6A46A]/30 text-[#C6A46A] hover:bg-[#C6A46A]/25'
+            }`}
             title="Download full project workspace as ZIP"
           >
             <Download className="w-3 h-3 shrink-0" />
@@ -998,7 +1038,11 @@ Available commands:
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-[#E8DDC7]/60 hover:text-white hover:bg-white/5 transition-colors ml-1"
+            className={`p-1.5 rounded-lg transition-colors ml-1 ${
+              isLight
+                ? 'text-[#64748B] hover:text-[#0F172A] hover:bg-black/5'
+                : 'text-[#E8DDC7]/60 hover:text-white hover:bg-white/5'
+            }`}
             title="Close Workspace Panel"
           >
             <X className="w-4 h-4" />
@@ -1009,8 +1053,16 @@ Available commands:
       {/* Main Split Body: Left Tree & Right Content Pane */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left: File Tree Explorer */}
-        <div className="w-40 sm:w-52 border-r border-[#14141C] bg-[#050508] flex flex-col shrink-0">
-          <div className="px-3 py-1.5 text-[10px] uppercase font-mono tracking-wider text-[#8C7A6B] border-b border-[#14141C] flex items-center justify-between">
+        <div
+          className={`w-40 sm:w-52 border-r flex flex-col shrink-0 ${
+            isLight ? 'bg-[#F8F9FA] border-[#E2E4E9]' : 'bg-[#050508] border-[#14141C]'
+          }`}
+        >
+          <div
+            className={`px-3 py-1.5 text-[10px] uppercase font-mono tracking-wider border-b flex items-center justify-between ${
+              isLight ? 'text-[#64748B] border-[#E2E4E9]' : 'text-[#8C7A6B] border-[#14141C]'
+            }`}
+          >
             <span>Files</span>
             <span className="text-[#C6A46A] font-bold">{filesChanged.length || tree.length}</span>
           </div>
@@ -1019,7 +1071,11 @@ Available commands:
             {tree.length > 0 ? (
               tree.map((node) => renderNode(node))
             ) : (
-              <div className="p-4 text-center text-xs text-[#8C7A6B] font-mono">
+              <div
+                className={`p-4 text-center text-xs font-mono ${
+                  isLight ? 'text-[#64748B]' : 'text-[#8C7A6B]'
+                }`}
+              >
                 {isLoadingTree ? 'Scanning workspace...' : 'No files created yet.'}
               </div>
             )}
@@ -1027,17 +1083,27 @@ Available commands:
         </div>
 
         {/* Right Pane: Code Viewer OR Live Web Preview OR Interactive CLI */}
-        <div className="flex-1 flex flex-col min-w-0 bg-black overflow-hidden relative">
+        <div
+          className={`flex-1 flex flex-col min-w-0 overflow-hidden relative ${
+            isLight ? 'bg-white text-[#0F172A]' : 'bg-black text-[#E8DDC7]'
+          }`}
+        >
           {/* TAB 1: CODE VIEWER */}
           {activeTab === 'code' && (
             <div className="flex-1 flex flex-col min-h-0">
               {activeFile ? (
                 <>
                   {/* File Sub Header */}
-                  <div className="px-3 py-2 bg-[#09090E] border-b border-[#14141C] flex items-center justify-between shrink-0">
+                  <div
+                    className={`px-3 py-2 border-b flex items-center justify-between shrink-0 ${
+                      isLight
+                        ? 'bg-[#F8F9FA] border-[#E2E4E9] text-[#0F172A]'
+                        : 'bg-[#09090E] border-[#14141C] text-[#E8DDC7]'
+                    }`}
+                  >
                     <div className="flex items-center gap-2 truncate min-w-0">
                       <Code2 className="w-3.5 h-3.5 text-[#C6A46A] shrink-0" />
-                      <span className="font-mono text-xs text-[#E8DDC7] truncate">
+                      <span className={`font-mono text-xs truncate ${isLight ? 'text-[#0F172A]' : 'text-[#E8DDC7]'}`}>
                         {activeFile}
                       </span>
                     </div>
@@ -1046,7 +1112,11 @@ Available commands:
                       <button
                         type="button"
                         onClick={() => setActiveTab('preview')}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono bg-[#C6A46A]/10 text-[#C6A46A] hover:bg-[#C6A46A]/20 border border-[#C6A46A]/30 transition-colors"
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
+                          isLight
+                            ? 'bg-[#C6A46A]/15 text-[#9A6F2E] hover:bg-[#C6A46A]/25 border border-[#C6A46A]/40'
+                            : 'bg-[#C6A46A]/10 text-[#C6A46A] hover:bg-[#C6A46A]/20 border border-[#C6A46A]/30'
+                        }`}
                         title="View Live Web Output"
                       >
                         <Globe className="w-3 h-3" />
@@ -1056,10 +1126,14 @@ Available commands:
                       <button
                         type="button"
                         onClick={handleCopy}
-                        className="flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono text-[#D5C2A5]/70 hover:text-white hover:bg-white/10 transition-colors shrink-0"
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-mono transition-colors shrink-0 ${
+                          isLight
+                            ? 'text-[#64748B] hover:text-[#0F172A] hover:bg-black/5'
+                            : 'text-[#D5C2A5]/70 hover:text-white hover:bg-white/10'
+                        }`}
                       >
                         {copied ? (
-                          <Check className="w-3 h-3 text-emerald-400" />
+                          <Check className="w-3 h-3 text-emerald-500" />
                         ) : (
                           <Copy className="w-3 h-3" />
                         )}
@@ -1069,19 +1143,23 @@ Available commands:
                   </div>
 
                   {/* Code Area with Line Numbers */}
-                  <div className="flex-1 overflow-auto p-3 font-mono text-xs text-emerald-200/90 leading-relaxed [scrollbar-width:thin]">
+                  <div
+                    className={`flex-1 overflow-auto p-3 font-mono text-xs leading-relaxed [scrollbar-width:thin] ${
+                      isLight ? 'text-[#0F172A] bg-white' : 'text-emerald-200/90 bg-[#06060A]'
+                    }`}
+                  >
                     {isLoadingContent ? (
-                      <div className="flex items-center justify-center h-full text-xs text-[#8C7A6B]">
+                      <div className={`flex items-center justify-center h-full text-xs ${isLight ? 'text-[#64748B]' : 'text-[#8C7A6B]'}`}>
                         Loading file contents...
                       </div>
                     ) : (
                       <pre className="selection:bg-[#C6A46A]/30">
                         {fileContent.split('\n').map((line, idx) => (
-                          <div key={idx} className="flex hover:bg-white/5">
-                            <span className="w-8 shrink-0 text-[#8C7A6B]/50 select-none text-right pr-3 font-mono text-[10px]">
+                          <div key={idx} className={`flex ${isLight ? 'hover:bg-black/5' : 'hover:bg-white/5'}`}>
+                            <span className={`w-8 shrink-0 select-none text-right pr-3 font-mono text-[10px] ${isLight ? 'text-[#94A3B8]' : 'text-[#8C7A6B]/50'}`}>
                               {idx + 1}
                             </span>
-                            <span className="whitespace-pre-wrap break-all text-[#E8DDC7]/90">
+                            <span className={`whitespace-pre-wrap break-all ${isLight ? 'text-[#1E293B]' : 'text-[#E8DDC7]/90'}`}>
                               {line || ' '}
                             </span>
                           </div>
@@ -1091,9 +1169,9 @@ Available commands:
                   </div>
                 </>
               ) : (
-                <div className="flex-1 flex flex-col items-center justify-center p-6 text-center text-xs text-[#8C7A6B]">
-                  <FileText className="w-10 h-10 text-[#C6A46A]/30 mb-2" />
-                  <p className="font-cinzel text-sm text-[#E8DDC7]">Workspace Ready</p>
+                <div className={`flex-1 flex flex-col items-center justify-center p-6 text-center text-xs ${isLight ? 'text-[#64748B]' : 'text-[#8C7A6B]'}`}>
+                  <FileText className={`w-10 h-10 mb-2 ${isLight ? 'text-[#C6A46A]/60' : 'text-[#C6A46A]/30'}`} />
+                  <p className={`font-cinzel text-sm ${isLight ? 'text-[#0F172A]' : 'text-[#E8DDC7]'}`}>Workspace Ready</p>
                   <p className="font-mono text-[11px] mt-1">
                     Select any file from the explorer to view code.
                   </p>
@@ -1104,26 +1182,44 @@ Available commands:
 
           {/* TAB 2: LIVE WEB PREVIEW (localhost:3000) */}
           {activeTab === 'preview' && (
-            <div className="flex-1 flex flex-col min-h-0 bg-[#0E0E14]">
+            <div className={`flex-1 flex flex-col min-h-0 ${isLight ? 'bg-[#F1F3F6]' : 'bg-[#0E0E14]'}`}>
               {/* Browser Address Bar & Responsive Controls */}
-              <div className="px-3 py-2 bg-[#09090E] border-b border-[#1A1A24] flex items-center justify-between shrink-0 gap-2">
+              <div
+                className={`px-3 py-2 border-b flex items-center justify-between shrink-0 gap-2 ${
+                  isLight
+                    ? 'bg-[#F8F9FA] border-[#E2E4E9] text-[#0F172A]'
+                    : 'bg-[#09090E] border-[#1A1A24] text-[#E8DDC7]'
+                }`}
+              >
                 <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                  <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-[#12121A] border border-[#222230] text-[11px] font-mono text-[#C6A46A] flex-1 max-w-sm truncate">
-                    <Globe className="w-3 h-3 text-[#C6A46A]/80 shrink-0" />
+                  <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse shrink-0" />
+                  <div
+                    className={`flex items-center gap-1.5 px-3 py-1 rounded-full border text-[11px] font-mono flex-1 max-w-sm truncate ${
+                      isLight
+                        ? 'bg-white border-[#CBD5E1] text-[#0F172A]'
+                        : 'bg-[#12121A] border-[#222230] text-[#C6A46A]'
+                    }`}
+                  >
+                    <Globe className="w-3 h-3 text-[#C6A46A] shrink-0" />
                     <span>http://localhost:3000</span>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-1 shrink-0">
                   {/* Viewport Width Switches */}
-                  <div className="flex items-center bg-[#12121C] border border-[#222230] rounded-lg p-0.5">
+                  <div
+                    className={`flex items-center border rounded-lg p-0.5 ${
+                      isLight ? 'bg-[#E2E4E9] border-[#CBD5E1]' : 'bg-[#12121C] border-[#222230]'
+                    }`}
+                  >
                     <button
                       type="button"
                       onClick={() => setPreviewViewport('desktop')}
                       className={`p-1 rounded ${
                         previewViewport === 'desktop'
                           ? 'bg-[#C6A46A] text-[#050508]'
+                          : isLight
+                          ? 'text-[#64748B] hover:text-[#0F172A]'
                           : 'text-[#E8DDC7]/60 hover:text-white'
                       }`}
                       title="Desktop View (100%)"
@@ -1136,6 +1232,8 @@ Available commands:
                       className={`p-1 rounded ${
                         previewViewport === 'tablet'
                           ? 'bg-[#C6A46A] text-[#050508]'
+                          : isLight
+                          ? 'text-[#64748B] hover:text-[#0F172A]'
                           : 'text-[#E8DDC7]/60 hover:text-white'
                       }`}
                       title="Tablet View (768px)"
@@ -1148,6 +1246,8 @@ Available commands:
                       className={`p-1 rounded ${
                         previewViewport === 'mobile'
                           ? 'bg-[#C6A46A] text-[#050508]'
+                          : isLight
+                          ? 'text-[#64748B] hover:text-[#0F172A]'
                           : 'text-[#E8DDC7]/60 hover:text-white'
                       }`}
                       title="Mobile View (375px)"
@@ -1160,7 +1260,11 @@ Available commands:
                   <button
                     type="button"
                     onClick={() => setPreviewKey((k) => k + 1)}
-                    className="p-1.5 rounded-lg text-[#E8DDC7]/70 hover:text-white hover:bg-white/5 transition-colors"
+                    className={`p-1.5 rounded-lg transition-colors ${
+                      isLight
+                        ? 'text-[#64748B] hover:text-[#0F172A] hover:bg-black/5'
+                        : 'text-[#E8DDC7]/70 hover:text-white hover:bg-white/5'
+                    }`}
                     title="Reload Live App"
                   >
                     <RotateCw className="w-3.5 h-3.5" />
@@ -1186,9 +1290,15 @@ Available commands:
               </div>
 
               {/* Responsive Container for iframe */}
-              <div className="flex-1 flex items-center justify-center p-2 bg-[#050508] overflow-hidden">
+              <div
+                className={`flex-1 flex items-center justify-center p-2 overflow-hidden ${
+                  isLight ? 'bg-[#F1F3F6]' : 'bg-[#050508]'
+                }`}
+              >
                 <div
-                  className={`h-full bg-white rounded-lg overflow-hidden shadow-2xl transition-all duration-300 border border-[#222230] ${
+                  className={`h-full rounded-lg overflow-hidden shadow-2xl transition-all duration-300 border ${
+                    isLight ? 'border-[#CBD5E1] bg-white' : 'border-[#222230] bg-[#09090E]'
+                  } ${
                     previewViewport === 'mobile'
                       ? 'w-[375px]'
                       : previewViewport === 'tablet'
@@ -1211,21 +1321,25 @@ Available commands:
           {/* TAB 3: ONLINE WORKSPACE TERMINAL */}
           {activeTab === 'terminal' && (
             <div
-              className={`flex-1 flex flex-col min-h-0 bg-[#06060A] font-mono text-[13px] leading-relaxed select-text ${
+              style={{ backgroundColor: '#0B0D14', color: '#F1F5F9' }}
+              className={`workspace-terminal-screen flex-1 flex flex-col min-h-0 font-mono text-[13px] leading-relaxed select-text ${
                 isTerminalMaximized
                   ? 'fixed inset-3 sm:inset-6 z-50 rounded-2xl shadow-2xl border border-[#C6A46A]/40 overflow-hidden'
                   : ''
               }`}
             >
               {/* Clean Workspace Terminal Header */}
-              <div className="h-10 px-3.5 bg-[#0B0B12] border-b border-[#1A1A26] flex items-center justify-between select-none shrink-0">
+              <div
+                style={{ backgroundColor: '#10121B', borderBottom: '1px solid #1E2235' }}
+                className="h-10 px-3.5 flex items-center justify-between select-none shrink-0"
+              >
                 {/* Left: Terminal Title & /workspace badge */}
                 <div className="flex items-center gap-2">
                   <TerminalIcon className="w-4 h-4 text-[#C6A46A]" />
-                  <span className="font-cinzel text-xs font-semibold tracking-wider text-[#E8DDC7] uppercase">
+                  <span className="font-cinzel text-xs font-semibold tracking-wider text-[#F1F5F9] uppercase">
                     Workspace Terminal
                   </span>
-                  <span className="px-2 py-0.5 rounded font-mono text-[10px] bg-[#141420] text-[#C6A46A] border border-[#C6A46A]/25">
+                  <span className="px-2 py-0.5 rounded font-mono text-[10px] bg-[#181B26] text-[#C6A46A] border border-[#C6A46A]/30">
                     {currentPathDisplay}
                   </span>
                 </div>
@@ -1235,7 +1349,7 @@ Available commands:
                   <button
                     type="button"
                     onClick={() => setTerminalLines([])}
-                    className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono text-[#8C7A6B] hover:text-[#E8DDC7] hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-mono text-[#94A3B8] hover:text-[#F1F5F9] hover:bg-white/5 transition-colors"
                     title="Clear Console Output"
                   >
                     <Trash2 className="w-3.5 h-3.5" />
@@ -1245,7 +1359,7 @@ Available commands:
                   <button
                     type="button"
                     onClick={() => setIsTerminalMaximized(!isTerminalMaximized)}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono text-[#8C7A6B] hover:text-[#C6A46A] hover:bg-white/5 transition-colors"
+                    className="flex items-center gap-1 px-2.5 py-1 rounded text-[11px] font-mono text-[#94A3B8] hover:text-[#C6A46A] hover:bg-white/5 transition-colors"
                     title={isTerminalMaximized ? 'Exit Full Window' : 'Full Window (Expand)'}
                   >
                     {isTerminalMaximized ? (
@@ -1264,7 +1378,7 @@ Available commands:
                       setIsTerminalMaximized(false);
                       setActiveTab('code');
                     }}
-                    className="p-1.5 rounded text-[#8C7A6B] hover:text-rose-400 hover:bg-rose-500/10 transition-colors ml-1"
+                    className="p-1.5 rounded text-[#94A3B8] hover:text-rose-400 hover:bg-rose-500/10 transition-colors ml-1"
                     title="Close Terminal (Return to Code)"
                   >
                     <X className="w-4 h-4" />
@@ -1275,7 +1389,8 @@ Available commands:
               {/* Terminal Screen & Body */}
               <div
                 onClick={() => terminalInputRef.current?.focus()}
-                className="flex-1 overflow-y-auto p-4 bg-[#06060A] font-mono text-[13px] leading-relaxed text-[#F0F0F5] [scrollbar-width:thin] cursor-text"
+                style={{ backgroundColor: '#0B0D14', color: '#F1F5F9' }}
+                className="workspace-terminal-screen flex-1 overflow-y-auto p-4 font-mono text-[13px] leading-relaxed [scrollbar-width:thin] cursor-text"
               >
                 {terminalLines.map((entry) => (
                   <div key={entry.id} className="mb-1.5">

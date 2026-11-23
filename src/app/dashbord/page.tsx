@@ -266,6 +266,7 @@ export default function DashboardPage() {
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"models" | "appearance" | "system">("models");
   const [theme, setTheme] = useState<"dark" | "light">("dark");
+  const isLight = theme === "light";
   const [isExecuting, setIsExecuting] = useState(false);
 
   // Sync theme with localStorage and document classes
@@ -2162,7 +2163,13 @@ export default function DashboardPage() {
             )}
 
             {/* Input Box Shell */}
-            <div className="relative flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-2xl bg-[#0A0A0F] border border-[#1A1A24] focus-within:border-[#C6A46A]/60 focus-within:ring-1 focus-within:ring-[#C6A46A]/20 transition-all duration-200 shadow-2xl">
+            <div
+              className={`relative flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-2xl transition-all duration-200 ${
+                isLight
+                  ? "bg-white border border-[#CBD5E1] shadow-sm focus-within:border-[#9A6F2E] focus-within:ring-1 focus-within:ring-[#9A6F2E]/30"
+                  : "bg-[#0A0A0F] border border-[#1A1A24] shadow-2xl focus-within:border-[#C6A46A]/60 focus-within:ring-1 focus-within:ring-[#C6A46A]/20"
+              }`}
+            >
               {/* + (Upload Attachments) Button */}
               <input
                 ref={fileInputRef}
@@ -2174,7 +2181,11 @@ export default function DashboardPage() {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="w-8 h-8 rounded-xl flex items-center justify-center text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#14141C] transition-colors flex-shrink-0"
+                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
+                  isLight
+                    ? "text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
+                    : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#14141C]"
+                }`}
                 title="Upload Attachments (+)"
                 aria-label="Upload Attachments"
               >
@@ -2188,6 +2199,8 @@ export default function DashboardPage() {
                 className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-cinzel tracking-wider uppercase transition-all duration-200 border shrink-0 ${
                   agentMode
                     ? "bg-[#C6A46A]/20 border-[#C6A46A] text-[#C6A46A] shadow-[0_0_12px_rgba(198,164,106,0.3)] font-semibold"
+                    : isLight
+                    ? "bg-[#F8F9FA] border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A] hover:border-[#94A3B8]"
                     : "bg-[#111118] border-[#22222E] text-[#E8DDC7]/50 hover:text-[#C6A46A] hover:border-[#C6A46A]/40"
                 }`}
                 title={agentMode ? "Agent Mode Active: Cursor / Antigravity Autonomous Code Editor" : "Switch to Agent Mode (Autonomous Code Editor)"}
@@ -2209,7 +2222,11 @@ export default function DashboardPage() {
                     ? "Instruct Harpy Agent (e.g. 'Build a portfolio website with Next.js')..."
                     : `Instruct Harpy AI (${selectedModelName})...`
                 }
-                className="flex-1 max-h-40 py-1 px-1 bg-transparent text-[#E8DDC7] placeholder-[#E8DDC7]/35 text-sm focus:outline-none resize-none font-inter font-light leading-relaxed no-scrollbar"
+                className={`flex-1 max-h-40 py-1 px-1 bg-transparent text-sm focus:outline-none resize-none font-inter font-light leading-relaxed no-scrollbar ${
+                  isLight
+                    ? "text-[#0F172A] placeholder-[#94A3B8]"
+                    : "text-[#E8DDC7] placeholder-[#E8DDC7]/35"
+                }`}
                 style={{ overflowY: "hidden", resize: "none", scrollbarWidth: "none", msOverflowStyle: "none" }}
               />
 
@@ -2220,6 +2237,8 @@ export default function DashboardPage() {
                 className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
                   isRecording
                     ? "bg-red-500/25 text-red-400 border border-red-500/50 animate-pulse shadow-[0_0_14px_rgba(239,68,68,0.5)]"
+                    : isLight
+                    ? "text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
                     : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#14141C]"
                 }`}
                 title={isRecording ? "Listening... click to stop (or click Done)" : "Voice Input (Click to speak into microphone)"}
@@ -2326,6 +2345,7 @@ export default function DashboardPage() {
             userDisplayName={authUser?.fullName || authUser?.email?.split('@')[0] || 'chinmaybhatt'}
             isOpen={isWorkspacePanelOpen}
             onClose={() => setIsWorkspacePanelOpen(false)}
+            theme={theme}
             selectedFilePath={selectedWorkspaceFile}
             onSelectFile={(path) => setSelectedWorkspaceFile(path)}
             filesChanged={

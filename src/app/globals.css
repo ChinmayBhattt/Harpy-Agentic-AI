@@ -109,6 +109,19 @@ input {
   animation: flowDash 1.2s linear infinite;
 }
 
+/* Developer Console / Terminal Sandbox Protection */
+.workspace-terminal-screen,
+.workspace-terminal-screen *,
+[data-terminal="true"],
+[data-terminal="true"] * {
+  color-scheme: dark !important;
+}
+
+.workspace-terminal-screen {
+  background-color: #0B0D14 !important;
+  color: #F1F5F9 !important;
+}
+
 /* ──────────────────────────────────────────────────────────
    WHITE / LIGHT THEME DESIGN SYSTEM (Harmonious & High Contrast)
    Activated via html.light, html.theme-light, [data-theme="light"]
