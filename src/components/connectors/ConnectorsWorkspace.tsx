@@ -2,7 +2,6 @@
 
 import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
 import {
   X,
   Search,
@@ -62,12 +61,10 @@ export default function ConnectorsWorkspace({
   onRunWorkflowFromChat,
 }: ConnectorsWorkspaceProps) {
   // ──────────────────────────────────────────────────────────
-  // Canvas State: Pan & Zoom (Centered dynamically)
+  // Canvas State: Pan & Zoom
   // ──────────────────────────────────────────────────────────
   const [pan, setPan] = useState({ x: 500, y: 350 });
   const [zoom, setZoom] = useState(0.85);
-  const [isPanning, setIsPanning] = useState(false);
-  const [startPan, setStartPan] = useState({ x: 0, y: 0 });
   const [activeTool, setActiveTool] = useState<'select' | 'hand'>('select');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
 
@@ -81,56 +78,43 @@ export default function ConnectorsWorkspace({
 
   // ──────────────────────────────────────────────────────────
   // Workflows & Nodes State
-  // Symmetrically spaced with Harpy Core at (0, 0)
-  // Left side (x = -400): Triggers
-  // Right side (x = +400): Actions
+  // Clean circular logo nodes placed symmetrically around Harpy Core (0, 0)
+  // Left: Inputs/Triggers (x = -240)
+  // Center: Harpy AI Core (0, 0)
+  // Right: Outputs/Actions (x = +240)
   // ──────────────────────────────────────────────────────────
   const [workflows, setWorkflows] = useState<Workflow[]>([
     {
       id: 'wf-1',
-      name: 'Gmail → Notion',
-      description: 'Summarize incoming client emails with Harpy AI and update Notion board',
+      name: 'Gmail → Notion Sync',
+      description: 'Summarize incoming emails with Harpy AI and update Notion board',
       isConnectedToCore: true,
       status: 'active',
       color: '#EA4335',
       createdAt: '2026-11-23',
-      lastRun: '10 mins ago',
     },
     {
       id: 'wf-2',
-      name: 'GitHub → Slack',
-      description: 'Review new GitHub issues, auto-draft code fixes, and broadcast to Slack',
+      name: 'GitHub → Slack Broadcast',
+      description: 'Monitor GitHub PRs and broadcast updates to Slack channels',
       isConnectedToCore: true,
       status: 'active',
       color: '#5865F2',
       createdAt: '2026-11-23',
-      lastRun: '1 hour ago',
-    },
-    {
-      id: 'wf-3',
-      name: 'Chrome → WhatsApp',
-      description: 'Extract web page updates and notify team over WhatsApp',
-      isConnectedToCore: false, // Disconnected from Core = Paused
-      status: 'paused',
-      color: '#25D366',
-      createdAt: '2026-11-23',
     },
   ]);
 
-  const [activeWorkflowId, setActiveWorkflowId] = useState<string>('all');
-
-  // Initial Nodes on Canvas: Generously spaced, no overlap
+  // Initial Clean Application Logo Nodes
   const [nodes, setNodes] = useState<WorkflowNode[]>([
-    // Workflow 1: Gmail -> Harpy Core -> Notion
     {
       id: 'node-gmail-1',
       workflowId: 'wf-1',
       type: 'trigger',
       appId: 'gmail',
-      title: 'Gmail Inbound Monitor',
+      title: 'Gmail Monitor',
       actionOrTrigger: 'New client email received',
-      x: -400,
-      y: -140,
+      x: -240,
+      y: -100,
       status: 'active',
       config: { filter: 'is:unread label:clients', interval: 'Real-time (Push)' },
       isConnectedToCore: true,
@@ -140,25 +124,23 @@ export default function ConnectorsWorkspace({
       workflowId: 'wf-1',
       type: 'action',
       appId: 'notion',
-      title: 'Notion Database Dispatcher',
+      title: 'Notion Database',
       actionOrTrigger: 'Create tasks page & summary',
-      x: 400,
-      y: -140,
+      x: 240,
+      y: -100,
       status: 'active',
       config: { database: 'Harpy AI Action Tasks' },
       isConnectedToCore: true,
     },
-
-    // Workflow 2: GitHub -> Harpy Core -> Slack
     {
       id: 'node-gh-1',
       workflowId: 'wf-2',
       type: 'trigger',
       appId: 'github',
-      title: 'GitHub Issues Watcher',
+      title: 'GitHub Watcher',
       actionOrTrigger: 'New Issue or PR opened',
-      x: -400,
-      y: 140,
+      x: -240,
+      y: 100,
       status: 'active',
       config: { repo: 'ChinmayBhattt/Harpy-Agentic-AI' },
       isConnectedToCore: true,
@@ -168,65 +150,42 @@ export default function ConnectorsWorkspace({
       workflowId: 'wf-2',
       type: 'action',
       appId: 'slack',
-      title: 'Slack Dev Broadcast',
+      title: 'Slack Alerts',
       actionOrTrigger: 'Send channel alert message',
-      x: 400,
-      y: 140,
+      x: 240,
+      y: 100,
       status: 'active',
       config: { channel: '#harpy-announcements' },
       isConnectedToCore: true,
     },
-
-    // Workflow 3: Chrome -> WhatsApp (Paused - Disconnected from Core)
     {
-      id: 'node-chrome-1',
-      workflowId: 'wf-3',
-      type: 'trigger',
-      appId: 'chrome-agent',
-      title: 'Chrome Web Scraper',
-      actionOrTrigger: 'Live URL monitor triggered',
-      x: -400,
-      y: 380,
-      status: 'paused',
-      config: { url: 'https://news.ycombinator.com' },
-      isConnectedToCore: false,
-    },
-    {
-      id: 'node-wa-1',
-      workflowId: 'wf-3',
+      id: 'node-discord-1',
+      workflowId: 'wf-2',
       type: 'action',
-      appId: 'whatsapp',
-      title: 'WhatsApp Alert Dispatch',
-      actionOrTrigger: 'Send direct alert message',
-      x: 400,
-      y: 380,
-      status: 'paused',
-      config: { recipient: '+91 98765 43210' },
-      isConnectedToCore: false,
+      appId: 'discord',
+      title: 'Discord Bot',
+      actionOrTrigger: 'Post update in dev channel',
+      x: 240,
+      y: 220,
+      status: 'active',
+      config: { channel: '#dev-feed' },
+      isConnectedToCore: true,
     },
   ]);
 
-  // Connections (Edges)
-  // Active workflows wire through Harpy Core (Node id: 'harpy-core')
+  // Connections (Edges) between App Logo nodes and Central Harpy Core
   const [connections, setConnections] = useState<WorkflowConnection[]>([
-    // Workflow 1 (Active)
-    { id: 'conn-wf1-in', workflowId: 'wf-1', fromNodeId: 'node-gmail-1', fromPort: 'output', toNodeId: 'harpy-core', toPort: 'input', isActive: true },
-    { id: 'conn-wf1-out', workflowId: 'wf-1', fromNodeId: 'harpy-core', fromPort: 'output', toNodeId: 'node-notion-1', toPort: 'input', isActive: true },
-
-    // Workflow 2 (Active)
-    { id: 'conn-wf2-in', workflowId: 'wf-2', fromNodeId: 'node-gh-1', fromPort: 'output', toNodeId: 'harpy-core', toPort: 'input', isActive: true },
-    { id: 'conn-wf2-out', workflowId: 'wf-2', fromNodeId: 'harpy-core', fromPort: 'output', toNodeId: 'node-slack-1', toPort: 'input', isActive: true },
-
-    // Workflow 3 (Paused - Direct link without Harpy Core)
-    { id: 'conn-wf3-direct', workflowId: 'wf-3', fromNodeId: 'node-chrome-1', fromPort: 'output', toNodeId: 'node-wa-1', toPort: 'input', isActive: false },
+    { id: 'conn-gmail-core', workflowId: 'wf-1', fromNodeId: 'node-gmail-1', fromPort: 'output', toNodeId: 'harpy-core', toPort: 'input', isActive: true },
+    { id: 'conn-core-notion', workflowId: 'wf-1', fromNodeId: 'harpy-core', fromPort: 'output', toNodeId: 'node-notion-1', toPort: 'input', isActive: true },
+    { id: 'conn-gh-core', workflowId: 'wf-2', fromNodeId: 'node-gh-1', fromPort: 'output', toNodeId: 'harpy-core', toPort: 'input', isActive: true },
+    { id: 'conn-core-slack', workflowId: 'wf-2', fromNodeId: 'harpy-core', fromPort: 'output', toNodeId: 'node-slack-1', toPort: 'input', isActive: true },
+    { id: 'conn-core-discord', workflowId: 'wf-2', fromNodeId: 'harpy-core', fromPort: 'output', toNodeId: 'node-discord-1', toPort: 'input', isActive: true },
   ]);
 
   // ──────────────────────────────────────────────────────────
   // Interactive Selection, Dragging & Connecting
   // ──────────────────────────────────────────────────────────
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  const [draggingNodeId, setDraggingNodeId] = useState<string | null>(null);
-  const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [connectingSource, setConnectingSource] = useState<{ nodeId: string; port: string } | null>(null);
   const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
 
@@ -260,7 +219,7 @@ export default function ConnectorsWorkspace({
     if (isOpen) {
       const timer = setTimeout(() => {
         centerCanvas();
-      }, 60);
+      }, 50);
       return () => clearTimeout(timer);
     }
   }, [isOpen, centerCanvas]);
@@ -277,19 +236,7 @@ export default function ConnectorsWorkspace({
     });
   }, [apps, selectedCategory, searchQuery]);
 
-  // Visible Nodes based on Workflow Filter
-  const visibleNodes = useMemo(() => {
-    if (activeWorkflowId === 'all') return nodes;
-    return nodes.filter((n) => n.workflowId === activeWorkflowId);
-  }, [nodes, activeWorkflowId]);
-
-  // Visible Connections based on Workflow Filter
-  const visibleConnections = useMemo(() => {
-    if (activeWorkflowId === 'all') return connections;
-    return connections.filter((c) => c.workflowId === activeWorkflowId);
-  }, [connections, activeWorkflowId]);
-
-  // Core Connection Check: Does workflow have any edge to/from 'harpy-core'?
+  // Core Connection Check
   const isWorkflowConnectedToCore = useCallback(
     (wfId: string) => {
       return connections.some(
@@ -301,23 +248,13 @@ export default function ConnectorsWorkspace({
     [connections]
   );
 
-  // Sync Workflow Active / Paused status based on Core Connection Rule
+  // Sync Node Status
   useEffect(() => {
-    setWorkflows((prev) =>
-      prev.map((wf) => {
-        const isConnected = isWorkflowConnectedToCore(wf.id);
-        const status = isConnected ? 'active' : 'paused';
-        return {
-          ...wf,
-          isConnectedToCore: isConnected,
-          status,
-        };
-      })
-    );
-
     setNodes((prev) =>
       prev.map((n) => {
-        const isConnected = isWorkflowConnectedToCore(n.workflowId);
+        const isConnected = connections.some(
+          (c) => c.fromNodeId === n.id || c.toNodeId === n.id
+        );
         return {
           ...n,
           isConnectedToCore: isConnected,
@@ -325,82 +262,92 @@ export default function ConnectorsWorkspace({
         };
       })
     );
-
-    setConnections((prev) =>
-      prev.map((c) => {
-        const isConnected = isWorkflowConnectedToCore(c.workflowId);
-        return {
-          ...c,
-          isActive: isConnected,
-        };
-      })
-    );
-  }, [connections, isWorkflowConnectedToCore]);
+  }, [connections]);
 
   // ──────────────────────────────────────────────────────────
-  // Canvas Mouse & Gesture Handlers (Pan & Zoom)
+  // GLITCH-FREE SMOOTH WINDOW-LEVEL DRAGGING (Figma / React Flow Style)
   // ──────────────────────────────────────────────────────────
-  const handleCanvasMouseDown = (e: React.MouseEvent) => {
-    // If clicking on a node or button, let that handler take over
-    if (
-      (e.target as HTMLElement).closest('.pointer-events-auto') &&
-      e.target !== canvasRef.current &&
-      (e.target as HTMLElement).tagName !== 'svg'
-    ) {
-      return;
-    }
+  const handleNodeMouseDown = (e: React.MouseEvent, node: WorkflowNode) => {
+    // Only left click
+    if (e.button !== 0) return;
+    e.stopPropagation();
 
-    setSelectedNodeId(null);
+    // Selecting node opens the right-side inspector
+    setSelectedNodeId(node.id);
 
-    // Left click on background, or middle click, or alt click => Pan canvas smoothly
-    if (e.button === 0 || e.button === 1 || e.buttons === 4 || e.altKey || activeTool === 'hand') {
-      setIsPanning(true);
-      setStartPan({ x: e.clientX - pan.x, y: e.clientY - pan.y });
-    }
-  };
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startNodeX = node.x;
+    const startNodeY = node.y;
+    let hasMoved = false;
 
-  const handleCanvasMouseMove = (e: React.MouseEvent) => {
-    if (isPanning) {
-      setPan({
-        x: e.clientX - startPan.x,
-        y: e.clientY - startPan.y,
-      });
-      return;
-    }
-
-    // Node Dragging
-    if (draggingNodeId) {
-      const canvasRect = canvasRef.current?.getBoundingClientRect();
-      if (!canvasRect) return;
-
-      const rawX = (e.clientX - canvasRect.left - pan.x) / zoom;
-      const rawY = (e.clientY - canvasRect.top - pan.y) / zoom;
-
-      setNodes((prev) =>
-        prev.map((n) =>
-          n.id === draggingNodeId
-            ? { ...n, x: Math.round(rawX - dragOffset.x), y: Math.round(rawY - dragOffset.y) }
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      const dx = (moveEvent.clientX - startClientX) / zoom;
+      const dy = (moveEvent.clientY - startClientY) / zoom;
+      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) {
+        hasMoved = true;
+      }
+      setNodes((currentNodes) =>
+        currentNodes.map((n) =>
+          n.id === node.id
+            ? { ...n, x: Math.round(startNodeX + dx), y: Math.round(startNodeY + dy) }
             : n
         )
       );
-    }
+    };
 
-    // Dragging connection wire preview
-    if (connectingSource) {
-      const canvasRect = canvasRef.current?.getBoundingClientRect();
-      if (canvasRect) {
-        setMousePos({
-          x: (e.clientX - canvasRect.left - pan.x) / zoom,
-          y: (e.clientY - canvasRect.top - pan.y) / zoom,
-        });
-      }
-    }
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
   };
 
-  const handleCanvasMouseUp = () => {
-    setIsPanning(false);
-    setDraggingNodeId(null);
-    setConnectingSource(null);
+  // Canvas Panning (Smooth window listener)
+  const handleCanvasMouseDown = (e: React.MouseEvent) => {
+    // If clicking a port or element, return
+    if ((e.target as HTMLElement).closest('.pointer-events-auto') && e.target !== canvasRef.current) {
+      return;
+    }
+
+    // Clicking empty canvas deselects and closes right sidebar
+    setSelectedNodeId(null);
+    if (connectingSource) {
+      setConnectingSource(null);
+    }
+
+    const startClientX = e.clientX;
+    const startClientY = e.clientY;
+    const startPanX = pan.x;
+    const startPanY = pan.y;
+
+    const onMouseMove = (moveEvent: MouseEvent) => {
+      setPan({
+        x: Math.round(startPanX + (moveEvent.clientX - startClientX)),
+        y: Math.round(startPanY + (moveEvent.clientY - startClientY)),
+      });
+    };
+
+    const onMouseUp = () => {
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
+
+  // Connecting wire preview mouse tracking
+  const handleCanvasMouseMove = (e: React.MouseEvent) => {
+    if (connectingSource && canvasRef.current) {
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      setMousePos({
+        x: (e.clientX - canvasRect.left - pan.x) / zoom,
+        y: (e.clientY - canvasRect.top - pan.y) / zoom,
+      });
+    }
   };
 
   const handleWheel = (e: React.WheelEvent) => {
@@ -410,13 +357,50 @@ export default function ConnectorsWorkspace({
   };
 
   // ──────────────────────────────────────────────────────────
+  // Port Connection Click Handlers (Smooth & Magnetic)
+  // ──────────────────────────────────────────────────────────
+  const handlePortClick = (e: React.MouseEvent, targetNodeId: string, portType: 'input' | 'output') => {
+    e.stopPropagation();
+
+    if (!connectingSource) {
+      // Start connecting wire
+      setConnectingSource({ nodeId: targetNodeId, port: portType });
+    } else {
+      // Complete connection
+      if (connectingSource.nodeId !== targetNodeId) {
+        const fromId = connectingSource.port === 'output' ? connectingSource.nodeId : targetNodeId;
+        const toId = connectingSource.port === 'output' ? targetNodeId : connectingSource.nodeId;
+
+        // Check if connection already exists
+        const exists = connections.some(
+          (c) => c.fromNodeId === fromId && c.toNodeId === toId
+        );
+
+        if (!exists) {
+          setConnections((prev) => [
+            ...prev,
+            {
+              id: `conn-${fromId}-${toId}-${Date.now()}`,
+              workflowId: 'wf-active',
+              fromNodeId: fromId,
+              fromPort: 'output',
+              toNodeId: toId,
+              toPort: 'input',
+              isActive: true,
+            },
+          ]);
+        }
+      }
+      setConnectingSource(null);
+    }
+  };
+
+  // ──────────────────────────────────────────────────────────
   // Node Operations
   // ──────────────────────────────────────────────────────────
   const handleAddNodeFromApp = (app: AppDefinition, dropPos?: { x: number; y: number }) => {
     const newId = `node-${app.id}-${Date.now().toString().slice(-4)}`;
-    const targetWf = activeWorkflowId === 'all' ? workflows[0]?.id || 'wf-1' : activeWorkflowId;
 
-    // If dropPos provided use it; otherwise place near viewport center with jitter
     const canvasRect = canvasRef.current?.getBoundingClientRect();
     const viewCenterX = canvasRect ? (canvasRect.width / 2 - pan.x) / zoom : 0;
     const viewCenterY = canvasRect ? (canvasRect.height / 2 - pan.y) / zoom : 0;
@@ -427,10 +411,10 @@ export default function ConnectorsWorkspace({
     const isTrigger = app.category === 'triggers' || app.id === 'gmail' || app.id === 'github';
     const newNode: WorkflowNode = {
       id: newId,
-      workflowId: targetWf,
+      workflowId: 'wf-1',
       type: isTrigger ? 'trigger' : app.category === 'ai' ? 'ai-processor' : 'action',
       appId: app.id,
-      title: `${app.name} Node`,
+      title: `${app.name}`,
       actionOrTrigger: app.triggers[0] || app.actions[0] || 'Execute action',
       x: posX,
       y: posY,
@@ -441,12 +425,12 @@ export default function ConnectorsWorkspace({
 
     setNodes((prev) => [...prev, newNode]);
 
-    // Automatically connect new node to central core for instant readiness
+    // Automatically connect new node to central Harpy Core
     setConnections((prev) => [
       ...prev,
       {
         id: `conn-${newId}-core-${Date.now()}`,
-        workflowId: targetWf,
+        workflowId: 'wf-1',
         fromNodeId: isTrigger ? newId : 'harpy-core',
         fromPort: 'output',
         toNodeId: isTrigger ? 'harpy-core' : newId,
@@ -469,51 +453,6 @@ export default function ConnectorsWorkspace({
     setNodes((prev) => prev.map((n) => (n.id === updated.id ? updated : n)));
   };
 
-  // Toggle Connection between Workflow and Harpy Core
-  const toggleWorkflowCoreConnection = (wfId: string) => {
-    const isConnected = isWorkflowConnectedToCore(wfId);
-
-    if (isConnected) {
-      // Disconnect all edges between this workflow and Harpy Core
-      setConnections((prev) =>
-        prev.filter(
-          (c) => !(c.workflowId === wfId && (c.fromNodeId === 'harpy-core' || c.toNodeId === 'harpy-core'))
-        )
-      );
-    } else {
-      // Connect first trigger node of workflow to Harpy Core
-      const wfNodes = nodes.filter((n) => n.workflowId === wfId);
-      const trig = wfNodes.find((n) => n.type === 'trigger') || wfNodes[0];
-      const act = wfNodes.find((n) => n.type === 'action') || wfNodes[wfNodes.length - 1];
-
-      const newConns: WorkflowConnection[] = [];
-      if (trig) {
-        newConns.push({
-          id: `conn-${wfId}-core-in-${Date.now()}`,
-          workflowId: wfId,
-          fromNodeId: trig.id,
-          fromPort: 'output',
-          toNodeId: 'harpy-core',
-          toPort: 'input',
-          isActive: true,
-        });
-      }
-      if (act && act.id !== trig?.id) {
-        newConns.push({
-          id: `conn-${wfId}-core-out-${Date.now()}`,
-          workflowId: wfId,
-          fromNodeId: 'harpy-core',
-          fromPort: 'output',
-          toNodeId: act.id,
-          toPort: 'input',
-          isActive: true,
-        });
-      }
-
-      setConnections((prev) => [...prev, ...newConns]);
-    }
-  };
-
   // ──────────────────────────────────────────────────────────
   // AI-Powered Natural Language Automation Generator
   // ──────────────────────────────────────────────────────────
@@ -524,10 +463,8 @@ export default function ConnectorsWorkspace({
     setIsGeneratingAi(true);
 
     setTimeout(() => {
-      const newWfId = `wf-ai-${Date.now().toString().slice(-4)}`;
       const lower = text.toLowerCase();
 
-      let title = 'AI Generated Automation';
       let sourceAppId = 'gmail';
       let destAppId = 'notion';
 
@@ -541,37 +478,21 @@ export default function ConnectorsWorkspace({
       else if (lower.includes('whatsapp')) destAppId = 'whatsapp';
       else if (lower.includes('discord')) destAppId = 'discord';
 
-      if (sourceAppId === 'gmail' && destAppId === 'notion') title = 'Gmail → Notion Sync';
-      else if (sourceAppId === 'github' && destAppId === 'slack') title = 'GitHub → Slack Alert';
-      else title = `${sourceAppId.toUpperCase()} → ${destAppId.toUpperCase()}`;
-
-      const newWorkflow: Workflow = {
-        id: newWfId,
-        name: title,
-        description: text,
-        isConnectedToCore: true,
-        status: 'active',
-        color: '#C6A46A',
-        createdAt: new Date().toISOString().split('T')[0],
-        lastRun: 'Just now',
-      };
-
-      // Place newly generated nodes symmetrically around Harpy Core
       const existingYs = nodes.map((n) => n.y);
-      const baseY = existingYs.length > 0 ? Math.max(...existingYs) + 220 : 0;
+      const baseY = existingYs.length > 0 ? Math.max(...existingYs) + 120 : 0;
 
-      const triggerNodeId = `node-ai-trig-${Date.now()}`;
-      const actionNodeId = `node-ai-act-${Date.now()}`;
+      const triggerNodeId = `node-${sourceAppId}-${Date.now()}`;
+      const actionNodeId = `node-${destAppId}-${Date.now()}`;
 
       const newNodes: WorkflowNode[] = [
         {
           id: triggerNodeId,
-          workflowId: newWfId,
+          workflowId: 'wf-1',
           type: 'trigger',
           appId: sourceAppId,
-          title: `${sourceAppId.toUpperCase()} Monitor`,
+          title: sourceAppId.toUpperCase(),
           actionOrTrigger: 'Inbound event detected',
-          x: -400,
+          x: -240,
           y: baseY,
           status: 'active',
           config: { prompt: text },
@@ -579,12 +500,12 @@ export default function ConnectorsWorkspace({
         },
         {
           id: actionNodeId,
-          workflowId: newWfId,
+          workflowId: 'wf-1',
           type: 'action',
           appId: destAppId,
-          title: `${destAppId.toUpperCase()} Dispatcher`,
+          title: destAppId.toUpperCase(),
           actionOrTrigger: 'Execute automated payload',
-          x: 400,
+          x: 240,
           y: baseY,
           status: 'active',
           config: {},
@@ -593,39 +514,30 @@ export default function ConnectorsWorkspace({
       ];
 
       const newConns: WorkflowConnection[] = [
-        { id: `c-${Date.now()}-1`, workflowId: newWfId, fromNodeId: triggerNodeId, fromPort: 'output', toNodeId: 'harpy-core', toPort: 'input', isActive: true },
-        { id: `c-${Date.now()}-2`, workflowId: newWfId, fromNodeId: 'harpy-core', fromPort: 'output', toNodeId: actionNodeId, toPort: 'input', isActive: true },
+        { id: `c-${Date.now()}-1`, workflowId: 'wf-1', fromNodeId: triggerNodeId, fromPort: 'output', toNodeId: 'harpy-core', toPort: 'input', isActive: true },
+        { id: `c-${Date.now()}-2`, workflowId: 'wf-1', fromNodeId: 'harpy-core', fromPort: 'output', toNodeId: actionNodeId, toPort: 'input', isActive: true },
       ];
 
-      setWorkflows((prev) => [newWorkflow, ...prev]);
       setNodes((prev) => [...prev, ...newNodes]);
       setConnections((prev) => [...prev, ...newConns]);
-      setActiveWorkflowId(newWfId);
 
       setIsGeneratingAi(false);
       setAiPrompt('');
-      setAiSuccessToast(`Generated & Linked: ${title} connected to Harpy Core!`);
+      setAiSuccessToast(`Connected: ${sourceAppId.toUpperCase()} → Harpy Core → ${destAppId.toUpperCase()}`);
 
-      setTimeout(() => setAiSuccessToast(null), 4000);
-    }, 900);
+      setTimeout(() => setAiSuccessToast(null), 3500);
+    }, 800);
   };
 
   // ──────────────────────────────────────────────────────────
   // Execution Simulator (Live traces)
   // ──────────────────────────────────────────────────────────
   const handleExecuteAllActive = () => {
-    const activeWfs = workflows.filter((w) => w.isConnectedToCore);
-    if (activeWfs.length === 0) {
-      alert('No active workflows connected to Harpy Core. Connect a workflow to execute.');
-      return;
-    }
-
     setIsExecutingGlobal(true);
-    const primaryWf = activeWfs[0];
 
     const trace: ExecutionTrace = {
-      workflowId: primaryWf.id,
-      workflowName: primaryWf.name,
+      workflowId: 'wf-active',
+      workflowName: 'Active Ecosystem Orchestration',
       status: 'running',
       startedAt: new Date().toLocaleTimeString(),
       durationMs: 0,
@@ -720,20 +632,57 @@ export default function ConnectorsWorkspace({
     }, 1500);
   };
 
-  // Node Inspector Selection
-  const selectedNodeObject = nodes.find((n) => n.id === selectedNodeId) || null;
-  const selectedApp = selectedNodeObject ? apps.find((a) => a.id === selectedNodeObject.appId) || null : null;
+  // Node Inspector Selection (Handles both app nodes and central Harpy Core)
+  const harpyCoreMockNode: WorkflowNode = {
+    id: 'harpy-core',
+    workflowId: 'all',
+    type: 'harpy-core',
+    appId: 'harpy-core',
+    title: 'Harpy AI System',
+    actionOrTrigger: 'Autonomous Kernel Orchestrator',
+    x: 0,
+    y: 0,
+    status: 'active',
+    config: { model: 'GPT-OSS 120B', mode: 'Autonomous Multi-Agent' },
+    isConnectedToCore: true,
+  };
+
+  const harpyCoreMockApp: AppDefinition = {
+    id: 'harpy-core',
+    name: 'Harpy AI Core',
+    category: 'ai',
+    description: 'Central autonomous orchestrator connecting all applications and tools.',
+    iconName: 'Bot',
+    color: '#C6A46A',
+    isConnected: true,
+    accountName: 'Harpy Kernel v2.6',
+    authType: 'session',
+    triggers: ['Continuous Agent Execution', 'Inbound webhook stream'],
+    actions: ['Execute multi-app orchestration', 'Synthesize & route payloads'],
+  };
+
+  const selectedNodeObject =
+    selectedNodeId === 'harpy-core'
+      ? harpyCoreMockNode
+      : nodes.find((n) => n.id === selectedNodeId) || null;
+
+  const selectedApp =
+    selectedNodeId === 'harpy-core'
+      ? harpyCoreMockApp
+      : selectedNodeObject
+      ? apps.find((a) => a.id === selectedNodeObject.appId) || null
+      : null;
 
   if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-[#050508] text-[#E8DDC7] font-inter select-none overflow-hidden animate-in fade-in duration-200">
       {/* ──────────────────────────────────────────────────────────
-          1. TOP NAVIGATION BAR (FIGMA-STYLE HEADER)
+          1. TOP NAVIGATION BAR (CLEAN & UNCLUTTERED)
          ────────────────────────────────────────────────────────── */}
       <header className="h-14 border-b border-[#1A1A28] bg-[#07070C]/95 backdrop-blur-xl px-4 flex items-center justify-between z-30 shrink-0">
-        {/* Left: Branding & Workflow Filter Tabs */}
-        <div className="flex items-center gap-3 min-w-0">
+        {/* Left: Branding & Sidebar Toggle */}
+        <div className="flex items-center gap-3">
           <div className="flex items-center gap-2 pr-3 border-r border-[#1E1E2C] shrink-0">
             <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-[#C6A46A] to-amber-200 flex items-center justify-center p-1.5 shadow-[0_0_15px_rgba(198,164,106,0.3)]">
               <Layers className="w-4 h-4 text-[#050508]" />
@@ -761,47 +710,16 @@ export default function ConnectorsWorkspace({
           >
             {isSidebarOpen ? <PanelLeftClose className="w-3.5 h-3.5" /> : <PanelLeftOpen className="w-3.5 h-3.5" />}
           </button>
-
-          {/* Workflow Selector Tabs */}
-          <div className="flex items-center gap-1.5 overflow-x-auto [scrollbar-width:none]">
-            <button
-              onClick={() => setActiveWorkflowId('all')}
-              className={`px-3 py-1 rounded-lg text-xs font-cinzel transition-all shrink-0 ${
-                activeWorkflowId === 'all'
-                  ? 'bg-[#C6A46A]/20 text-[#C6A46A] border border-[#C6A46A]/40 font-semibold shadow-sm'
-                  : 'text-[#8C7A6B] hover:text-[#E8DDC7]'
-              }`}
-            >
-              All Workflows ({workflows.length})
-            </button>
-            {workflows.map((wf) => (
-              <button
-                key={wf.id}
-                onClick={() => setActiveWorkflowId(wf.id)}
-                className={`px-2.5 py-1 rounded-lg text-xs font-mono transition-all flex items-center gap-1.5 shrink-0 ${
-                  activeWorkflowId === wf.id
-                    ? 'bg-[#181826] text-[#E8DDC7] border border-[#2E2E42]'
-                    : 'text-[#8C7A6B] hover:text-[#E8DDC7]'
-                }`}
-              >
-                <span
-                  className="w-1.5 h-1.5 rounded-full"
-                  style={{ backgroundColor: wf.isConnectedToCore ? '#10B981' : '#F59E0B' }}
-                />
-                <span className="truncate max-w-[120px]">{wf.name}</span>
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* Center: Canvas View & Tool Controls */}
-        <div className="hidden md:flex items-center gap-1 bg-[#090912] p-1 rounded-xl border border-[#1A1A28] shrink-0">
+        {/* Center: Canvas View & Zoom Controls */}
+        <div className="flex items-center gap-1 bg-[#090912] p-1 rounded-xl border border-[#1A1A28] shrink-0">
           <button
             onClick={() => setActiveTool('select')}
             className={`p-1.5 rounded-lg text-xs transition-colors ${
               activeTool === 'select' ? 'bg-[#C6A46A] text-[#050508]' : 'text-[#8C7A6B] hover:text-[#E8DDC7]'
             }`}
-            title="Select & Move (V)"
+            title="Select & Move Nodes (V)"
           >
             <Move className="w-3.5 h-3.5" />
           </button>
@@ -810,7 +728,7 @@ export default function ConnectorsWorkspace({
             className={`p-1.5 rounded-lg text-xs transition-colors ${
               activeTool === 'hand' ? 'bg-[#C6A46A] text-[#050508]' : 'text-[#8C7A6B] hover:text-[#E8DDC7]'
             }`}
-            title="Hand Pan Tool (H)"
+            title="Hand Pan Canvas (H)"
           >
             <GripVertical className="w-3.5 h-3.5" />
           </button>
@@ -838,7 +756,7 @@ export default function ConnectorsWorkspace({
           <button
             onClick={centerCanvas}
             className="p-1.5 rounded-lg text-[#8C7A6B] hover:text-[#C6A46A] transition-colors"
-            title="Center Canvas View (Fit)"
+            title="Center View"
           >
             <Maximize2 className="w-3.5 h-3.5" />
           </button>
@@ -846,20 +764,13 @@ export default function ConnectorsWorkspace({
 
         {/* Right: Live Status, Execution Logs, Run Button & Close */}
         <div className="flex items-center gap-2.5 shrink-0">
-          {/* Status Indicator */}
-          <div className="hidden xl:flex items-center gap-2 px-2.5 py-1 rounded-lg bg-[#0C0C14] border border-[#1C1C28] text-[11px] font-mono">
-            <span className="flex items-center gap-1 text-emerald-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              {workflows.filter((w) => w.isConnectedToCore).length} Active
-            </span>
-            <span className="text-[#8C7A6B]">•</span>
-            <span className="flex items-center gap-1 text-amber-400">
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400" />
-              {workflows.filter((w) => !w.isConnectedToCore).length} Paused
-            </span>
+          {/* Active Connections Pill */}
+          <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[#0C0C14] border border-[#1C1C28] text-[11px] font-mono text-emerald-400">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+            <span>{connections.length} Active Connections</span>
           </div>
 
-          {/* Audit Logs Drawer Button */}
+          {/* Execution Logs Drawer Button */}
           <button
             type="button"
             onClick={() => setIsLogsModalOpen(true)}
@@ -870,7 +781,7 @@ export default function ConnectorsWorkspace({
             <span className="hidden sm:inline">Logs</span>
           </button>
 
-          {/* Run Active Workflows Button */}
+          {/* Run Workflows Button */}
           <button
             type="button"
             onClick={handleExecuteAllActive}
@@ -953,7 +864,7 @@ export default function ConnectorsWorkspace({
                   <span className="text-[10px] font-mono text-[#8C7A6B] uppercase tracking-wider">
                     Applications ({filteredApps.length})
                   </span>
-                  <span className="text-[9px] font-mono text-[#C6A46A]">Click or drag</span>
+                  <span className="text-[9px] font-mono text-[#C6A46A]">Click to add</span>
                 </div>
 
                 {filteredApps.map((app) => {
@@ -1031,18 +942,15 @@ export default function ConnectorsWorkspace({
                 })}
               </div>
 
-              {/* Sidebar Footer: System Status */}
+              {/* Sidebar Footer */}
               <div className="p-3 border-t border-[#141420] bg-[#06060B]">
                 <div className="flex items-center justify-between text-xs font-mono">
-                  <span className="text-[#8C7A6B]">Harpy Core Status</span>
+                  <span className="text-[#8C7A6B]">Harpy Core</span>
                   <span className="text-emerald-400 flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     ONLINE (120B)
                   </span>
                 </div>
-                <p className="text-[9px] text-[#8C7A6B]/80 font-mono mt-1">
-                  Automations connect to Central Core to be eligible for execution.
-                </p>
               </div>
             </motion.aside>
           )}
@@ -1055,7 +963,6 @@ export default function ConnectorsWorkspace({
           ref={canvasRef}
           onMouseDown={handleCanvasMouseDown}
           onMouseMove={handleCanvasMouseMove}
-          onMouseUp={handleCanvasMouseUp}
           onWheel={handleWheel}
           className="flex-1 h-full relative overflow-hidden cursor-crosshair bg-[#06060A]"
           style={{
@@ -1108,10 +1015,11 @@ export default function ConnectorsWorkspace({
               </defs>
 
               {/* Render Existing Connections */}
-              {visibleConnections.map((conn) => {
-                // Node card width is 250px -> half width is 125px
-                const NODE_HALF_W = 125;
-                const CORE_RADIUS = 92;
+              {connections.map((conn) => {
+                // Circular nodes: radius is 34px (w-68px)
+                // Harpy Core circle: radius is 48px (w-96px)
+                const NODE_RADIUS = 34;
+                const CORE_RADIUS = 48;
 
                 let fromX = 0;
                 let fromY = 0;
@@ -1121,32 +1029,32 @@ export default function ConnectorsWorkspace({
                 // Resolve source position
                 if (conn.fromNodeId === 'harpy-core') {
                   const targetNode = nodes.find((n) => n.id === conn.toNodeId);
-                  const isTargetOnRight = targetNode ? targetNode.x > 0 : true;
+                  const isTargetOnRight = targetNode ? targetNode.x >= 0 : true;
                   fromX = isTargetOnRight ? CORE_RADIUS : -CORE_RADIUS;
                   fromY = 0;
                 } else {
                   const srcNode = nodes.find((n) => n.id === conn.fromNodeId);
                   if (srcNode) {
-                    fromX = srcNode.x + NODE_HALF_W;
+                    fromX = srcNode.x + NODE_RADIUS;
                     fromY = srcNode.y;
                   }
                 }
 
                 // Resolve target position
                 if (conn.toNodeId === 'harpy-core') {
-                  const isSourceOnLeft = fromX < 0;
+                  const isSourceOnLeft = fromX <= 0;
                   toX = isSourceOnLeft ? -CORE_RADIUS : CORE_RADIUS;
                   toY = 0;
                 } else {
                   const targetNode = nodes.find((n) => n.id === conn.toNodeId);
                   if (targetNode) {
-                    toX = targetNode.x - NODE_HALF_W;
+                    toX = targetNode.x - NODE_RADIUS;
                     toY = targetNode.y;
                   }
                 }
 
                 // Smooth Cubic Bezier curve
-                const dx = Math.max(90, Math.abs(toX - fromX) * 0.5);
+                const dx = Math.max(50, Math.abs(toX - fromX) * 0.5);
                 const pathD = `M ${fromX} ${fromY} C ${fromX + dx} ${fromY}, ${toX - dx} ${toY}, ${toX} ${toY}`;
 
                 return (
@@ -1191,15 +1099,15 @@ export default function ConnectorsWorkspace({
                 );
               })}
 
-              {/* Connecting Wire Preview while dragging */}
+              {/* Connecting Wire Preview while dragging/clicking port */}
               {connectingSource && (
                 <path
                   d={`M ${
                     connectingSource.nodeId === 'harpy-core'
-                      ? mousePos.x > 0
-                        ? 92
-                        : -92
-                      : (nodes.find((n) => n.id === connectingSource.nodeId)?.x || 0) + 125
+                      ? mousePos.x >= 0
+                        ? 48
+                        : -48
+                      : (nodes.find((n) => n.id === connectingSource.nodeId)?.x || 0) + 34
                   } ${
                     connectingSource.nodeId === 'harpy-core'
                       ? 0
@@ -1214,169 +1122,89 @@ export default function ConnectorsWorkspace({
             </svg>
 
             {/* ──────────────────────────────────────────────────────────
-                CENTRAL HARPY AI SYSTEM NODE (ORCHESTRATOR CORE)
-                Positioned at (0, 0)
+                CENTRAL HARPY AI SYSTEM NODE (CIRCULAR LOGO AT 0, 0)
                ────────────────────────────────────────────────────────── */}
             <div
-              className="absolute pointer-events-auto"
+              className="absolute pointer-events-auto select-none"
               style={{
                 left: 0,
                 top: 0,
                 transform: 'translate(-50%, -50%)',
               }}
             >
-              {/* Concentric Rotating Auras */}
-              <div className="absolute inset-0 -m-16 rounded-full bg-gradient-to-tr from-[#C6A46A]/20 via-amber-500/10 to-emerald-500/15 blur-3xl animate-pulse pointer-events-none" />
-              <div className="absolute inset-0 -m-10 rounded-full border border-[#C6A46A]/25 animate-spin [animation-duration:30s] pointer-events-none" />
-              <div className="absolute inset-0 -m-5 rounded-full border border-dashed border-[#C6A46A]/35 animate-spin [animation-duration:18s] [animation-direction:reverse] pointer-events-none" />
+              {/* Rotating Golden Orbital Rings */}
+              <div className="absolute inset-0 -m-10 rounded-full bg-gradient-to-tr from-[#C6A46A]/20 via-amber-500/10 to-emerald-500/15 blur-2xl animate-pulse pointer-events-none" />
+              <div className="absolute inset-0 -m-6 rounded-full border border-[#C6A46A]/30 animate-spin [animation-duration:25s] pointer-events-none" />
+              <div className="absolute inset-0 -m-3 rounded-full border border-dashed border-[#C6A46A]/40 animate-spin [animation-duration:15s] [animation-direction:reverse] pointer-events-none" />
 
-              {/* Central Core Card */}
+              {/* Circle Logo Node */}
               <div
-                onClick={() => setSelectedNodeId('harpy-core')}
-                className={`relative w-48 h-48 rounded-3xl bg-gradient-to-b from-[#141420] via-[#0E0E18] to-[#07070C] border-2 transition-all p-3 flex flex-col items-center justify-center text-center shadow-[0_0_60px_rgba(198,164,106,0.35)] cursor-pointer group ${
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setSelectedNodeId('harpy-core');
+                }}
+                className={`relative w-24 h-24 rounded-full bg-gradient-to-b from-[#141420] via-[#0D0D18] to-[#07070C] border-2 transition-all flex flex-col items-center justify-center cursor-pointer shadow-[0_0_40px_rgba(198,164,106,0.35)] group ${
                   selectedNodeId === 'harpy-core'
-                    ? 'border-[#C6A46A] shadow-[0_0_80px_rgba(198,164,106,0.55)] ring-2 ring-[#C6A46A]'
-                    : 'border-[#C6A46A]/70 hover:border-[#C6A46A]'
+                    ? 'border-[#C6A46A] shadow-[0_0_60px_rgba(198,164,106,0.6)] ring-2 ring-[#C6A46A]'
+                    : 'border-[#C6A46A]/70 hover:border-[#C6A46A] hover:scale-105'
                 }`}
               >
-                {/* 4 Connection Ports (N, S, E, W) */}
+                {/* Harpy Logo Emblem */}
+                <div className="w-10 h-10 rounded-full bg-[#08080E] border border-[#C6A46A]/50 flex items-center justify-center shadow-inner group-hover:scale-110 transition-transform">
+                  <Bot className="w-6 h-6 text-[#C6A46A] animate-pulse" />
+                </div>
+
+                {/* 4 Connection Port Dots (North, South, East, West) */}
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (connectingSource) {
-                      // Complete connection to Harpy Core
-                      setConnections((prev) => [
-                        ...prev,
-                        {
-                          id: `conn-${connectingSource.nodeId}-core-${Date.now()}`,
-                          workflowId: workflows[0]?.id || 'wf-1',
-                          fromNodeId: connectingSource.nodeId,
-                          fromPort: 'output',
-                          toNodeId: 'harpy-core',
-                          toPort: 'input',
-                          isActive: true,
-                        },
-                      ]);
-                      setConnectingSource(null);
-                    } else {
-                      setConnectingSource({ nodeId: 'harpy-core', port: 'output' });
-                    }
-                  }}
-                  className="absolute -top-3.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-[#C6A46A] border-2 border-[#050508] shadow-[0_0_12px_#C6A46A] hover:scale-125 transition-transform flex items-center justify-center"
-                  title="North Port: Click to link workflow"
+                  onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
+                  className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
+                  title="North Port: Click to connect"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#050508]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (connectingSource) {
-                      setConnections((prev) => [
-                        ...prev,
-                        {
-                          id: `conn-${connectingSource.nodeId}-core-${Date.now()}`,
-                          workflowId: workflows[0]?.id || 'wf-1',
-                          fromNodeId: connectingSource.nodeId,
-                          fromPort: 'output',
-                          toNodeId: 'harpy-core',
-                          toPort: 'input',
-                          isActive: true,
-                        },
-                      ]);
-                      setConnectingSource(null);
-                    } else {
-                      setConnectingSource({ nodeId: 'harpy-core', port: 'output' });
-                    }
-                  }}
-                  className="absolute -bottom-3.5 left-1/2 -translate-x-1/2 w-6 h-6 rounded-full bg-[#C6A46A] border-2 border-[#050508] shadow-[0_0_12px_#C6A46A] hover:scale-125 transition-transform flex items-center justify-center"
-                  title="South Port: Click to link workflow"
+                  onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
+                  className="absolute -bottom-2 left-1/2 -translate-x-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
+                  title="South Port: Click to connect"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#050508]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (connectingSource) {
-                      setConnections((prev) => [
-                        ...prev,
-                        {
-                          id: `conn-${connectingSource.nodeId}-core-${Date.now()}`,
-                          workflowId: workflows[0]?.id || 'wf-1',
-                          fromNodeId: connectingSource.nodeId,
-                          fromPort: 'output',
-                          toNodeId: 'harpy-core',
-                          toPort: 'input',
-                          isActive: true,
-                        },
-                      ]);
-                      setConnectingSource(null);
-                    } else {
-                      setConnectingSource({ nodeId: 'harpy-core', port: 'output' });
-                    }
-                  }}
-                  className="absolute -left-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#C6A46A] border-2 border-[#050508] shadow-[0_0_12px_#C6A46A] hover:scale-125 transition-transform flex items-center justify-center"
+                  onClick={(e) => handlePortClick(e, 'harpy-core', 'input')}
+                  className="absolute -left-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
                   title="West Inflow: Connect triggers here"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#050508]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
                 </button>
 
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    if (connectingSource) {
-                      setConnections((prev) => [
-                        ...prev,
-                        {
-                          id: `conn-${connectingSource.nodeId}-core-${Date.now()}`,
-                          workflowId: workflows[0]?.id || 'wf-1',
-                          fromNodeId: connectingSource.nodeId,
-                          fromPort: 'output',
-                          toNodeId: 'harpy-core',
-                          toPort: 'input',
-                          isActive: true,
-                        },
-                      ]);
-                      setConnectingSource(null);
-                    } else {
-                      setConnectingSource({ nodeId: 'harpy-core', port: 'output' });
-                    }
-                  }}
-                  className="absolute -right-3.5 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full bg-[#C6A46A] border-2 border-[#050508] shadow-[0_0_12px_#C6A46A] hover:scale-125 transition-transform flex items-center justify-center"
+                  onClick={(e) => handlePortClick(e, 'harpy-core', 'output')}
+                  className="absolute -right-2 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer z-10"
                   title="East Outflow: Connect actions here"
                 >
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#050508]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
                 </button>
+              </div>
 
-                {/* Core Brand Visual */}
-                <div className="w-14 h-14 rounded-2xl bg-[#090912] border border-[#C6A46A]/60 flex items-center justify-center shadow-inner mb-2 group-hover:scale-105 transition-transform">
-                  <Bot className="w-7 h-7 text-[#C6A46A] animate-pulse" />
-                </div>
-
-                <h4 className="font-cinzel text-xs font-bold text-[#E8DDC7] uppercase tracking-wider leading-tight">
-                  Harpy AI System
-                </h4>
-                <p className="text-[9px] font-mono text-[#C6A46A] mt-0.5">Autonomous Core</p>
-
-                {/* Live Core Status */}
-                <div className="mt-2 px-2.5 py-0.5 rounded-full bg-emerald-950/40 border border-emerald-500/40 flex items-center gap-1.5 text-[9px] font-mono text-emerald-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  <span>
-                    {workflows.filter((w) => w.isConnectedToCore).length} Active Pipelines
-                  </span>
-                </div>
+              {/* Harpy AI Label */}
+              <div className="text-center mt-2 pointer-events-none">
+                <span className="font-cinzel text-xs font-bold text-[#E8DDC7] tracking-wider uppercase block drop-shadow-md">
+                  Harpy AI
+                </span>
+                <span className="text-[9px] font-mono text-[#C6A46A] block">Autonomous Core</span>
               </div>
             </div>
 
             {/* ──────────────────────────────────────────────────────────
-                RENDER ALL WORKFLOW NODES ON CANVAS
+                RENDER ALL APPLICATION LOGO NODES ON CANVAS
                ────────────────────────────────────────────────────────── */}
-            {visibleNodes.map((node) => {
+            {nodes.map((node) => {
               const app = apps.find((a) => a.id === node.appId);
               const Icon = app ? APP_ICONS[app.iconName] || APP_ICONS.Globe : APP_ICONS.Sparkles;
               const isSelected = selectedNodeId === node.id;
@@ -1384,148 +1212,89 @@ export default function ConnectorsWorkspace({
               return (
                 <div
                   key={node.id}
-                  onMouseDown={(e) => {
-                    e.stopPropagation();
-                    setSelectedNodeId(node.id);
-                    setDraggingNodeId(node.id);
-
-                    const canvasRect = canvasRef.current?.getBoundingClientRect();
-                    if (canvasRect) {
-                      const mouseCanvasX = (e.clientX - canvasRect.left - pan.x) / zoom;
-                      const mouseCanvasY = (e.clientY - canvasRect.top - pan.y) / zoom;
-                      setDragOffset({
-                        x: mouseCanvasX - node.x,
-                        y: mouseCanvasY - node.y,
-                      });
-                    }
-                  }}
-                  className={`absolute pointer-events-auto w-[250px] rounded-2xl bg-[#0A0A14]/95 backdrop-blur-xl border transition-all shadow-xl cursor-move group ${
-                    isSelected
-                      ? 'border-[#C6A46A] shadow-[0_0_35px_rgba(198,164,106,0.4)] ring-1 ring-[#C6A46A]'
-                      : 'border-[#1C1C2C] hover:border-[#C6A46A]/50'
-                  }`}
+                  onMouseDown={(e) => handleNodeMouseDown(e, node)}
+                  className="absolute pointer-events-auto select-none"
                   style={{
                     left: `${node.x}px`,
                     top: `${node.y}px`,
                     transform: 'translate(-50%, -50%)',
                   }}
                 >
-                  {/* Left Input Port */}
+                  {/* Circular / Squircle App Logo Node */}
                   <div
                     onClick={(e) => {
                       e.stopPropagation();
-                      if (connectingSource) {
-                        setConnections((prev) => [
-                          ...prev,
-                          {
-                            id: `conn-${connectingSource.nodeId}-${node.id}-${Date.now()}`,
-                            workflowId: node.workflowId,
-                            fromNodeId: connectingSource.nodeId,
-                            fromPort: 'output',
-                            toNodeId: node.id,
-                            toPort: 'input',
-                            isActive: true,
-                          },
-                        ]);
-                        setConnectingSource(null);
-                      }
+                      // Clicking app node opens the right-side inspector
+                      setSelectedNodeId(node.id);
                     }}
-                    className="absolute -left-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#10101C] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer shadow-md"
-                    title="Input Port: Click to connect wire"
-                  >
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
-                  </div>
-
-                  {/* Right Output Port */}
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConnectingSource({ nodeId: node.id, port: 'output' });
+                    className={`relative w-[68px] h-[68px] rounded-2xl flex flex-col items-center justify-center cursor-pointer transition-all ${
+                      isSelected
+                        ? 'ring-2 ring-[#C6A46A] shadow-[0_0_30px_rgba(198,164,106,0.6)] scale-105'
+                        : 'hover:scale-105 shadow-xl hover:shadow-[0_0_20px_rgba(0,0,0,0.8)]'
+                    }`}
+                    style={{
+                      backgroundColor: '#090912',
+                      border: `2px solid ${
+                        isSelected
+                          ? '#C6A46A'
+                          : node.isConnectedToCore
+                          ? '#10B98188'
+                          : '#252538'
+                      }`,
                     }}
-                    className="absolute -right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-[#10101C] border-2 border-[#34D399] hover:scale-125 transition-transform flex items-center justify-center cursor-pointer shadow-md"
-                    title="Output Port: Drag wire to connect next node"
                   >
-                    <span className="w-1.5 h-1.5 rounded-full bg-[#34D399]" />
-                  </div>
+                    {/* App Brand Color Soft Glow inside */}
+                    <div
+                      className="absolute inset-0 rounded-2xl opacity-15 pointer-events-none"
+                      style={{ backgroundColor: app?.color || '#C6A46A' }}
+                    />
 
-                  {/* Node Header */}
-                  <div className="p-3 border-b border-[#161626] flex items-center justify-between">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <div
-                        className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 border border-white/10"
-                        style={{ backgroundColor: `${app?.color || '#C6A46A'}20`, color: app?.color || '#C6A46A' }}
-                      >
-                        <Icon className="w-4 h-4" />
-                      </div>
-                      <div className="truncate">
-                        <span className="text-xs font-semibold text-[#E8DDC7] block truncate">
-                          {app?.name || 'Node'}
-                        </span>
-                        <span className="text-[10px] text-[#8C7A6B] font-mono block">
-                          {node.type === 'trigger' ? '⚡ Trigger' : node.type === 'ai-processor' ? '🧠 AI Kernel' : '🎯 Action'}
-                        </span>
-                      </div>
+                    {/* App Icon */}
+                    <div
+                      className="w-8 h-8 rounded-xl flex items-center justify-center transition-transform"
+                      style={{ color: app?.color || '#E8DDC7' }}
+                    >
+                      <Icon className="w-6 h-6" />
                     </div>
 
-                    <div className="flex items-center gap-1.5">
+                    {/* Active Status Dot */}
+                    <div className="absolute top-1.5 right-1.5 pointer-events-none">
                       <span
-                        className={`w-2 h-2 rounded-full ${
-                          node.isConnectedToCore ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'
+                        className={`w-2 h-2 rounded-full block ${
+                          node.isConnectedToCore
+                            ? 'bg-emerald-400 animate-pulse shadow-[0_0_6px_#10B981]'
+                            : 'bg-amber-400'
                         }`}
-                        title={node.isConnectedToCore ? 'Active (Linked to Harpy Core)' : 'Paused (Disconnected)'}
+                        title={node.isConnectedToCore ? 'Active' : 'Paused'}
                       />
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleDeleteNode(node.id);
-                        }}
-                        className="p-1 text-[#8C7A6B] hover:text-rose-400 transition-colors"
-                        title="Delete node"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
                     </div>
+
+                    {/* Left Input Port Handle */}
+                    <button
+                      type="button"
+                      onClick={(e) => handlePortClick(e, node.id, 'input')}
+                      className="absolute -left-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#C6A46A] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
+                      title="Input Port: Click to connect wire"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#C6A46A]" />
+                    </button>
+
+                    {/* Right Output Port Handle */}
+                    <button
+                      type="button"
+                      onClick={(e) => handlePortClick(e, node.id, 'output')}
+                      className="absolute -right-2.5 top-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-[#050508] border-2 border-[#34D399] hover:scale-125 transition-transform flex items-center justify-center shadow-md cursor-pointer z-10"
+                      title="Output Port: Click to connect wire"
+                    >
+                      <span className="w-1.5 h-1.5 rounded-full bg-[#34D399]" />
+                    </button>
                   </div>
 
-                  {/* Node Body Details */}
-                  <div className="p-3 space-y-2">
-                    <h5 className="text-xs font-semibold text-[#E8DDC7] leading-snug">
-                      {node.title}
-                    </h5>
-                    <p className="text-[11px] text-[#8C7A6B] font-mono line-clamp-2 leading-relaxed">
-                      {node.actionOrTrigger}
-                    </p>
-
-                    {/* Footer: Core Connection Status */}
-                    <div className="pt-2 border-t border-[#141424] flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        {node.isConnectedToCore ? (
-                          <span className="flex items-center gap-1 text-[10px] font-mono text-emerald-400">
-                            <Link2 className="w-3 h-3" /> Linked Core
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-1 text-[10px] font-mono text-amber-400/80">
-                            <Link2Off className="w-3 h-3" /> Standalone
-                          </span>
-                        )}
-                      </div>
-
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleWorkflowCoreConnection(node.workflowId);
-                        }}
-                        className={`px-2 py-0.5 rounded text-[10px] font-mono transition-colors ${
-                          node.isConnectedToCore
-                            ? 'text-rose-400 bg-rose-950/30 border border-rose-500/30 hover:bg-rose-950/50'
-                            : 'text-emerald-400 bg-emerald-950/30 border border-emerald-500/30 hover:bg-emerald-950/50'
-                        }`}
-                      >
-                        {node.isConnectedToCore ? 'Disconnect' : 'Link Core'}
-                      </button>
-                    </div>
+                  {/* App Name Label Below Node */}
+                  <div className="text-center mt-1.5 pointer-events-none">
+                    <span className="text-[11px] font-mono text-[#E8DDC7] block truncate max-w-[80px] drop-shadow-md">
+                      {app?.name || node.title}
+                    </span>
                   </div>
                 </div>
               );
@@ -1534,9 +1303,8 @@ export default function ConnectorsWorkspace({
 
           {/* ──────────────────────────────────────────────────────────
               3. FLOATING AI AUTOMATION PROMPT BAR (BOTTOM DOCK)
-              Placed at bottom-center so canvas nodes are completely unobstructed!
              ────────────────────────────────────────────────────────── */}
-          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center w-full max-w-2xl px-4">
+          <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-30 pointer-events-none flex justify-center w-full max-w-xl px-4">
             <div className="pointer-events-auto w-full p-2 bg-[#0A0A14]/90 backdrop-blur-2xl border border-[#C6A46A]/60 rounded-2xl shadow-[0_20px_60px_rgba(0,0,0,0.85),0_0_30px_rgba(198,164,106,0.25)] flex items-center gap-3">
               <div className="pl-2">
                 <Sparkles className="w-4 h-4 text-[#C6A46A] animate-pulse" />
@@ -1573,43 +1341,16 @@ export default function ConnectorsWorkspace({
               </button>
             </div>
           </div>
-
-          {/* ──────────────────────────────────────────────────────────
-              BOTTOM CORNER CONTROLS (QUICK TEMPLATES & RECENTER)
-             ────────────────────────────────────────────────────────── */}
-          <div className="absolute bottom-6 right-6 z-30 hidden lg:flex items-center gap-2 select-none">
-            <div className="flex items-center gap-1.5 bg-[#090912]/90 backdrop-blur-md px-3 py-1.5 rounded-xl border border-[#1A1A28] text-xs font-mono text-[#8C7A6B]">
-              <span>Templates:</span>
-              <button
-                type="button"
-                onClick={() =>
-                  handleGenerateWorkflowFromAi('Summarize Gmail emails and create tasks in Notion')
-                }
-                className="text-[#C6A46A] hover:underline"
-              >
-                Gmail→Notion
-              </button>
-              <span>•</span>
-              <button
-                type="button"
-                onClick={() =>
-                  handleGenerateWorkflowFromAi('Triage GitHub PRs and send summary to Slack')
-                }
-                className="text-[#C6A46A] hover:underline"
-              >
-                GitHub→Slack
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* ──────────────────────────────────────────────────────────
             RIGHT SIDEBAR: NODE INSPECTOR DRAWER
+            Opens automatically when clicking on any application logo or Harpy Core!
            ────────────────────────────────────────────────────────── */}
         <NodeInspectorModal
           node={selectedNodeObject}
           app={selectedApp}
-          isOpen={!!selectedNodeObject && selectedNodeId !== 'harpy-core'}
+          isOpen={!!selectedNodeObject}
           onClose={() => setSelectedNodeId(null)}
           onUpdateNode={handleUpdateNode}
           onDeleteNode={handleDeleteNode}

@@ -138,6 +138,37 @@ export default function NodeInspectorModal({
           </div>
 
           {/* Dynamic Configuration Fields */}
+          {node.appId === 'harpy-core' && (
+            <div className="space-y-3 pt-2 border-t border-[#181824]">
+              <p className="text-[11px] font-mono text-[#C6A46A] uppercase">Harpy Core Parameters</p>
+              <div>
+                <label className="block text-[10px] font-mono text-[#8C7A6B] mb-1">Reasoning Model</label>
+                <select
+                  defaultValue={node.config.model || 'GPT-OSS 120B'}
+                  onChange={(e) => handleConfigChange('model', e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060A] border border-[#222232] text-xs font-mono"
+                >
+                  <option value="GPT-OSS 120B">Harpy GPT-OSS 120B (High Reasoning)</option>
+                  <option value="Claude 3.5 Sonnet">Claude 3.5 Sonnet</option>
+                  <option value="DeepSeek R1">DeepSeek R1 Distill</option>
+                  <option value="Groq Llama 3.3">Groq Llama 3.3 70B (Fast Execution)</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-[10px] font-mono text-[#8C7A6B] mb-1">Execution Mode</label>
+                <select
+                  defaultValue={node.config.mode || 'Autonomous Multi-Agent'}
+                  onChange={(e) => handleConfigChange('mode', e.target.value)}
+                  className="w-full px-3 py-1.5 rounded-lg bg-[#06060A] border border-[#222232] text-xs font-mono"
+                >
+                  <option value="Autonomous Multi-Agent">Autonomous Multi-Agent</option>
+                  <option value="Strict Sequential Pipeline">Strict Sequential Pipeline</option>
+                  <option value="Event-Driven Reactive">Event-Driven Reactive</option>
+                </select>
+              </div>
+            </div>
+          )}
+
           {node.appId === 'gmail' && (
             <div className="space-y-3 pt-2 border-t border-[#181824]">
               <p className="text-[11px] font-mono text-[#C6A46A] uppercase">Gmail Parameters</p>
