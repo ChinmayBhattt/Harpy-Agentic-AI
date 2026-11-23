@@ -57,15 +57,18 @@ export default function VoiceAssistantModal({
   const [statusMessage, setStatusMessage] = useState('Ready to connect');
   const [internalIsDocked, setInternalIsDocked] = useState(false);
 
+  // Keep a stable ref to onDockChange so setIsDocked doesn't trigger dependency loops
+  const onDockChangeRef = useRef(onDockChange);
+  useEffect(() => {
+    onDockChangeRef.current = onDockChange;
+  });
+
   // Synchronize docked state (defaults to internal unless controlled)
   const isDocked = externalIsDocked !== undefined ? externalIsDocked : internalIsDocked;
-  const setIsDocked = useCallback(
-    (docked: boolean) => {
-      setInternalIsDocked(docked);
-      if (onDockChange) onDockChange(docked);
-    },
-    [onDockChange]
-  );
+  const setIsDocked = useCallback((docked: boolean) => {
+    setInternalIsDocked(docked);
+    onDockChangeRef.current?.(docked);
+  }, []);
 
   // Combined volume for glowing ripple visualizer
   const dynamicVolume = Math.min(1, Math.max(volumeLevel, userMicLevel));
@@ -73,18 +76,21 @@ export default function VoiceAssistantModal({
   const vapiRef = useRef<any>(null);
   const transcriptsEndRef = useRef<HTMLDivElement>(null);
   const lastTriggeredRef = useRef<string>('');
+  const prevIsOpenRef = useRef(false);
 
   // Auto-scroll transcripts
   useEffect(() => {
     transcriptsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [transcripts]);
 
-  // When isOpen changes to true, reset docked to false so clicking expands full view
+  // Only reset docked to false when transitioning from closed (false) to opened (true)
   useEffect(() => {
-    if (isOpen) {
-      setIsDocked(false);
+    if (isOpen && !prevIsOpenRef.current) {
+      setInternalIsDocked(false);
+      onDockChangeRef.current?.(false);
     }
-  }, [isOpen, setIsDocked]);
+    prevIsOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Handle Escape key: minimize to docked panel without cutting the call
   useEffect(() => {
@@ -502,7 +508,10 @@ export default function VoiceAssistantModal({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            onClick={() => setIsDocked(true)}
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsDocked(true);
+            }}
             className="fixed inset-0 bg-black/65 backdrop-blur-md pointer-events-auto cursor-pointer"
             title="Click to minimize to background panel (keeps call active)"
           />
@@ -544,16 +553,22 @@ export default function VoiceAssistantModal({
               <div className="flex items-center gap-1.5 text-[#E8DDC7]/60">
                 <button
                   type="button"
-                  onClick={() => setIsDocked(true)}
-                  className="p-1.5 rounded-lg hover:text-[#C6A46A] hover:bg-white/5 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDocked(true);
+                  }}
+                  className="p-1.5 rounded-lg hover:text-[#C6A46A] hover:bg-white/10 transition-colors cursor-pointer"
                   title="Minimize to Floating Panel (Keeps Call Active)"
                 >
                   <Minimize2 className="w-3.5 h-3.5" />
                 </button>
                 <button
                   type="button"
-                  onClick={() => setIsDocked(true)}
-                  className="p-1.5 rounded-lg hover:text-[#C6A46A] hover:bg-white/5 transition-colors cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDocked(true);
+                  }}
+                  className="p-1.5 rounded-lg hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
                   title="Close to Background Panel (Keeps Call Active)"
                 >
                   <X className="w-4 h-4" />
@@ -716,8 +731,11 @@ export default function VoiceAssistantModal({
 
                 <button
                   type="button"
-                  onClick={() => setIsDocked(true)}
-                  className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#12121C] text-[#E8DDC7] border-[#222232] hover:border-[#C6A46A]/60 hover:text-[#C6A46A] transition-all"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setIsDocked(true);
+                  }}
+                  className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#12121C] text-[#E8DDC7] border-[#222232] hover:border-[#C6A46A]/60 hover:text-[#C6A46A] transition-all cursor-pointer"
                   title="Dock to Floating Plate"
                 >
                   <Minimize2 className="w-5 h-5" />

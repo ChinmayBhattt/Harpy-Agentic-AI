@@ -2785,7 +2785,7 @@ export default function DashboardPage() {
           setIsVoiceAssistantDocked(false);
         }}
         isDocked={isVoiceAssistantDocked}
-        onDockChange={(docked) => setIsVoiceAssistantDocked(docked)}
+        onDockChange={setIsVoiceAssistantDocked}
         onActiveStateChange={(active) => setIsVoiceAssistantActive(active)}
         onTriggerAgentMode={(prompt) => {
           setAgentMode(true);
