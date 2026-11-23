@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
       }
       try {
         const sandbox = new WorkspaceSandbox(userId, sessionId);
-        const result = await sandbox.executeCommand(command);
+        const result = await sandbox.executeCommand(command, 60000, body.subDir || '');
         return NextResponse.json({
           success: result.exitCode === 0,
           stdout: result.stdout,

@@ -40,6 +40,7 @@ interface FileNode {
 interface AgentWorkspacePanelProps {
   sessionId: string;
   userId?: string;
+  userDisplayName?: string;
   isOpen: boolean;
   onClose: () => void;
   selectedFilePath?: string;
@@ -50,7 +51,8 @@ interface AgentWorkspacePanelProps {
 
 interface TerminalEntry {
   id: string;
-  type: 'input' | 'output' | 'error';
+  type: 'prompt' | 'output' | 'error';
+  command?: string;
   text: string;
   timestamp: string;
 }
@@ -245,6 +247,7 @@ function generatePreviewHtml(files: FileChangeRecord[]): string {
 export default function AgentWorkspacePanel({
   sessionId,
   userId = 'anonymous',
+  userDisplayName = 'chinmaybhatt',
   isOpen,
   onClose,
   selectedFilePath,
@@ -270,24 +273,23 @@ export default function AgentWorkspacePanel({
   const [previewViewport, setPreviewViewport] = useState<'desktop' | 'tablet' | 'mobile'>('desktop');
   const [previewKey, setPreviewKey] = useState(0);
 
-  // Terminal CLI State
-  const [terminalLines, setTerminalLines] = useState<TerminalEntry[]>([
-    {
-      id: 'init-1',
-      type: 'output',
-      text: 'Harpy Sandbox CLI v2.6 initialized. Workspace ready.',
-      timestamp: new Date().toLocaleTimeString(),
-    },
-    {
-      id: 'init-2',
-      type: 'output',
-      text: 'Type shell commands below (e.g. ls, pwd, cat package.json, node -v)',
-      timestamp: new Date().toLocaleTimeString(),
-    },
-  ]);
+  // Terminal CLI State (Authentic macOS zsh terminal replica)
+  const [terminalLines, setTerminalLines] = useState<TerminalEntry[]>([]);
   const [terminalInput, setTerminalInput] = useState('');
   const [isRunningCmd, setIsRunningCmd] = useState(false);
+  const [currentDir, setCurrentDir] = useState('~');
+  const [createdDirs, setCreatedDirs] = useState<Set<string>>(new Set());
+  const [commandHistory, setCommandHistory] = useState<string[]>([]);
+  const [historyIndex, setHistoryIndex] = useState<number>(-1);
+  const [isTerminalMaximized, setIsTerminalMaximized] = useState(false);
+  const terminalInputRef = useRef<HTMLInputElement>(null);
   const terminalBottomRef = useRef<HTMLDivElement>(null);
+
+  const terminalUsername =
+    (userDisplayName || 'chinmaybhatt')
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '') || 'chinmaybhatt';
+  const terminalPromptPrefix = `${terminalUsername}@Chinmays-MacBook-Air-760 ${currentDir} % `;
 
   // Compute preview HTML whenever files change
   const previewHtml = useMemo(() => {
@@ -399,6 +401,7 @@ export default function AgentWorkspacePanel({
 
   useEffect(() => {
     if (activeTab === 'terminal') {
+      terminalInputRef.current?.focus();
       terminalBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
     }
   }, [terminalLines, activeTab]);
@@ -447,27 +450,347 @@ export default function AgentWorkspacePanel({
     setTimeout(() => setCopied(false), 1500);
   };
 
-  // Run Terminal CLI Command
-  const handleExecuteCli = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const cmd = terminalInput.trim();
-    if (!cmd || isRunningCmd) return;
-
-    if (cmd.toLowerCase() === 'clear') {
+  // Keyboard navigation for real terminal (History Up/Down, Autocomplete Tab, Ctrl+C, Ctrl+L)
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleExecuteCli();
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      if (commandHistory.length === 0) return;
+      const nextIdx = historyIndex === -1 ? commandHistory.length - 1 : Math.max(0, historyIndex - 1);
+      setHistoryIndex(nextIdx);
+      setTerminalInput(commandHistory[nextIdx]);
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      if (historyIndex === -1) return;
+      const nextIdx = historyIndex + 1;
+      if (nextIdx >= commandHistory.length) {
+        setHistoryIndex(-1);
+        setTerminalInput('');
+      } else {
+        setHistoryIndex(nextIdx);
+        setTerminalInput(commandHistory[nextIdx]);
+      }
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      const parts = terminalInput.split(' ');
+      const lastWord = parts[parts.length - 1] || '';
+      if (lastWord) {
+        const match = filesChanged.find((f) =>
+          f.path.toLowerCase().startsWith(lastWord.toLowerCase())
+        );
+        if (match) {
+          parts[parts.length - 1] = match.path;
+          setTerminalInput(parts.join(' '));
+        }
+      }
+    } else if (e.key === 'c' && e.ctrlKey) {
+      e.preventDefault();
+      setTerminalLines((prev) => [
+        ...prev,
+        {
+          id: `cancel-${Date.now()}`,
+          type: 'prompt',
+          command: `${terminalPromptPrefix}${terminalInput}^C`,
+          text: '',
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      setTerminalInput('');
+      setIsRunningCmd(false);
+    } else if (e.key === 'l' && e.ctrlKey) {
+      e.preventDefault();
       setTerminalLines([]);
+      setTerminalInput('');
+    }
+  };
+
+  // Run Terminal Command (Full zsh simulation + isolated sandbox execution)
+  const handleExecuteCli = async () => {
+    const rawCmd = terminalInput;
+    const cmd = rawCmd.trim();
+    const promptText = `${terminalPromptPrefix}${rawCmd}`;
+
+    if (!cmd) {
+      setTerminalLines((prev) => [
+        ...prev,
+        {
+          id: `line-${Date.now()}`,
+          type: 'prompt',
+          command: promptText,
+          text: '',
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
       setTerminalInput('');
       return;
     }
 
-    const inputEntry: TerminalEntry = {
-      id: `in-${Date.now()}`,
-      type: 'input',
-      text: `$ ${cmd}`,
+    // Save to command history
+    setCommandHistory((prev) => [...prev, cmd]);
+    setHistoryIndex(-1);
+    setTerminalInput('');
+
+    // 1. Clear command
+    if (cmd.toLowerCase() === 'clear') {
+      setTerminalLines([]);
+      return;
+    }
+
+    const promptEntry: TerminalEntry = {
+      id: `cmd-${Date.now()}`,
+      type: 'prompt',
+      command: promptText,
+      text: '',
       timestamp: new Date().toLocaleTimeString(),
     };
 
-    setTerminalLines((prev) => [...prev, inputEntry]);
-    setTerminalInput('');
+    const parts = cmd.split(/\s+/);
+    const baseCmd = parts[0]?.toLowerCase();
+    const args = parts.slice(1);
+
+    // 2. Local Unix built-ins for instant responsiveness
+    if (baseCmd === 'pwd') {
+      const dirOutput =
+        currentDir === '~'
+          ? '/Users/chinmaybhatt/workspace'
+          : `/Users/chinmaybhatt/workspace/${currentDir}`;
+      setTerminalLines((prev) => [
+        ...prev,
+        promptEntry,
+        {
+          id: `out-${Date.now()}`,
+          type: 'output',
+          text: dirOutput,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      return;
+    }
+
+    if (baseCmd === 'whoami') {
+      setTerminalLines((prev) => [
+        ...prev,
+        promptEntry,
+        {
+          id: `out-${Date.now()}`,
+          type: 'output',
+          text: terminalUsername,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      return;
+    }
+
+    if (baseCmd === 'date') {
+      setTerminalLines((prev) => [
+        ...prev,
+        promptEntry,
+        {
+          id: `out-${Date.now()}`,
+          type: 'output',
+          text: new Date().toString(),
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      return;
+    }
+
+    if (baseCmd === 'uname') {
+      setTerminalLines((prev) => [
+        ...prev,
+        promptEntry,
+        {
+          id: `out-${Date.now()}`,
+          type: 'output',
+          text: args.includes('-a')
+            ? 'Darwin Chinmays-MacBook-Air-760 23.4.0 Darwin Kernel Version 23.4.0 arm64'
+            : 'Darwin',
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      return;
+    }
+
+    if (baseCmd === 'echo') {
+      setTerminalLines((prev) => [
+        ...prev,
+        promptEntry,
+        {
+          id: `out-${Date.now()}`,
+          type: 'output',
+          text: args.join(' ').replace(/^["']|["']$/g, ''),
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      return;
+    }
+
+    if (baseCmd === 'cd') {
+      const targetDir = args[0] || '~';
+      let nextDir = currentDir;
+      if (targetDir === '~' || targetDir === '/' || !targetDir) {
+        nextDir = '~';
+      } else if (targetDir === '..') {
+        const segs = currentDir.split('/').filter(Boolean);
+        segs.pop();
+        nextDir = segs.length === 0 || currentDir === '~' ? '~' : segs.join('/');
+      } else {
+        const clean = targetDir.replace(/^\.\//, '').replace(/\/$/, '');
+        nextDir = currentDir === '~' ? clean : `${currentDir}/${clean}`;
+      }
+      setCurrentDir(nextDir);
+      setCreatedDirs((prev) => new Set([...Array.from(prev), nextDir]));
+      setTerminalLines((prev) => [...prev, promptEntry]);
+      return;
+    }
+
+    if (baseCmd === 'mkdir') {
+      const dirName = args[0];
+      if (dirName) {
+        setCreatedDirs((prev) => new Set([...Array.from(prev), dirName]));
+      }
+      setTerminalLines((prev) => [...prev, promptEntry]);
+      try {
+        fetch('/api/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'command',
+            command: cmd,
+            subDir: currentDir === '~' ? '' : currentDir,
+            sessionId,
+            userId,
+          }),
+        }).catch(() => {});
+      } catch {}
+      return;
+    }
+
+    if (baseCmd === 'ls' || baseCmd === 'dir') {
+      const isLa = args.some((a) => a.includes('l') || a.includes('a'));
+      const currentFiles = filesChanged.filter((f) => {
+        const cleanPath = f.path.replace(/^[/\\]+/, '');
+        if (currentDir === '~') {
+          return !cleanPath.includes('/');
+        }
+        return cleanPath.startsWith(`${currentDir}/`);
+      });
+
+      const activeDirs = Array.from(createdDirs);
+
+      if (isLa) {
+        const lines = [
+          `total ${Math.max(8, (currentFiles.length + activeDirs.length) * 8)}`,
+          `drwxr-xr-x   5 ${terminalUsername}  staff   160 Nov 23 12:30 .`,
+          `drwxr-xr-x   3 ${terminalUsername}  staff    96 Nov 23 12:20 ..`,
+          ...activeDirs.map(
+            (d) => `drwxr-xr-x   2 ${terminalUsername}  staff    64 Nov 23 12:35 ${d}`
+          ),
+          ...currentFiles.map((f) => {
+            const fileName = f.path.split('/').pop() || f.path;
+            const size = f.newContent?.length || 512;
+            return `-rw-r--r--   1 ${terminalUsername}  staff  ${size.toString().padStart(5, ' ')} Nov 23 12:30 ${fileName}`;
+          }),
+        ];
+        setTerminalLines((prev) => [
+          ...prev,
+          promptEntry,
+          {
+            id: `out-${Date.now()}`,
+            type: 'output',
+            text: lines.join('\n'),
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        ]);
+        return;
+      } else {
+        const names = [
+          ...activeDirs,
+          ...currentFiles.map((f) => f.path.split('/').pop() || f.path),
+        ];
+        setTerminalLines((prev) => [
+          ...prev,
+          promptEntry,
+          {
+            id: `out-${Date.now()}`,
+            type: 'output',
+            text: names.join('    ') || '(directory empty)',
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        ]);
+        return;
+      }
+    }
+
+    if (baseCmd === 'cat') {
+      const fileName = args[0];
+      if (!fileName) {
+        setTerminalLines((prev) => [
+          ...prev,
+          promptEntry,
+          {
+            id: `err-${Date.now()}`,
+            type: 'error',
+            text: 'cat: missing file argument',
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        ]);
+        return;
+      }
+
+      const targetFile = filesChanged.find(
+        (f) =>
+          f.path === fileName ||
+          f.path.endsWith(`/${fileName}`) ||
+          f.path === `${currentDir}/${fileName}`
+      );
+
+      if (targetFile && typeof targetFile.newContent === 'string') {
+        setTerminalLines((prev) => [
+          ...prev,
+          promptEntry,
+          {
+            id: `out-${Date.now()}`,
+            type: 'output',
+            text: targetFile.newContent || '',
+            timestamp: new Date().toLocaleTimeString(),
+          },
+        ]);
+        return;
+      }
+    }
+
+    if (baseCmd === 'help') {
+      const helpMsg = `Harpy macOS Terminal (zsh 5.9)
+Available commands:
+  ls [-la]       List files and directories
+  cd <dir>       Change working directory
+  pwd            Print working directory
+  cat <file>     Print file contents
+  mkdir <dir>    Make directory
+  touch <file>   Create file
+  echo <text>    Write arguments to stdout
+  clear (Ctrl+L) Clear terminal screen
+  whoami, date   Display system information
+  <any command>  Executes inside sandboxed workspace`;
+
+      setTerminalLines((prev) => [
+        ...prev,
+        promptEntry,
+        {
+          id: `out-${Date.now()}`,
+          type: 'output',
+          text: helpMsg,
+          timestamp: new Date().toLocaleTimeString(),
+        },
+      ]);
+      return;
+    }
+
+    // 3. Fallback: Sandboxed Server-side Shell Execution
+    setTerminalLines((prev) => [...prev, promptEntry]);
     setIsRunningCmd(true);
 
     try {
@@ -477,10 +800,15 @@ export default function AgentWorkspacePanel({
         body: JSON.stringify({
           action: 'command',
           command: cmd,
+          subDir: currentDir === '~' ? '' : currentDir,
           sessionId,
           userId,
         }),
       });
+
+      if (!res.ok) {
+        throw new Error(`Server returned HTTP ${res.status}`);
+      }
 
       const data = await res.json();
       if (data.stdout) {
@@ -512,7 +840,7 @@ export default function AgentWorkspacePanel({
         {
           id: `err-${Date.now()}`,
           type: 'error',
-          text: msg,
+          text: `zsh: execution notice: ${msg}`,
           timestamp: new Date().toLocaleTimeString(),
         },
       ]);
@@ -873,70 +1201,123 @@ export default function AgentWorkspacePanel({
             </div>
           )}
 
-          {/* TAB 3: INTERACTIVE TERMINAL (CLI) */}
+          {/* TAB 3: macOS Terminal (zsh replica) */}
           {activeTab === 'terminal' && (
-            <div className="flex-1 flex flex-col min-h-0 bg-[#08080D] font-mono text-xs">
-              {/* Terminal Header */}
-              <div className="px-3 py-2 bg-[#0D0D14] border-b border-[#1A1A24] flex items-center justify-between shrink-0">
-                <div className="flex items-center gap-2 text-xs text-[#C6A46A]">
-                  <TerminalIcon className="w-3.5 h-3.5" />
-                  <span className="font-semibold uppercase font-cinzel tracking-wider">
-                    Interactive Workspace Terminal
-                  </span>
+            <div
+              className={`flex-1 flex flex-col min-h-0 bg-[#000000] font-mono text-[13px] leading-relaxed select-text ${
+                isTerminalMaximized
+                  ? 'fixed inset-4 z-50 rounded-xl shadow-2xl border border-[#3A3A4A] overflow-hidden'
+                  : ''
+              }`}
+            >
+              {/* macOS Window Titlebar */}
+              <div className="h-9 px-3 bg-[#1C1C22] border-b border-[#282832] flex items-center justify-between select-none shrink-0">
+                {/* Traffic Light Buttons (Red, Yellow, Green) */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTerminalLines([])}
+                    className="w-3 h-3 rounded-full bg-[#FF5F56] border border-[#E0443E] hover:brightness-110 active:scale-95 transition-all shadow-sm"
+                    title="Clear Terminal Buffer"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setTerminalLines([])}
+                    className="w-3 h-3 rounded-full bg-[#FFBD2E] border border-[#DEA123] hover:brightness-110 active:scale-95 transition-all shadow-sm"
+                    title="Reset Terminal"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setIsTerminalMaximized(!isTerminalMaximized)}
+                    className="w-3 h-3 rounded-full bg-[#27C93F] border border-[#1AAB29] hover:brightness-110 active:scale-95 transition-all shadow-sm"
+                    title="Toggle Maximize Terminal"
+                  />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setTerminalLines([])}
-                  className="px-2 py-0.5 rounded text-[10px] text-[#E8DDC7]/50 hover:text-white hover:bg-white/5 transition-colors"
-                >
-                  Clear Console
-                </button>
+
+                {/* macOS Terminal Title: 📁 chinmaybhatt — -zsh — 80×24 */}
+                <div className="flex items-center gap-1.5 text-xs text-[#B2B2C0] font-mono tracking-tight font-medium">
+                  <span className="text-sm">📁</span>
+                  <span>{terminalUsername} — -zsh — 80×24</span>
+                </div>
+
+                {/* Window Right Action */}
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTerminalLines([])}
+                    className="text-[11px] font-mono text-[#8C8C9C] hover:text-white transition-colors"
+                    title="Clear Console"
+                  >
+                    clear
+                  </button>
+                  <div
+                    onClick={() => setIsTerminalMaximized(!isTerminalMaximized)}
+                    className="w-3.5 h-3.5 border border-[#3A3A4A] rounded-sm flex items-center justify-center opacity-60 hover:opacity-100 cursor-pointer"
+                    title="Toggle Window Scale"
+                  >
+                    <div className="w-1.5 h-2 border-r border-[#3A3A4A]" />
+                  </div>
+                </div>
               </div>
 
-              {/* Terminal Output Log Area */}
-              <div className="flex-1 overflow-y-auto p-3.5 space-y-1.5 [scrollbar-width:thin]">
-                {terminalLines.map((line) => (
-                  <div key={line.id} className="leading-relaxed">
-                    {line.type === 'input' ? (
-                      <span className="text-[#C6A46A] font-bold">{line.text}</span>
-                    ) : line.type === 'error' ? (
-                      <span className="text-rose-400 whitespace-pre-wrap">{line.text}</span>
+              {/* Terminal Screen & Body */}
+              <div
+                onClick={() => terminalInputRef.current?.focus()}
+                className="flex-1 overflow-y-auto p-4 bg-black font-mono text-[13px] leading-relaxed text-[#F0F0F5] [scrollbar-width:thin] cursor-text"
+              >
+                {terminalLines.map((entry) => (
+                  <div key={entry.id} className="mb-1.5">
+                    {entry.type === 'prompt' ? (
+                      <div className="text-[#F0F0F5] whitespace-pre-wrap break-all">
+                        <span>{entry.command}</span>
+                      </div>
+                    ) : entry.type === 'error' ? (
+                      <div className="text-rose-400 whitespace-pre-wrap break-all">
+                        {entry.text}
+                      </div>
                     ) : (
-                      <span className="text-emerald-300/90 whitespace-pre-wrap">{line.text}</span>
+                      <div className="text-[#E0E0E6] whitespace-pre-wrap break-all">
+                        {entry.text}
+                      </div>
                     )}
                   </div>
                 ))}
+
+                {/* Active Interactive Prompt Line */}
+                <div className="flex items-baseline flex-wrap gap-0 leading-normal">
+                  <span className="text-[#F0F0F5] select-none whitespace-pre font-medium">
+                    {terminalPromptPrefix}
+                  </span>
+                  <span className="text-[#FFFFFF] whitespace-pre font-mono">
+                    {terminalInput}
+                  </span>
+                  {/* Blinking Solid Block Cursor (Mac Terminal Style) */}
+                  <span className="inline-block w-2.5 h-[1.15em] bg-[#FFFFFF] animate-pulse ml-0.5 align-text-bottom select-none" />
+                </div>
+
                 {isRunningCmd && (
-                  <div className="flex items-center gap-2 text-amber-400 animate-pulse py-1">
+                  <div className="flex items-center gap-2 text-amber-300 py-1 font-mono text-xs animate-pulse">
                     <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
-                    <span>Executing command in sandbox...</span>
+                    <span>executing in sandbox...</span>
                   </div>
                 )}
-                <div ref={terminalBottomRef} />
-              </div>
 
-              {/* Terminal Input Form */}
-              <form
-                onSubmit={handleExecuteCli}
-                className="p-2.5 bg-[#0A0A10] border-t border-[#1C1C28] flex items-center gap-2"
-              >
-                <span className="text-emerald-400 font-bold select-none">$</span>
+                <div ref={terminalBottomRef} />
+
+                {/* Native Keystroke Listener Input */}
                 <input
+                  ref={terminalInputRef}
                   type="text"
                   value={terminalInput}
                   onChange={(e) => setTerminalInput(e.target.value)}
-                  placeholder="Type shell command (e.g., ls, cat package.json, pwd)..."
-                  className="flex-1 bg-transparent text-[#E8DDC7] placeholder-[#E8DDC7]/30 text-xs focus:outline-none font-mono"
-                  disabled={isRunningCmd}
+                  onKeyDown={handleKeyDown}
+                  className="opacity-0 absolute -z-10 pointer-events-none"
+                  autoCapitalize="none"
+                  autoComplete="off"
+                  autoCorrect="off"
+                  spellCheck={false}
                 />
-                <button
-                  type="submit"
-                  disabled={!terminalInput.trim() || isRunningCmd}
-                  className="px-3 py-1 rounded-md bg-[#C6A46A] text-[#050508] text-[11px] font-bold hover:bg-[#E2C99A] transition-colors disabled:opacity-40"
-                >
-                  Run
-                </button>
-              </form>
+              </div>
             </div>
           )}
         </div>

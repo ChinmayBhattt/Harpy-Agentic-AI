@@ -2246,6 +2246,7 @@ export default function DashboardPage() {
           <AgentWorkspacePanel
             sessionId={activeWorkspaceSessionId || currentSessionId}
             userId={authUser?.id || "anonymous"}
+            userDisplayName={authUser?.fullName || authUser?.email?.split('@')[0] || 'chinmaybhatt'}
             isOpen={isWorkspacePanelOpen}
             onClose={() => setIsWorkspacePanelOpen(false)}
             selectedFilePath={selectedWorkspaceFile}

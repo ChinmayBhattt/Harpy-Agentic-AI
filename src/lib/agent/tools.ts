@@ -212,7 +212,8 @@ export class WorkspaceSandbox {
    */
   public async executeCommand(
     command: string,
-    timeoutMs = 60000
+    timeoutMs = 60000,
+    subDir = ''
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
     const trimmed = command.trim();
 
@@ -234,6 +235,24 @@ export class WorkspaceSandbox {
       }
     }
 
+    // Ensure workspace directory exists
+    if (!fs.existsSync(this.workspaceRoot)) {
+      await fs.promises.mkdir(this.workspaceRoot, { recursive: true });
+    }
+
+    let executionCwd = this.workspaceRoot;
+    if (subDir && typeof subDir === 'string' && subDir !== '~') {
+      try {
+        const resolved = this.resolveSafePath(subDir);
+        if (!fs.existsSync(resolved)) {
+          await fs.promises.mkdir(resolved, { recursive: true });
+        }
+        executionCwd = resolved;
+      } catch {
+        executionCwd = this.workspaceRoot;
+      }
+    }
+
     // Sanitize environment variables so server secrets are NEVER exposed to child processes
     const safeEnv: NodeJS.ProcessEnv = {
       PATH: process.env.PATH || '/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin',
@@ -244,7 +263,7 @@ export class WorkspaceSandbox {
 
     try {
       const { stdout, stderr } = await execAsync(trimmed, {
-        cwd: this.workspaceRoot,
+        cwd: executionCwd,
         env: safeEnv,
         timeout: timeoutMs,
         maxBuffer: 1024 * 512, // 512 KB output max
