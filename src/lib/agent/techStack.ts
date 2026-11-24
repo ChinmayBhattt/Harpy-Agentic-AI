@@ -12,9 +12,10 @@ export interface TechStackInfo {
 }
 
 /**
- * Analyzes workspace directory to detect technology stack and framework conventions
+ * Analyzes workspace directory and user specifications to determine the effective technology stack.
+ * Respects user prompt choices when creating applications, and follows existing project configs when present.
  */
-export function detectWorkspaceTechStack(workspaceRoot: string): TechStackInfo {
+export function detectWorkspaceTechStack(workspaceRoot: string, userPrompt = ''): TechStackInfo {
   const pkgPath = path.join(workspaceRoot, 'package.json');
   let dependencies: Record<string, string> = {};
   let devDependencies: Record<string, string> = {};
@@ -28,25 +29,45 @@ export function detectWorkspaceTechStack(workspaceRoot: string): TechStackInfo {
   }
 
   const allDeps = { ...devDependencies, ...dependencies };
+  const hasExistingDeps = Object.keys(allDeps).length > 0;
+  const pLower = (userPrompt || '').toLowerCase();
 
-  let framework = 'Vanilla / Node.js';
-  if (allDeps['next']) framework = 'Next.js (App Router / React)';
-  else if (allDeps['react']) framework = 'React SPA';
-  else if (allDeps['vue']) framework = 'Vue.js';
-  else if (allDeps['svelte']) framework = 'Svelte';
-  else if (allDeps['express']) framework = 'Node.js + Express';
-
-  const isTypeScript = fs.existsSync(path.join(workspaceRoot, 'tsconfig.json')) || Boolean(allDeps['typescript']);
-  const language = isTypeScript ? 'TypeScript' : 'JavaScript (ES Modules)';
-
-  let styling = 'Standard CSS';
-  if (allDeps['tailwindcss'] || fs.existsSync(path.join(workspaceRoot, 'tailwind.config.js')) || fs.existsSync(path.join(workspaceRoot, 'tailwind.config.ts'))) {
-    styling = 'Tailwind CSS';
+  // 1. Determine Framework
+  let framework = 'Modern Web (React / Next.js)';
+  if (pLower.includes('next.js') || pLower.includes('nextjs') || pLower.includes('next app') || allDeps['next']) {
+    framework = 'Next.js (App Router / React)';
+  } else if (pLower.includes('react') || allDeps['react']) {
+    framework = 'React SPA (Vite / Modern Web)';
+  } else if (pLower.includes('vue') || allDeps['vue']) {
+    framework = 'Vue.js';
+  } else if (pLower.includes('svelte') || allDeps['svelte']) {
+    framework = 'Svelte';
+  } else if (pLower.includes('express') || allDeps['express']) {
+    framework = 'Node.js + Express';
+  } else if (hasExistingDeps) {
+    framework = 'Node.js';
   }
 
-  let buildTool = 'npm scripts';
-  if (allDeps['vite']) buildTool = 'Vite';
-  else if (allDeps['next']) buildTool = 'Next.js Turbopack / Webpack';
+  // 2. Determine Language
+  const isTypeScript =
+    pLower.includes('typescript') ||
+    fs.existsSync(path.join(workspaceRoot, 'tsconfig.json')) ||
+    Boolean(allDeps['typescript']);
+  const language = isTypeScript ? 'TypeScript' : 'JavaScript / TypeScript';
+
+  // 3. Determine Styling
+  let styling = 'Tailwind CSS';
+  if (pLower.includes('tailwind') || allDeps['tailwindcss'] || fs.existsSync(path.join(workspaceRoot, 'tailwind.config.js')) || fs.existsSync(path.join(workspaceRoot, 'tailwind.config.ts'))) {
+    styling = 'Tailwind CSS';
+  } else if (pLower.includes('css modules')) {
+    styling = 'CSS Modules';
+  }
+
+  // 4. Build Tool
+  let buildTool = 'Next.js / Vite';
+  if (framework.includes('Next.js')) buildTool = 'Next.js Turbopack / Webpack';
+  else if (framework.includes('React') || framework.includes('Vue')) buildTool = 'Vite';
+  else if (allDeps['vite']) buildTool = 'Vite';
 
   const summary = `${framework} | ${language} | ${styling} | Build: ${buildTool}`;
 
@@ -54,7 +75,7 @@ export function detectWorkspaceTechStack(workspaceRoot: string): TechStackInfo {
     framework,
     language,
     styling,
-    runtime: 'Node.js',
+    runtime: 'Node.js / Modern Browser',
     buildTool,
     packageManager: 'npm',
     summary,
@@ -62,37 +83,38 @@ export function detectWorkspaceTechStack(workspaceRoot: string): TechStackInfo {
 }
 
 /**
- * Generates an AGENTS.md file inside the workspace if one does not already exist
+ * Generates an AGENTS.md file inside the workspace aligned with the project's target tech stack.
  */
-export function ensureAgentsMarkdown(workspaceRoot: string): string {
+export function ensureAgentsMarkdown(workspaceRoot: string, userPrompt = ''): string {
   const agentsPath = path.join(workspaceRoot, 'AGENTS.md');
-  if (fs.existsSync(agentsPath)) {
-    try {
-      return fs.readFileSync(agentsPath, 'utf-8');
-    } catch {}
-  }
+  const stack = detectWorkspaceTechStack(workspaceRoot, userPrompt);
 
-  const stack = detectWorkspaceTechStack(workspaceRoot);
   const content = `# Project Architecture & Agent Guidelines
 
-## Tech Stack (MANDATORY - DO NOT DEVIATE)
+## Target Tech Stack
 - Framework: ${stack.framework}
 - Language: ${stack.language}
 - Styling: ${stack.styling}
-- Build / Dev: ${stack.buildTool}
+- Build / Tooling: ${stack.buildTool}
 
-## Project Directory Structure Conventions
-- Keep existing code architecture intact.
-- Place reusable UI components in dedicated component folders.
-- Follow established project naming conventions.
-
-## Core Rules for Autonomous Operations
-1. EXPLORE: Always read relevant files and understand current code before editing.
-2. PLAN: Maintain a clear todo list. Execute step by step.
-3. EDIT: Use edit_file for existing files. Never overwrite or duplicate existing files.
-4. RUN & VERIFY: Run build and lint checks to ensure 0 errors. Fix any failure immediately.
-5. FINISH: Only mark complete when all todos are done and build passes.
+## Core Autonomous Principles (Antigravity / Claude Code Style)
+1. COMPLETE DELIVERABLES: Always build complete, functional, production-ready code. Never leave placeholders like "TODO", "rest of code here", or half-finished 1-line stubs.
+2. FULL ARCHITECTURE: For web applications, construct all necessary files: HTML shell (index.html), core application components (App/Page), interactive state, responsive styling (Tailwind CSS), and configurations (package.json).
+3. SURGICAL EDITS: Read files with read_file before modifying existing code. Use edit_file for targeted changes; use create_file only for new files.
+4. VERIFY: Ensure the application runs cleanly with zero syntax or runtime errors.
 `;
+
+  // Always update AGENTS.md if it was previously set to old Vanilla/Node stub and user wants Next.js/React
+  if (fs.existsSync(agentsPath)) {
+    try {
+      const existing = fs.readFileSync(agentsPath, 'utf-8');
+      if (existing.includes('Vanilla / Node.js') && (stack.framework.includes('Next') || stack.framework.includes('React'))) {
+        fs.writeFileSync(agentsPath, content, 'utf-8');
+        return content;
+      }
+      return existing;
+    } catch {}
+  }
 
   try {
     fs.writeFileSync(agentsPath, content, 'utf-8');

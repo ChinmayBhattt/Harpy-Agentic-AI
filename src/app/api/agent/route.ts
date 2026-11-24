@@ -50,7 +50,6 @@ export async function POST(req: NextRequest) {
         const sandbox = new WorkspaceSandbox(userId, sessionId);
         const absPath = sandbox.resolveSafePath(filePath);
         if (oldContent === undefined || oldContent === null || oldContent === '') {
-          // If file was originally created, reverting removes it
           if (fs.existsSync(absPath)) {
             fs.unlinkSync(absPath);
           }
@@ -94,9 +93,17 @@ export async function POST(req: NextRequest) {
     }
 
     const encoder = new TextEncoder();
+    let pingInterval: NodeJS.Timeout | null = null;
 
     const stream = new ReadableStream({
       async start(controller) {
+        // SSE keepalive ping every 3 seconds to prevent Vercel / proxy timeout "Load failed"
+        pingInterval = setInterval(() => {
+          try {
+            controller.enqueue(encoder.encode(': ping\n\n'));
+          } catch {}
+        }, 3000);
+
         const sendEvent = (event: AgentEvent) => {
           try {
             const payload = `data: ${JSON.stringify(event)}\n\n`;
@@ -120,21 +127,24 @@ export async function POST(req: NextRequest) {
           const message = err instanceof Error ? err.message : 'Unknown agent failure';
           sendEvent({ type: 'error', message });
         } finally {
+          if (pingInterval) clearInterval(pingInterval);
           try {
             controller.close();
           } catch {}
         }
       },
       cancel() {
+        if (pingInterval) clearInterval(pingInterval);
         AgentLoop.abort(sessionId);
       },
     });
 
     return new Response(stream, {
       headers: {
-        'Content-Type': 'text/event-stream',
-        'Cache-Control': 'no-cache, no-transform',
+        'Content-Type': 'text/event-stream; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform, no-store, must-revalidate',
         Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
       },
     });
   } catch (err: unknown) {

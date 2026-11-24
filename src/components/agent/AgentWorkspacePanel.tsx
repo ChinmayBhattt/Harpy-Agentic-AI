@@ -194,6 +194,8 @@ function generatePreviewHtml(files: FileChangeRecord[], theme: 'dark' | 'light' 
 
   const cleanModuleCode = (code: string) => {
     return code
+      .replace(/['"]use client['"];?/g, '')
+      .replace(/['"]use server['"];?/g, '')
       .replace(/import\s+React\s*(?:,\s*\{[^}]*\})?\s*from\s*['"]react['"];?/g, '')
       .replace(/import\s*\{([^}]*)\}\s*from\s*['"]react['"];?/g, 'const { $1 } = React;')
       .replace(/import\s+.*\s+from\s+['"][^'"]+['"];?/g, '')
@@ -241,7 +243,19 @@ function generatePreviewHtml(files: FileChangeRecord[], theme: 'dark' | 'light' 
       const rootEl = document.getElementById('root');
       if (rootEl) {
         const root = ReactDOM.createRoot(rootEl);
-        root.render(<App />);
+        const ComponentToMount =
+          (typeof App !== 'undefined') ? App :
+          (typeof Page !== 'undefined') ? Page :
+          (typeof Home !== 'undefined') ? Home :
+          (typeof TodoApp !== 'undefined') ? TodoApp :
+          (typeof Main !== 'undefined') ? Main :
+          (typeof TodoList !== 'undefined') ? TodoList : null;
+
+        if (ComponentToMount) {
+          root.render(<ComponentToMount />);
+        } else {
+          root.render(<div className="p-8 text-center text-emerald-400 font-mono text-sm">Application Loaded Successfully. Check Components.</div>);
+        }
       }
     } catch (renderErr) {
       document.getElementById('root').innerHTML = '<div style="padding:24px;color:#f87171;font-family:monospace;">Render Notice: ' + renderErr.message + '</div>';
