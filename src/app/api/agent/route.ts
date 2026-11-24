@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import fs from 'fs';
 import { AgentLoop } from '@/lib/agent/agentLoop';
 import { AgentEvent, FileChangeRecord } from '@/lib/agent/events';
 import { WorkspaceSandbox } from '@/lib/agent/tools';
@@ -18,12 +19,49 @@ export async function POST(req: NextRequest) {
       apiKey,
       existingFiles,
       command,
+      planMode = false,
+      approvalId,
+      approved,
+      filePath,
+      oldContent,
     } = body;
 
     // Handle abort action
     if (action === 'abort') {
       const ok = AgentLoop.abort(sessionId);
       return NextResponse.json({ success: ok, message: ok ? 'Agent run aborted.' : 'No active run found.' });
+    }
+
+    // Handle user approval for risky commands
+    if (action === 'approval') {
+      if (!approvalId) {
+        return NextResponse.json({ error: 'Missing approvalId parameter' }, { status: 400 });
+      }
+      const resolved = AgentLoop.resolveApproval(approvalId, Boolean(approved));
+      return NextResponse.json({ success: resolved, message: resolved ? 'Approval recorded' : 'Approval session expired or not found' });
+    }
+
+    // Handle file reversion (revert file to previous state)
+    if (action === 'revert_file') {
+      if (!filePath) {
+        return NextResponse.json({ error: 'Missing filePath parameter' }, { status: 400 });
+      }
+      try {
+        const sandbox = new WorkspaceSandbox(userId, sessionId);
+        const absPath = sandbox.resolveSafePath(filePath);
+        if (oldContent === undefined || oldContent === null || oldContent === '') {
+          // If file was originally created, reverting removes it
+          if (fs.existsSync(absPath)) {
+            fs.unlinkSync(absPath);
+          }
+        } else {
+          fs.writeFileSync(absPath, oldContent, 'utf-8');
+        }
+        return NextResponse.json({ success: true, message: `Reverted ${filePath} to previous state` });
+      } catch (revErr: unknown) {
+        const msg = revErr instanceof Error ? revErr.message : 'Reversion failed';
+        return NextResponse.json({ success: false, error: msg }, { status: 500 });
+      }
     }
 
     // Handle interactive terminal CLI command
@@ -76,6 +114,7 @@ export async function POST(req: NextRequest) {
             existingFiles: Array.isArray(existingFiles) ? (existingFiles as FileChangeRecord[]) : undefined,
             signal: req.signal,
             onEvent: sendEvent,
+            planMode: Boolean(planMode),
           });
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : 'Unknown agent failure';

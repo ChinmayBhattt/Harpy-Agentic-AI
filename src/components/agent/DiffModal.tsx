@@ -1,17 +1,20 @@
 'use client';
 
 import React from 'react';
-import { X, FileCode, Check, Copy } from 'lucide-react';
+import { X, FileCode, Check, Copy, Undo2, CheckCircle2 } from 'lucide-react';
 import * as diff from 'diff';
 import { FileChangeRecord } from '@/lib/agent/events';
 
 interface DiffModalProps {
   file: FileChangeRecord | null;
   onClose: () => void;
+  onAccept?: (file: FileChangeRecord) => void;
+  onRevert?: (file: FileChangeRecord) => void;
 }
 
-export default function DiffModal({ file, onClose }: DiffModalProps) {
+export default function DiffModal({ file, onClose, onAccept, onRevert }: DiffModalProps) {
   const [copied, setCopied] = React.useState(false);
+  const [accepted, setAccepted] = React.useState(false);
 
   if (!file) return null;
 
@@ -23,6 +26,19 @@ export default function DiffModal({ file, onClose }: DiffModalProps) {
     navigator.clipboard.writeText(newText);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleAccept = () => {
+    setAccepted(true);
+    onAccept?.(file);
+    setTimeout(() => onClose(), 600);
+  };
+
+  const handleRevert = () => {
+    if (confirm(`Are you sure you want to revert changes to "${file.path}"?`)) {
+      onRevert?.(file);
+      onClose();
+    }
   };
 
   return (
@@ -46,14 +62,39 @@ export default function DiffModal({ file, onClose }: DiffModalProps) {
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
+            {onRevert && (
+              <button
+                type="button"
+                onClick={handleRevert}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono bg-rose-950/40 hover:bg-rose-900/60 text-rose-300 border border-rose-800/40 transition-colors"
+                title="Revert this file change"
+              >
+                <Undo2 className="w-3.5 h-3.5" />
+                <span>Revert</span>
+              </button>
+            )}
+
+            {onAccept && (
+              <button
+                type="button"
+                onClick={handleAccept}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-800/40 transition-colors"
+                title="Accept this file change"
+              >
+                {accepted ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                <span>{accepted ? 'Accepted' : 'Accept'}</span>
+              </button>
+            )}
+
             <button
               type="button"
               onClick={handleCopyNewContent}
               className="flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-mono bg-white/5 hover:bg-white/10 text-[#E8DDC7] transition-colors"
             >
               {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              <span>{copied ? 'Copied' : 'Copy Content'}</span>
+              <span>{copied ? 'Copied' : 'Copy'}</span>
             </button>
+
             <button
               type="button"
               onClick={onClose}

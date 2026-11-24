@@ -307,6 +307,7 @@ export default function DashboardPage() {
 
   // Autonomous Code Agent Mode State (Cursor / Antigravity Style)
   const [agentMode, setAgentMode] = useState(false);
+  const [agentExecutionMode, setAgentExecutionMode] = useState<'plan' | 'execute'>('execute');
   const [isWorkspacePanelOpen, setIsWorkspacePanelOpen] = useState(false);
   const [activeWorkspaceSessionId, setActiveWorkspaceSessionId] = useState<string | null>(null);
   const [reviewingDiffFile, setReviewingDiffFile] = useState<FileChangeRecord | null>(null);
@@ -828,6 +829,7 @@ export default function DashboardPage() {
             model: chosenModel,
             apiKey: apiKey || '',
             existingFiles: existingWorkspaceFiles,
+            planMode: agentExecutionMode === 'plan',
           }),
           signal: abortController.signal,
         });
@@ -873,6 +875,14 @@ export default function DashboardPage() {
                 currentRun.events = [...currentRun.events, event];
               } else if (event.type === 'tool_end') {
                 currentRun.events = [...currentRun.events, event];
+              } else if (event.type === 'approval_required') {
+                currentRun.status = 'waiting_approval';
+                currentRun.pendingApproval = { id: event.id, command: event.command, reason: event.reason };
+                currentRun.events = [...currentRun.events, event];
+              } else if (event.type === 'approval_resolved') {
+                currentRun.status = 'running';
+                currentRun.pendingApproval = undefined;
+                currentRun.events = [...currentRun.events, event];
               } else if (event.type === 'file_changed') {
                 currentRun.events = [...currentRun.events, event];
                 const existingIdx = currentRun.filesChanged.findIndex((f) => f.path === event.path);
@@ -891,7 +901,7 @@ export default function DashboardPage() {
                   currentRun.filesChanged = [...currentRun.filesChanged, rec];
                 }
               } else if (event.type === 'done') {
-                currentRun.status = 'completed';
+                currentRun.status = agentExecutionMode === 'plan' ? 'plan_ready' : 'completed';
                 currentRun.filesChanged = event.filesChanged;
                 if (!currentRun.finalMessage) currentRun.finalMessage = event.summary;
               } else if (event.type === 'error') {
@@ -2035,6 +2045,7 @@ export default function DashboardPage() {
                         {msg.isAgent && msg.agentRun ? (
                           <AgentTimeline
                             runData={msg.agentRun}
+                            sessionId={currentSessionId}
                             onSelectFile={(filePath) => {
                               setSelectedWorkspaceFile(filePath);
                               setActiveWorkspaceSessionId(currentSessionId);
@@ -2042,6 +2053,26 @@ export default function DashboardPage() {
                               setBrowserPanelOpen(false);
                             }}
                             onReviewDiff={(file) => setReviewingDiffFile(file)}
+                            onApprovePlan={() => {
+                              setAgentExecutionMode('execute');
+                              handleSendMessage('Plan approved by user. Execute all planned tasks now.', true);
+                            }}
+                            onResolveApproval={async (approvalId, approved) => {
+                              try {
+                                await fetch('/api/agent', {
+                                  method: 'POST',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({
+                                    action: 'approval',
+                                    sessionId: currentSessionId,
+                                    approvalId,
+                                    approved,
+                                  }),
+                                });
+                              } catch (e) {
+                                console.error('Failed to submit approval:', e);
+                              }
+                            }}
                           />
                         ) : (
                           <MarkdownRenderer content={msg.text} />
@@ -2203,12 +2234,28 @@ export default function DashboardPage() {
                     ? "bg-[#F8F9FA] border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A] hover:border-[#94A3B8]"
                     : "bg-[#111118] border-[#22222E] text-[#E8DDC7]/50 hover:text-[#C6A46A] hover:border-[#C6A46A]/40"
                 }`}
-                title={agentMode ? "Agent Mode Active: Cursor / Antigravity Autonomous Code Editor" : "Switch to Agent Mode (Autonomous Code Editor)"}
+                title={agentMode ? "Agent Mode Active: Autonomous Senior Software Engineer" : "Switch to Agent Mode"}
               >
                 <Sparkles className={`w-3.5 h-3.5 ${agentMode ? "text-[#C6A46A] animate-pulse" : ""}`} />
                 <span className="hidden sm:inline">Agent Mode</span>
                 <span className="sm:hidden">Agent</span>
               </button>
+
+              {/* Plan Mode / Execute Mode Switcher when Agent Mode is Active */}
+              {agentMode && (
+                <button
+                  type="button"
+                  onClick={() => setAgentExecutionMode(agentExecutionMode === 'plan' ? 'execute' : 'plan')}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-mono uppercase tracking-wider transition-all duration-200 border shrink-0 ${
+                    agentExecutionMode === 'plan'
+                      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_8px_rgba(6,182,212,0.25)] font-semibold"
+                      : "bg-[#C6A46A]/10 text-[#C6A46A] border-[#C6A46A]/30 hover:border-[#C6A46A]/60"
+                  }`}
+                  title={agentExecutionMode === 'plan' ? "Plan Mode: Formulate todos and await approval before modifying files" : "Execute Mode: Fully autonomous explore, execute, and verify"}
+                >
+                  <span>{agentExecutionMode === 'plan' ? 'Plan Mode' : 'Execute Mode'}</span>
+                </button>
+              )}
 
               {/* Textarea without scrollbars/sliders */}
               <textarea
@@ -2943,6 +2990,45 @@ export default function DashboardPage() {
       <DiffModal
         file={reviewingDiffFile}
         onClose={() => setReviewingDiffFile(null)}
+        onAccept={(file) => {
+          // File change accepted
+        }}
+        onRevert={async (file) => {
+          try {
+            await fetch('/api/agent', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                action: 'revert_file',
+                sessionId: currentSessionId,
+                userId: authUser?.id || 'anonymous',
+                filePath: file.path,
+                oldContent: file.oldContent,
+              }),
+            });
+            // Update local state to remove or update file change
+            setSessions((prev) =>
+              prev.map((s) => {
+                if (s.id !== currentSessionId) return s;
+                return {
+                  ...s,
+                  messages: s.messages.map((m) => {
+                    if (!m.isAgent || !m.agentRun) return m;
+                    return {
+                      ...m,
+                      agentRun: {
+                        ...m.agentRun,
+                        filesChanged: m.agentRun.filesChanged.filter((f) => f.path !== file.path),
+                      },
+                    };
+                  }),
+                };
+              })
+            );
+          } catch (e) {
+            console.error('Revert file error:', e);
+          }
+        }}
       />
 
       {/* Vapi Live Voice AI Assistant Modal */}

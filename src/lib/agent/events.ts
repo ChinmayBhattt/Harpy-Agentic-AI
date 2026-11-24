@@ -69,6 +69,23 @@ export type AgentEvent =
       summary: string;
     }
   | {
+      type: 'approval_required';
+      id: string;
+      command: string;
+      reason: string;
+    }
+  | {
+      type: 'approval_resolved';
+      id: string;
+      approved: boolean;
+    }
+  | {
+      type: 'build_verification';
+      status: 'running' | 'passed' | 'failed';
+      command: string;
+      output?: string;
+    }
+  | {
       type: 'error';
       message: string;
     };
@@ -76,11 +93,16 @@ export type AgentEvent =
 export interface AgentRunData {
   sessionId: string;
   workspacePath: string;
-  status: 'running' | 'completed' | 'failed' | 'aborted';
+  status: 'running' | 'completed' | 'failed' | 'aborted' | 'waiting_approval' | 'plan_ready';
   plan: PlanStep[];
   events: AgentEvent[];
   filesChanged: FileChangeRecord[];
   thinkingDuration?: number;
   finalMessage?: string;
   error?: string;
+  pendingApproval?: {
+    id: string;
+    command: string;
+    reason: string;
+  };
 }

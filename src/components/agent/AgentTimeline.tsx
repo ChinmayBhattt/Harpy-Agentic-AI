@@ -17,25 +17,36 @@ import {
   FilePlus,
   FileEdit,
   Sparkles,
+  ShieldAlert,
+  Check,
+  X,
+  Play,
 } from 'lucide-react';
-import { AgentRunData, PlanStep, FileChangeRecord } from '@/lib/agent/events';
+import { AgentRunData, FileChangeRecord } from '@/lib/agent/events';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
 
 interface AgentTimelineProps {
   runData: AgentRunData;
+  sessionId?: string;
   onSelectFile?: (filePath: string) => void;
   onReviewDiff?: (file: FileChangeRecord) => void;
+  onApprovePlan?: () => void;
+  onResolveApproval?: (id: string, approved: boolean) => void;
 }
 
 export default function AgentTimeline({
   runData,
+  sessionId,
   onSelectFile,
   onReviewDiff,
+  onApprovePlan,
+  onResolveApproval,
 }: AgentTimelineProps) {
   const [expandedCommandIds, setExpandedCommandIds] = useState<Set<string>>(new Set());
   const [expandedThinkingIndices, setExpandedThinkingIndices] = useState<Set<number>>(new Set());
   const [isPlanExpanded, setIsPlanExpanded] = useState(true);
   const [isFilesExpanded, setIsFilesExpanded] = useState(true);
+  const [pendingApprovals, setPendingApprovals] = useState<Record<string, boolean>>({});
 
   const toggleCommand = (id: string) => {
     setExpandedCommandIds((prev) => {
@@ -55,12 +66,32 @@ export default function AgentTimeline({
     });
   };
 
+  const handleApprovalAction = async (id: string, approved: boolean) => {
+    setPendingApprovals((prev) => ({ ...prev, [id]: true }));
+    if (onResolveApproval) {
+      onResolveApproval(id, approved);
+    } else {
+      try {
+        await fetch('/api/agent', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'approval',
+            approvalId: id,
+            approved,
+            sessionId,
+          }),
+        });
+      } catch (e) {
+        console.error('Approval resolution error:', e);
+      }
+    }
+  };
+
   const plan = runData.plan || [];
   const filesChanged = runData.filesChanged || [];
   const totalAdded = filesChanged.reduce((acc, f) => acc + (f.addedLines || 0), 0);
   const totalRemoved = filesChanged.reduce((acc, f) => acc + (f.removedLines || 0), 0);
-
-  // Group events for timeline view
   const events = runData.events || [];
 
   return (
@@ -77,7 +108,7 @@ export default function AgentTimeline({
           >
             <div className="flex items-center gap-2">
               <span className="font-cinzel text-xs font-semibold text-[#C6A46A] tracking-wider uppercase">
-                Plan & Execution Checklist
+                Plan &amp; Execution Checklist
               </span>
               <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#C6A46A]/10 text-[#C6A46A] border border-[#C6A46A]/25">
                 {plan.filter((s) => s.status === 'done').length}/{plan.length} Done
@@ -114,6 +145,21 @@ export default function AgentTimeline({
                   </span>
                 </div>
               ))}
+
+              {/* Plan Mode Approval Banner */}
+              {runData.status === 'plan_ready' && onApprovePlan && (
+                <div className="mt-2.5 pt-2 border-t border-[#1C1C26] flex items-center justify-between">
+                  <span className="text-[11px] text-[#A09885]">Plan formulated. Review steps above.</span>
+                  <button
+                    type="button"
+                    onClick={onApprovePlan}
+                    className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#C6A46A] hover:bg-[#D4B37F] text-black font-semibold text-xs transition-colors shadow-sm"
+                  >
+                    <Play className="w-3 h-3 fill-current" />
+                    <span>Approve &amp; Execute</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -158,7 +204,7 @@ export default function AgentTimeline({
           // Tool Start (Running Spinner)
           if (ev.type === 'tool_start') {
             const hasEnd = events.slice(idx + 1).some((next) => next.type === 'tool_end' && next.id === ev.id);
-            if (hasEnd) return null; // tool_end will render the completed row
+            if (hasEnd) return null;
 
             return (
               <div key={`tool-start-${ev.id}`} className="flex items-center gap-2 py-1 text-[11px] text-[#C6A46A] font-mono">
@@ -196,7 +242,6 @@ export default function AgentTimeline({
                   </div>
 
                   <div className="flex items-center gap-1.5 shrink-0">
-                    {/* If file, click to view in Workspace Panel */}
                     {ev.filePath && onSelectFile && (
                       <button
                         type="button"
@@ -208,7 +253,6 @@ export default function AgentTimeline({
                       </button>
                     )}
 
-                    {/* If command output available, toggle expansion */}
                     {isCmd && ev.output && (
                       <button
                         type="button"
@@ -226,11 +270,57 @@ export default function AgentTimeline({
                   </div>
                 </div>
 
-                {/* Collapsible Command Terminal Output */}
                 {isCmd && isExpanded && ev.output && (
                   <div className="mt-1 p-2.5 rounded-lg bg-black border border-[#22222E] text-[10px] font-mono text-emerald-300/90 whitespace-pre-wrap max-h-48 overflow-y-auto selection:bg-emerald-800">
                     {ev.output}
                   </div>
+                )}
+              </div>
+            );
+          }
+
+          // Risky Command Approval Required Banner
+          if (ev.type === 'approval_required') {
+            const hasResolved = events.slice(idx + 1).some((next) => next.type === 'approval_resolved' && next.id === ev.id) || pendingApprovals[ev.id];
+
+            return (
+              <div
+                key={`approval-${ev.id}`}
+                className="p-3 my-2 rounded-xl border border-amber-500/40 bg-amber-950/20 text-[#E8DDC7] space-y-2"
+              >
+                <div className="flex items-center gap-2 text-amber-400 font-semibold text-xs">
+                  <ShieldAlert className="w-4 h-4 shrink-0" />
+                  <span>Security Approval Required</span>
+                </div>
+                <p className="text-xs text-[#E8DDC7]/80">
+                  Agent requested to execute a potentially risky command:
+                </p>
+                <div className="p-2 rounded bg-black/60 font-mono text-xs text-amber-300 border border-amber-900/30">
+                  {ev.command}
+                </div>
+                <div className="text-[11px] text-[#A09885]">Reason: {ev.reason}</div>
+
+                {!hasResolved ? (
+                  <div className="flex items-center gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => handleApprovalAction(ev.id, true)}
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-xs transition-colors"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Approve</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleApprovalAction(ev.id, false)}
+                      className="flex items-center gap-1 px-3 py-1 rounded bg-rose-600 hover:bg-rose-500 text-white font-medium text-xs transition-colors"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Deny</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div className="text-[10px] text-[#A09885] italic">Decision submitted.</div>
                 )}
               </div>
             );
