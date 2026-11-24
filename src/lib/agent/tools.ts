@@ -206,6 +206,11 @@ export const AGENT_TOOLS_DEFINITIONS = [
   },
 ];
 
+// Tool definitions for Read-Only Plan Mode (no file creation or modification)
+export const AGENT_PLAN_TOOLS_DEFINITIONS = AGENT_TOOLS_DEFINITIONS.filter((t) =>
+  ['list_dir', 'read_file', 'grep_search', 'update_todos', 'finish'].includes(t.function.name)
+);
+
 // ──────────────────────────────────────────────────────────
 // WORKSPACE SANDBOX & SECURITY
 // ──────────────────────────────────────────────────────────
@@ -423,6 +428,7 @@ export class AgentToolRunner {
   public plan: PlanStep[] = [];
   public filesChanged: Map<string, FileChangeRecord> = new Map();
   public sessionReadFiles: Set<string> = new Set();
+  public planMode = false;
   public onPlanUpdate?: (steps: PlanStep[]) => void;
   public onApprovalRequired?: (req: { id: string; command: string; reason: string }) => Promise<boolean>;
 
@@ -456,6 +462,15 @@ export class AgentToolRunner {
       else if (name === 'Grep') canonicalName = 'grep_search';
       else if (name === 'Bash') canonicalName = 'run_command';
       else if (name === 'TaskCreate' || name === 'TaskUpdate') canonicalName = 'update_todos';
+
+      // In Plan Mode, strictly block any file modifications
+      if (this.planMode && (canonicalName === 'create_file' || canonicalName === 'edit_file')) {
+        return {
+          status: 'error',
+          resultSummary: `Blocked ${canonicalName}: Plan Mode is Read-Only`,
+          output: `Operation blocked: You are currently in Plan Mode (Read-Only). You cannot create or edit files in Plan Mode. Please formulate your plan using update_todos and wait for the user to approve execution.`,
+        };
+      }
 
       switch (canonicalName) {
         case 'create_plan': {
@@ -815,6 +830,20 @@ export class AgentToolRunner {
 
         case 'finish': {
           const parsed = finishSchema.parse(args);
+
+          // GUARDRAIL 0: In Execute Mode, finish must FAIL if no application UI/logic was built
+          if (!this.planMode) {
+            const hasAppFiles = Array.from(this.filesChanged.keys()).some((k) =>
+              /(app|page|todo|main)\.(jsx|tsx|js)|index\.html/i.test(k)
+            );
+            if (!hasAppFiles && this.filesChanged.size > 0) {
+              return {
+                status: 'error',
+                resultSummary: 'finish failed: Core application UI files have not been created yet.',
+                output: `Cannot finish yet! You have only created configuration files. You MUST create the actual application components with full working UI (e.g. "index.html" and "src/App.jsx" or "src/app/page.tsx") containing all features requested by the user before calling finish.`,
+              };
+            }
+          }
 
           // GUARDRAIL 1: finish must FAIL while any todo is incomplete
           const incompleteTodos = this.plan.filter((s) => s.status !== 'done');

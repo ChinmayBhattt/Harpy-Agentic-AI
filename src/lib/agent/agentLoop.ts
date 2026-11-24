@@ -1,6 +1,6 @@
 import path from 'path';
 import fs from 'fs';
-import { WorkspaceSandbox, AgentToolRunner, AGENT_TOOLS_DEFINITIONS } from './tools';
+import { WorkspaceSandbox, AgentToolRunner, AGENT_TOOLS_DEFINITIONS, AGENT_PLAN_TOOLS_DEFINITIONS } from './tools';
 import { AgentEvent, PlanStep, FileChangeRecord } from './events';
 import { detectWorkspaceTechStack, ensureAgentsMarkdown } from './techStack';
 import { synthesizeApplicationFiles } from './appSynthesizer';
@@ -152,6 +152,7 @@ export class AgentLoop {
 
     const sandbox = new WorkspaceSandbox(userId, sessionId);
     const runner = new AgentToolRunner(sandbox);
+    runner.planMode = Boolean(planMode);
 
     // Rehydrate existing files on disk so every tool (list_dir, read_file, edit_file) sees them immediately
     if (existingFiles && Array.isArray(existingFiles)) {
@@ -283,6 +284,23 @@ export class AgentLoop {
           'llama-3.1-8b-instant',
         ].filter(Boolean);
 
+    // Mode-specific directives
+    const modeDirectives = planMode
+      ? `CURRENT OPERATIONAL MODE: PLAN MODE (READ-ONLY ANALYSIS & TODO LIST FORMULATION)
+- You are strictly in READ-ONLY planning mode.
+- You are PROHIBITED from creating or editing any files in Plan Mode.
+- Your tools in this mode are strictly read-only: list_dir, read_file, grep_search, update_todos, finish.
+- Explore the workspace, inspect existing configurations, and formulate a clear, multi-step implementation plan using update_todos.
+- In your final response, summarize your plan and prompt the user to click "Approve & Execute" or switch to Execute Mode to begin building.`
+      : `CURRENT OPERATIONAL MODE: EXECUTE MODE (AUTONOMOUS CODE IMPLEMENTATION & BUILD)
+- The user wants you to EXECUTE and BUILD the complete application now!
+- Target Application Goal: "${effectiveGoal}".
+- You MUST create the complete, working application files right now:
+  1) "index.html" (Web application shell with Tailwind CSS & FontAwesome)
+  2) "src/App.jsx" AND "src/app/page.tsx" (Full interactive application code with all requested features, state, UI, search, filters, categories, priorities, animations, and local storage persistence)
+  3) "package.json"
+- NEVER stop after merely creating configuration files. You MUST write the actual application component code!`;
+
     // SECTION E: Standard Senior Autonomous Agent System Prompt (Antigravity & Claude Style)
     const systemPromptContent = `You are Harpy Agent, an elite autonomous senior software engineer (Antigravity / Claude Code style) working in the user's workspace.
 TARGET TECH STACK: ${techStack.summary}
@@ -290,27 +308,15 @@ TARGET TECH STACK: ${techStack.summary}
 PROJECT INSTRUCTIONS (from AGENTS.md):
 ${agentsMd}
 
-YOUR AUTONOMOUS DIRECTIVES:
-1. EXPLORE & PLAN:
-   - Read relevant files with read_file before editing existing code.
-   - Update your todo checklist using update_todos as you work.
-2. FULL APPLICATION COMPLETION:
-   - The user's application goal is: "${effectiveGoal}".
-   - You MUST build a COMPLETE, fully functioning, production-ready application.
-   - For web applications, you MUST create:
-     1) "index.html" (HTML shell with Tailwind CSS CDN and root container)
-     2) "src/App.jsx" or "src/app/page.tsx" (the complete, interactive application with all requested features, views, state, categories, filters, search, and local storage)
-     3) Any auxiliary components and "package.json".
-   - NEVER stop after merely reading or inspecting existing files. You MUST create/write the application code!
-   - NEVER create 1-line dummy console stubs when asked for an application.
-   - NEVER refuse a user's chosen tech stack. Build what the user asked for.
-3. SURGICAL TOOLS:
-   - Use create_file for brand NEW files.
-   - Use edit_file for EXISTING files with exact search-and-replace old_str and new_str.
-   - Use run_command to verify builds, run scripts, or test.
-4. FINISH ONLY WHEN COMPLETE:
-   - Mark todos done as you complete them.
-   - Call "finish" with an executive summary only when all files are written, features work, and the application is complete.`;
+${modeDirectives}
+
+AUTONOMOUS RULES:
+1. EXPLORE: Read relevant files with read_file before modifying existing code.
+2. LIVE TODOS: Keep your todo checklist updated using update_todos.
+3. SURGICAL TOOLS: Use create_file for brand NEW files. Use edit_file for EXISTING files with exact search-and-replace old_str and new_str.
+4. FINISH: Call finish only when all todos are done and the application code is complete.`;
+
+    const activeTools = planMode ? AGENT_PLAN_TOOLS_DEFINITIONS : AGENT_TOOLS_DEFINITIONS;
 
     const messages: Array<Record<string, unknown>> = [
       { role: 'system', content: systemPromptContent },
@@ -436,7 +442,7 @@ YOUR AUTONOMOUS DIRECTIVES:
               const hasAppFiles = Array.from(runner.filesChanged.keys()).some((k) =>
                 /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)|todo/i.test(k)
               );
-              if (!hasAppFiles && currentTurn >= 2) {
+              if (!planMode && !hasAppFiles && currentTurn >= 2) {
                 bodyPayload.tool_choice = { type: 'function', function: { name: 'create_file' } };
               } else {
                 bodyPayload.tool_choice = 'auto';
@@ -484,7 +490,7 @@ YOUR AUTONOMOUS DIRECTIVES:
         // Compact context to avoid token limits
         const activeMessages = compactMessages(messages);
 
-        const llmResponse = await callLLM(activeMessages, AGENT_TOOLS_DEFINITIONS, turnCount);
+        const llmResponse = await callLLM(activeMessages, activeTools, turnCount);
         const choice = llmResponse?.choices?.[0];
         const choiceMessage = choice?.message;
         const finishReason = choice?.finish_reason;
@@ -500,9 +506,9 @@ YOUR AUTONOMOUS DIRECTIVES:
             delta: choiceMessage.content,
           });
 
-          // Fallback: extract markdown code blocks if the model emitted files inside code blocks
+          // Fallback: extract markdown code blocks if the model emitted files inside code blocks (Execute Mode only)
           const extractedFiles = extractFilesFromMarkdown(choiceMessage.content);
-          if (extractedFiles.length > 0) {
+          if (extractedFiles.length > 0 && !planMode) {
             for (const ef of extractedFiles) {
               const toolId = `codeblock_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
               onEvent({
@@ -663,75 +669,80 @@ YOUR AUTONOMOUS DIRECTIVES:
           }
         } else {
           // Model did not call tools in this turn
-          const hasWrittenAppFiles = Array.from(runner.filesChanged.keys()).some((k) =>
-            /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)|todo/i.test(k)
-          );
+          if (planMode) {
+            missionFinished = true;
+            finalSummary = choiceMessage.content || `Plan formulated with ${runner.plan.length} steps. Ready for user review. Click "Approve & Execute" or switch to Execute Mode to begin building.`;
+          } else {
+            const hasWrittenAppFiles = Array.from(runner.filesChanged.keys()).some((k) =>
+              /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)|todo/i.test(k)
+            );
 
-          // CRITICAL ANTIGRAVITY GUARD: If no application files were written, DO NOT STOP!
-          if (!hasWrittenAppFiles && turnCount <= 2) {
-            messages.push({
-              role: 'user',
-              content: `CRITICAL: You have inspected the workspace, but you have NOT created the application code yet for: "${effectiveGoal}".
+            // CRITICAL ANTIGRAVITY GUARD: If no application files were written, DO NOT STOP!
+            if (!hasWrittenAppFiles && turnCount <= 2) {
+              messages.push({
+                role: 'user',
+                content: `CRITICAL: You have inspected the workspace, but you have NOT created the application code yet for: "${effectiveGoal}".
 You MUST call "create_file" now to generate:
 1. "index.html" (Web application shell)
 2. "src/App.jsx" or "src/app/page.tsx" (Complete interactive code with state, filters, priority, and local storage)
 3. "package.json"
 Call create_file right now!`,
-            });
-          } else if (!hasWrittenAppFiles) {
-            // Autonomous Synthesizer: Guarantee that complete, production-grade files are created
-            const synthFiles = synthesizeApplicationFiles(effectiveGoal, techStack.summary);
-            for (const sf of synthFiles) {
-              const toolId = `synth_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-              onEvent({
-                type: 'tool_start',
-                id: toolId,
-                tool: 'create_file',
-                args: { path: sf.path },
-                displayText: `Autonomously constructing ${sf.path} (${sf.description})...`,
               });
-
-              const fileRes = await runner.executeTool('create_file', {
-                path: sf.path,
-                content: sf.content,
-              });
-
-              onEvent({
-                type: 'tool_end',
-                id: toolId,
-                tool: 'create_file',
-                status: fileRes.status,
-                resultSummary: fileRes.resultSummary,
-                output: fileRes.output,
-                filePath: fileRes.filePath,
-              });
-
-              if (fileRes.fileChange) {
+            } else if (!hasWrittenAppFiles) {
+              // Autonomous Synthesizer: Guarantee that complete, production-grade files are created
+              const synthFiles = synthesizeApplicationFiles(effectiveGoal, techStack.summary);
+              for (const sf of synthFiles) {
+                const toolId = `synth_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
                 onEvent({
-                  type: 'file_changed',
-                  path: fileRes.fileChange.path,
-                  action: fileRes.fileChange.action === 'created' ? 'created' : 'edited',
-                  added: fileRes.fileChange.addedLines,
-                  removed: 0,
-                  oldContent: '',
-                  newContent: fileRes.fileChange.newContent,
+                  type: 'tool_start',
+                  id: toolId,
+                  tool: 'create_file',
+                  args: { path: sf.path },
+                  displayText: `Autonomously constructing ${sf.path} (${sf.description})...`,
                 });
-              }
-            }
 
-            runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
-            runner.onPlanUpdate?.(runner.plan);
-            missionFinished = true;
-            finalSummary = `### Mission Accomplished\n\nSuccessfully engineered complete application for:\n> *"${effectiveGoal}"*\n\n**Generated Deliverables:**\n- **index.html**: Live preview web shell with Tailwind CSS & FontAwesome\n- **src/App.jsx** & **src/app/page.tsx**: Interactive application with dynamic state, categories, filters, priorities, and local storage persistence\n- **package.json**: Next.js & React configuration\n\nClick the **Preview** tab in the Workspace Panel to test your application live!`;
-          } else if (hasWrittenAppFiles || runner.filesChanged.size > 0) {
-            // Mark all todos complete
-            runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
-            runner.onPlanUpdate?.(runner.plan);
-            missionFinished = true;
-            finalSummary = choiceMessage.content || 'Application implementation complete.';
-          } else {
-            missionFinished = true;
-            finalSummary = choiceMessage.content || 'Task completed.';
+                const fileRes = await runner.executeTool('create_file', {
+                  path: sf.path,
+                  content: sf.content,
+                });
+
+                onEvent({
+                  type: 'tool_end',
+                  id: toolId,
+                  tool: 'create_file',
+                  status: fileRes.status,
+                  resultSummary: fileRes.resultSummary,
+                  output: fileRes.output,
+                  filePath: fileRes.filePath,
+                });
+
+                if (fileRes.fileChange) {
+                  onEvent({
+                    type: 'file_changed',
+                    path: fileRes.fileChange.path,
+                    action: 'created',
+                    added: fileRes.fileChange.addedLines,
+                    removed: 0,
+                    oldContent: '',
+                    newContent: fileRes.fileChange.newContent,
+                  });
+                }
+              }
+
+              runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
+              runner.onPlanUpdate?.(runner.plan);
+              missionFinished = true;
+              finalSummary = `### Mission Accomplished\n\nSuccessfully engineered complete application for:\n> *"${effectiveGoal}"*\n\n**Generated Deliverables:**\n- **index.html**: Live preview web shell with Tailwind CSS & FontAwesome\n- **src/App.jsx** & **src/app/page.tsx**: Interactive application with dynamic state, categories, filters, priorities, and local storage persistence\n- **package.json**: Next.js & React configuration\n\nClick the **Preview** tab in the Workspace Panel to test your application live!`;
+            } else if (hasWrittenAppFiles || runner.filesChanged.size > 0) {
+              // Mark all todos complete
+              runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
+              runner.onPlanUpdate?.(runner.plan);
+              missionFinished = true;
+              finalSummary = choiceMessage.content || 'Application implementation complete.';
+            } else {
+              missionFinished = true;
+              finalSummary = choiceMessage.content || 'Task completed.';
+            }
           }
         }
       }
