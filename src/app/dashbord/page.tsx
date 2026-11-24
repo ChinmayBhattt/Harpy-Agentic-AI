@@ -37,6 +37,7 @@ import {
   Eye,
   EyeOff,
   AlertCircle,
+  AlertTriangle,
   Pin,
   PinOff,
   Pencil,
@@ -265,6 +266,7 @@ export default function DashboardPage() {
   const [connectorsModalOpen, setConnectorsModalOpen] = useState(false);
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"models" | "appearance" | "system">("models");
+  const [confirmDeleteAllHistory, setConfirmDeleteAllHistory] = useState(false);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const isLight = theme === "light";
   const [isExecuting, setIsExecuting] = useState(false);
@@ -1392,6 +1394,22 @@ export default function DashboardPage() {
         localStorage.setItem("harpy_chat_sessions", JSON.stringify(remaining.filter((s) => s.messages.length > 0)));
       } catch {}
     }
+  };
+
+  const handleClearAllChatHistory = () => {
+    try {
+      localStorage.removeItem("harpy_chat_sessions");
+      localStorage.removeItem("harpy_todo_tasks");
+    } catch {}
+    const freshId = `session-${Date.now()}`;
+    setSessions([]);
+    setCurrentSessionId(freshId);
+    setSelectedWorkspaceFile(undefined);
+    setReviewingDiffFile(null);
+    setConfirmDeleteAllHistory(false);
+    setSettingsModalOpen(false);
+    setShareToast("All chat history has been permanently deleted.");
+    setTimeout(() => setShareToast(null), 3000);
   };
 
   const isCustomKey = Boolean(apiKey && apiKey.trim().length > 0);
@@ -2548,7 +2566,7 @@ export default function DashboardPage() {
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Kernel &amp; Safety</span>
+                  <span>Kernel &amp; Data</span>
                 </button>
               </div>
 
@@ -2876,6 +2894,72 @@ export default function DashboardPage() {
                           <span>Swarm Workers</span>
                           <span className="text-[#C6A46A] font-mono text-[11px]">MAX (8 WORKERS)</span>
                         </div>
+                      </div>
+
+                      {/* Conversation History & Data Purge */}
+                      <div className={`space-y-3 p-4 rounded-xl border transition-all ${
+                        isLight ? "bg-red-50/70 border-red-200" : "bg-red-950/20 border-red-900/35"
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                            <Trash2 className="w-4 h-4 text-red-400" />
+                            <label className="font-cinzel uppercase tracking-wider text-red-400 block font-semibold text-xs">
+                              Delete Chat History
+                            </label>
+                          </div>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
+                            isLight
+                              ? "bg-red-100 text-red-600 border-red-200"
+                              : "bg-red-500/10 text-red-400 border-red-500/20"
+                          }`}>
+                            {sessions.length} Saved {sessions.length === 1 ? "Mission" : "Missions"}
+                          </span>
+                        </div>
+                        <p className={`text-xs leading-relaxed font-light ${
+                          isLight ? "text-slate-600" : "text-[#E8DDC7]/75"
+                        }`}>
+                          Permanently clear all stored conversation transcripts, agent execution checkpoints, and local workspace sessions. This action cannot be undone.
+                        </p>
+
+                        {!confirmDeleteAllHistory ? (
+                          <div className="pt-1">
+                            <button
+                              type="button"
+                              onClick={() => setConfirmDeleteAllHistory(true)}
+                              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 hover:border-red-500/50 transition-all font-semibold text-xs active:scale-95 shadow-sm"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete Chat History</span>
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="pt-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 space-y-2.5 animate-in fade-in duration-150">
+                            <div className="flex items-center gap-2 text-red-400 text-xs font-semibold">
+                              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                              <span>Are you sure? All {sessions.length} saved sessions will be permanently erased.</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={handleClearAllChatHistory}
+                                className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs shadow-md transition-all active:scale-95"
+                              >
+                                Yes, Delete All History
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeleteAllHistory(false)}
+                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                  isLight
+                                    ? "bg-slate-200 hover:bg-slate-300 text-slate-700"
+                                    : "bg-[#181824] hover:bg-[#252535] text-[#8E8B99] hover:text-white"
+                                }`}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </>
