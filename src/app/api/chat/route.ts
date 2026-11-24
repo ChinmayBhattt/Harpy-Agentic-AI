@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const maxDuration = 60; // Max allowed serverless duration on standard Vercel accounts
+
 const HARPY_SYSTEM_PROMPT = `You are HARPY AI, the sovereign autonomous agent named after the swift-winged spirits of antiquity.
 You are capable of executing actions across user-authenticated applications: Gmail, Notion, WhatsApp, Instagram, AI Code Editors (Cursor/VS Code), Discord, and Google Chrome.
 

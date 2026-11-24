@@ -305,8 +305,8 @@ export default function DashboardPage() {
   const [browserExpanded, setBrowserExpanded] = useState(false);
   const [browserGoal, setBrowserGoal] = useState<string | undefined>(undefined);
 
-  // Autonomous Code Agent Mode State (Cursor / Antigravity Style)
-  const [agentMode, setAgentMode] = useState(false);
+  // Autonomous Code Agent Mode State (Cursor / Antigravity Style - default enabled)
+  const [agentMode, setAgentMode] = useState(true);
   const [agentExecutionMode, setAgentExecutionMode] = useState<'plan' | 'execute'>('execute');
   const [isWorkspacePanelOpen, setIsWorkspacePanelOpen] = useState(false);
   const [activeWorkspaceSessionId, setActiveWorkspaceSessionId] = useState<string | null>(null);
@@ -771,8 +771,20 @@ export default function DashboardPage() {
     // ──────────────────────────────────────────────────────────
     // AUTONOMOUS AGENT MODE EXECUTION (STREAMING SSE)
     // ──────────────────────────────────────────────────────────
-    const isRunningAsAgent = forceAgentMode !== undefined ? forceAgentMode : agentMode;
+    const isCodingTask =
+      /^(build|create|code|implement|fix|make|refactor|generate|setup|develop|add\s+feature|now\s+build|write|update)/i.test(
+        textToSend.trim()
+      ) ||
+      textToSend.toLowerCase().includes('next.js') ||
+      textToSend.toLowerCase().includes('react') ||
+      textToSend.toLowerCase().includes('app') ||
+      textToSend.toLowerCase().includes('website') ||
+      textToSend.toLowerCase().includes('component');
+
+    const isRunningAsAgent = forceAgentMode !== undefined ? forceAgentMode : (agentMode || isCodingTask);
     if (isRunningAsAgent) {
+      if (!agentMode) setAgentMode(true);
+      setIsWorkspacePanelOpen(true);
       const agentMsgId = `harpy-agent-${Date.now()}`;
       const initialAgentRun: AgentRunData = {
         sessionId: currentSessionId,
@@ -2058,7 +2070,7 @@ export default function DashboardPage() {
                       )}
 
                       {/* Message Content with Rich Markdown Rendering or Agent Timeline */}
-                      <div className="text-sm text-[#E8DDC7]/90 leading-relaxed font-light">
+                      <div className={`text-sm ${isLight ? "text-slate-800" : "text-[#E8DDC7]/90"} leading-relaxed font-light`}>
                         {msg.isAgent && msg.agentRun ? (
                           <AgentTimeline
                             runData={msg.agentRun}
