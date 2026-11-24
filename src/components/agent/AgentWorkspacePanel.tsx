@@ -235,6 +235,38 @@ function generatePreviewHtml(files: FileChangeRecord[], theme: 'dark' | 'light' 
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo, useCallback } = React;
 
+    // Built-in Lucide & FontAwesome icon polyfills for seamless React preview
+    const _createIcon = (faClass) => ({ className = '', onClick, style }) =>
+      React.createElement('i', { className: (faClass + ' ' + (className || '')).trim(), onClick, style });
+
+    const Plus = _createIcon('fa-solid fa-plus');
+    const Trash = _createIcon('fa-solid fa-trash');
+    const Trash2 = _createIcon('fa-solid fa-trash-can');
+    const Check = _createIcon('fa-solid fa-check');
+    const CheckCircle = _createIcon('fa-solid fa-circle-check');
+    const Circle = _createIcon('fa-regular fa-circle');
+    const Edit = _createIcon('fa-solid fa-pen-to-square');
+    const Edit2 = _createIcon('fa-solid fa-pen-to-square');
+    const Edit3 = _createIcon('fa-solid fa-pen');
+    const Search = _createIcon('fa-solid fa-magnifying-glass');
+    const Filter = _createIcon('fa-solid fa-filter');
+    const Calendar = _createIcon('fa-solid fa-calendar-days');
+    const Clock = _createIcon('fa-solid fa-clock');
+    const Tag = _createIcon('fa-solid fa-tag');
+    const AlertCircle = _createIcon('fa-solid fa-circle-exclamation');
+    const AlertTriangle = _createIcon('fa-solid fa-triangle-exclamation');
+    const X = _createIcon('fa-solid fa-xmark');
+    const ChevronDown = _createIcon('fa-solid fa-chevron-down');
+    const ChevronUp = _createIcon('fa-solid fa-chevron-up');
+    const ChevronRight = _createIcon('fa-solid fa-chevron-right');
+    const Sparkles = _createIcon('fa-solid fa-wand-magic-sparkles');
+    const List = _createIcon('fa-solid fa-list-check');
+    const CheckSquare = _createIcon('fa-solid fa-square-check');
+    const Square = _createIcon('fa-regular fa-square');
+    const ArrowRight = _createIcon('fa-solid fa-arrow-right');
+    const RefreshCw = _createIcon('fa-solid fa-rotate');
+    const Save = _createIcon('fa-solid fa-floppy-disk');
+
     ${componentsBundle}
 
     ${appBundle}

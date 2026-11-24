@@ -811,13 +811,25 @@ export default function DashboardPage() {
         const engine = detectEngineFromKey(apiKey || "gsk_default");
         const chosenModel = selectedModelId || engine.defaultModelId;
 
-        // Gather existing files from the session so the agent preserves and builds upon them
-        const existingWorkspaceFiles =
-          currentSession?.messages
-            ?.slice()
-            .reverse()
-            .find((m) => m.isAgent && m.agentRun?.filesChanged && m.agentRun.filesChanged.length > 0)
-            ?.agentRun?.filesChanged || [];
+        // Gather all existing files from the session so the agent preserves and builds upon them
+        const sessionFileMap = new Map<string, FileChangeRecord>();
+        for (const m of currentSession?.messages || []) {
+          if (m.isAgent && m.agentRun?.filesChanged) {
+            for (const f of m.agentRun.filesChanged) {
+              sessionFileMap.set(f.path, f);
+            }
+          }
+        }
+        const existingWorkspaceFiles = Array.from(sessionFileMap.values());
+
+        // Extract conversation history for multi-turn session persistence
+        const chatHistory = (currentSession?.messages || [])
+          .filter((m) => m.text && m.text.trim())
+          .slice(-10)
+          .map((m) => ({
+            role: m.sender === 'user' ? ('user' as const) : ('assistant' as const),
+            content: m.text,
+          }));
 
         const res = await fetch('/api/agent', {
           method: 'POST',
@@ -830,6 +842,7 @@ export default function DashboardPage() {
             apiKey: apiKey || '',
             existingFiles: existingWorkspaceFiles,
             planMode: agentExecutionMode === 'plan',
+            history: chatHistory,
           }),
           signal: abortController.signal,
         });
@@ -902,7 +915,11 @@ export default function DashboardPage() {
                 }
               } else if (event.type === 'done') {
                 currentRun.status = agentExecutionMode === 'plan' ? 'plan_ready' : 'completed';
-                currentRun.filesChanged = event.filesChanged;
+                // Merge session existing files with newly generated files
+                const mergedMap = new Map<string, FileChangeRecord>();
+                for (const ef of existingWorkspaceFiles) mergedMap.set(ef.path, ef);
+                for (const nf of event.filesChanged) mergedMap.set(nf.path, nf);
+                currentRun.filesChanged = Array.from(mergedMap.values());
                 if (!currentRun.finalMessage) currentRun.finalMessage = event.summary;
               } else if (event.type === 'error') {
                 currentRun.status = 'failed';
@@ -2395,13 +2412,17 @@ export default function DashboardPage() {
             theme={theme}
             selectedFilePath={selectedWorkspaceFile}
             onSelectFile={(path) => setSelectedWorkspaceFile(path)}
-            filesChanged={
-              currentSession?.messages
-                ?.slice()
-                .reverse()
-                .find((m) => m.isAgent && m.agentRun?.filesChanged && m.agentRun.filesChanged.length > 0)
-                ?.agentRun?.filesChanged || []
-            }
+            filesChanged={(() => {
+              const fileMap = new Map<string, FileChangeRecord>();
+              for (const m of currentSession?.messages || []) {
+                if (m.isAgent && m.agentRun?.filesChanged) {
+                  for (const f of m.agentRun.filesChanged) {
+                    fileMap.set(f.path, f);
+                  }
+                }
+              }
+              return Array.from(fileMap.values());
+            })()}
             onOpenBrowserAgent={(goal) => {
               if (goal) setBrowserGoal(goal);
               setBrowserPanelOpen(true);

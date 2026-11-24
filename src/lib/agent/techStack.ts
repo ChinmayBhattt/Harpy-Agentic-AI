@@ -104,11 +104,20 @@ export function ensureAgentsMarkdown(workspaceRoot: string, userPrompt = ''): st
 4. VERIFY: Ensure the application runs cleanly with zero syntax or runtime errors.
 `;
 
-  // Always update AGENTS.md if it was previously set to old Vanilla/Node stub and user wants Next.js/React
+  // Always update AGENTS.md if user provided a specific stack requirement or framework
   if (fs.existsSync(agentsPath)) {
     try {
       const existing = fs.readFileSync(agentsPath, 'utf-8');
-      if (existing.includes('Vanilla / Node.js') && (stack.framework.includes('Next') || stack.framework.includes('React'))) {
+      const pLower = (userPrompt || '').toLowerCase();
+      const needsUpdate =
+        (existing.includes('Vanilla / Node.js') && (stack.framework.includes('Next') || stack.framework.includes('React'))) ||
+        pLower.includes('next') ||
+        pLower.includes('react') ||
+        pLower.includes('vue') ||
+        pLower.includes('build') ||
+        pLower.includes('app');
+
+      if (needsUpdate) {
         fs.writeFileSync(agentsPath, content, 'utf-8');
         return content;
       }

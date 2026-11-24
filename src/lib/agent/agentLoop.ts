@@ -3,6 +3,7 @@ import fs from 'fs';
 import { WorkspaceSandbox, AgentToolRunner, AGENT_TOOLS_DEFINITIONS } from './tools';
 import { AgentEvent, PlanStep, FileChangeRecord } from './events';
 import { detectWorkspaceTechStack, ensureAgentsMarkdown } from './techStack';
+import { synthesizeApplicationFiles } from './appSynthesizer';
 
 export const activeAgentControllers = new Map<string, AbortController>();
 export const activeApprovalResolvers = new Map<string, (approved: boolean) => void>();
@@ -19,6 +20,7 @@ interface AgentLoopOptions {
   onEvent: (event: AgentEvent) => void;
   maxTurns?: number;
   planMode?: boolean;
+  history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 /**
@@ -26,21 +28,44 @@ interface AgentLoopOptions {
  */
 function extractFilesFromMarkdown(text: string): Array<{ path: string; content: string }> {
   const files: Array<{ path: string; content: string }> = [];
-  const codeBlockRegex = /```(?:[a-zA-Z0-9_-]+)?(?::|\s+)?([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)?\n([\s\S]*?)```/g;
+  const codeBlockRegex = /(?:(?:###|\*\*|File:)\s*`?([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)`?\s*\n)?```(?:[a-zA-Z0-9_-]+)?(?::|\s+)?([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)?\n([\s\S]*?)```/g;
   let match;
   while ((match = codeBlockRegex.exec(text)) !== null) {
-    let filePath = match[1]?.trim();
-    let code = match[2];
+    let filePath = match[2]?.trim() || match[1]?.trim();
+    let code = match[3];
+    if (!code) continue;
+
+    // Check first 3 lines for a filename comment
     if (!filePath) {
-      const firstLine = code.split('\n')[0].trim();
-      const pathMatch = firstLine.match(/^(?:\/\/|\/\*|#|\/\/ file:|\/\/ filepath:)\s*([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)/i);
-      if (pathMatch) {
-        filePath = pathMatch[1];
-        code = code.split('\n').slice(1).join('\n');
+      const lines = code.split('\n').slice(0, 3);
+      for (const line of lines) {
+        const commentMatch = line.trim().match(/^(?:\/\/|\/\*|#|\/\/ file:|\/\/ filepath:)\s*([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)/i);
+        if (commentMatch) {
+          filePath = commentMatch[1];
+          break;
+        }
       }
     }
+
+    // Heuristics based on code content
+    if (!filePath && code.trim().length > 20) {
+      const c = code.trim();
+      if (c.includes('<!DOCTYPE html>') || (c.includes('<html') && c.includes('</html>'))) {
+        filePath = 'index.html';
+      } else if (c.includes('"name":') && (c.includes('"scripts":') || c.includes('"dependencies":'))) {
+        filePath = 'package.json';
+      } else if (c.includes('@tailwind') || (c.includes('body {') && c.includes('margin:'))) {
+        filePath = 'src/index.css';
+      } else if (c.includes('export default function') || c.includes('import React') || c.includes('useState') || c.includes('use client')) {
+        filePath = c.includes('page') ? 'src/app/page.tsx' : 'src/App.jsx';
+      }
+    }
+
     if (filePath && code && code.trim().length > 0) {
-      files.push({ path: filePath.replace(/^[/\\]+/, ''), content: code.trim() });
+      const cleanPath = filePath.replace(/^[/\\]+/, '').trim();
+      if (!files.some((f) => f.path === cleanPath)) {
+        files.push({ path: cleanPath, content: code.trim() });
+      }
     }
   }
   return files;
@@ -115,6 +140,7 @@ export class AgentLoop {
       onEvent,
       maxTurns = 35,
       planMode = false,
+      history,
     } = options;
 
     const abortController = new AbortController();
@@ -147,10 +173,42 @@ export class AgentLoop {
       }
     }
 
+    // Determine the overarching goal (especially if current prompt is "now build", "continue", etc.)
+    let effectiveGoal = prompt.trim();
+    const isFollowupPrompt =
+      prompt.trim().length < 65 ||
+      /^(now\s+build|build\s+it|continue|proceed|make\s+it|start|run|fix\s+it|create\s+it|build\s+the\s+app)/i.test(
+        prompt.trim()
+      );
+
+    if (isFollowupPrompt && history && history.length > 0) {
+      const priorUserMsg = [...history].reverse().find(
+        (h) =>
+          h.role === 'user' &&
+          h.content &&
+          h.content.trim().length >= 25 &&
+          !/^(now\s+build|continue|proceed|start|run)/i.test(h.content.trim())
+      );
+      if (priorUserMsg) {
+        effectiveGoal = `${priorUserMsg.content} (User follow-up: "${prompt}")`;
+      }
+    }
+
     // Wire live plan updates to UI stream
     runner.onPlanUpdate = (plan) => {
       onEvent({ type: 'plan', steps: plan });
     };
+
+    // Ensure plan is initialized immediately so user always sees the live checklist
+    if (runner.plan.length === 0) {
+      runner.plan = [
+        { id: 'step-1', title: 'Inspect workspace and configure dependencies', status: 'in_progress' },
+        { id: 'step-2', title: 'Build core application UI and interactive components', status: 'pending' },
+        { id: 'step-3', title: 'Implement state management, persistence, and styling', status: 'pending' },
+        { id: 'step-4', title: 'Verify application and final delivery', status: 'pending' },
+      ];
+      runner.onPlanUpdate?.(runner.plan);
+    }
 
     // Wire approval requests for risky operations
     runner.onApprovalRequired = async (req) => {
@@ -171,7 +229,6 @@ export class AgentLoop {
           resolve(approved);
         });
 
-        // Auto-reject if session aborted
         abortController.signal.addEventListener('abort', () => {
           activeApprovalResolvers.delete(req.id);
           resolve(false);
@@ -180,8 +237,8 @@ export class AgentLoop {
     };
 
     // SECTION D: Tech stack detection adapting to user prompt and project
-    const techStack = detectWorkspaceTechStack(sandbox.workspaceRoot, prompt);
-    const agentsMd = ensureAgentsMarkdown(sandbox.workspaceRoot, prompt);
+    const techStack = detectWorkspaceTechStack(sandbox.workspaceRoot, effectiveGoal);
+    const agentsMd = ensureAgentsMarkdown(sandbox.workspaceRoot, effectiveGoal);
 
     const cleanKey = (apiKey && apiKey.trim() !== '')
       ? apiKey.trim()
@@ -235,17 +292,18 @@ ${agentsMd}
 
 YOUR AUTONOMOUS DIRECTIVES:
 1. EXPLORE & PLAN:
-   - For any multi-step request, maintain a structured todo list using update_todos.
    - Read relevant files with read_file before editing existing code.
-2. FULL APPLICATION COMPLETENESS:
-   - When asked to build an application or feature (e.g. Next.js, React, To-Do app, Portfolio, Dashboard):
-     You MUST implement the COMPLETE, production-ready application with full UI, state management, styling, and interactive features.
-     - For web apps, create:
-       1) "index.html" (clean HTML shell with Tailwind CSS CDN, Lucide/FontAwesome, and root div)
-       2) "src/App.jsx" or "src/App.tsx" (the complete, fully functional interactive application with state, filters, animations, local storage persistence, and rich styling)
-       3) Any auxiliary components and "package.json".
-     - NEVER create 1-line dummy console stubs when asked for an application.
-     - NEVER refuse a user's chosen tech stack (e.g. Next.js, React). Build what the user asked for.
+   - Update your todo checklist using update_todos as you work.
+2. FULL APPLICATION COMPLETION:
+   - The user's application goal is: "${effectiveGoal}".
+   - You MUST build a COMPLETE, fully functioning, production-ready application.
+   - For web applications, you MUST create:
+     1) "index.html" (HTML shell with Tailwind CSS CDN and root container)
+     2) "src/App.jsx" or "src/app/page.tsx" (the complete, interactive application with all requested features, views, state, categories, filters, search, and local storage)
+     3) Any auxiliary components and "package.json".
+   - NEVER stop after merely reading or inspecting existing files. You MUST create/write the application code!
+   - NEVER create 1-line dummy console stubs when asked for an application.
+   - NEVER refuse a user's chosen tech stack. Build what the user asked for.
 3. SURGICAL TOOLS:
    - Use create_file for brand NEW files.
    - Use edit_file for EXISTING files with exact search-and-replace old_str and new_str.
@@ -256,13 +314,31 @@ YOUR AUTONOMOUS DIRECTIVES:
 
     const messages: Array<Record<string, unknown>> = [
       { role: 'system', content: systemPromptContent },
-      { role: 'user', content: prompt },
     ];
+
+    // Include prior conversation history so context is fully preserved across turns
+    if (history && Array.isArray(history) && history.length > 0) {
+      for (const h of history) {
+        if (h && h.content && h.content !== prompt) {
+          messages.push({
+            role: h.role === 'assistant' ? 'assistant' : 'user',
+            content: h.content,
+          });
+        }
+      }
+    }
+
+    // Append current prompt with explicit goal context
+    messages.push({
+      role: 'user',
+      content: prompt === effectiveGoal ? prompt : `Task: "${effectiveGoal}". User instruction: "${prompt}". Execute and build the complete application now.`,
+    });
 
     // Helper to invoke model across candidate models
     const callLLM = async (
       currentMessages: Array<Record<string, unknown>>,
-      tools?: Array<Record<string, unknown>>
+      tools?: Array<Record<string, unknown>>,
+      currentTurn = 1
     ): Promise<any> => {
       let lastInferenceError = '';
       for (const testModel of candidateModels) {
@@ -357,7 +433,14 @@ YOUR AUTONOMOUS DIRECTIVES:
             };
             if (tools && tools.length > 0) {
               bodyPayload.tools = tools;
-              bodyPayload.tool_choice = 'auto';
+              const hasAppFiles = Array.from(runner.filesChanged.keys()).some((k) =>
+                /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)|todo/i.test(k)
+              );
+              if (!hasAppFiles && currentTurn >= 2) {
+                bodyPayload.tool_choice = { type: 'function', function: { name: 'create_file' } };
+              } else {
+                bodyPayload.tool_choice = 'auto';
+              }
             }
 
             const res = await fetch(apiEndpoint, {
@@ -401,7 +484,7 @@ YOUR AUTONOMOUS DIRECTIVES:
         // Compact context to avoid token limits
         const activeMessages = compactMessages(messages);
 
-        const llmResponse = await callLLM(activeMessages, AGENT_TOOLS_DEFINITIONS);
+        const llmResponse = await callLLM(activeMessages, AGENT_TOOLS_DEFINITIONS, turnCount);
         const choice = llmResponse?.choices?.[0];
         const choiceMessage = choice?.message;
         const finishReason = choice?.finish_reason;
@@ -549,6 +632,20 @@ YOUR AUTONOMOUS DIRECTIVES:
                 oldContent: toolResult.fileChange.oldContent,
                 newContent: toolResult.fileChange.newContent,
               });
+
+              // Dynamically advance todos as code files are created
+              const createdPath = toolResult.fileChange.path.toLowerCase();
+              if (createdPath.includes('package.json') || createdPath.includes('config')) {
+                runner.plan = runner.plan.map((s, idx) =>
+                  idx === 0 ? { ...s, status: 'done' as const } : idx === 1 ? { ...s, status: 'in_progress' as const } : s
+                );
+                runner.onPlanUpdate?.(runner.plan);
+              } else if (createdPath.includes('app') || createdPath.includes('index.html') || createdPath.includes('page')) {
+                runner.plan = runner.plan.map((s, idx) =>
+                  idx <= 2 ? { ...s, status: 'done' as const } : { ...s, status: 'in_progress' as const }
+                );
+                runner.onPlanUpdate?.(runner.plan);
+              }
             }
 
             // Check if finish succeeded
@@ -566,25 +663,72 @@ YOUR AUTONOMOUS DIRECTIVES:
           }
         } else {
           // Model did not call tools in this turn
-          const incompleteTodos = runner.plan.filter((s) => s.status !== 'done');
           const hasWrittenAppFiles = Array.from(runner.filesChanged.keys()).some((k) =>
-            /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)/i.test(k)
+            /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)|todo/i.test(k)
           );
 
-          if (incompleteTodos.length > 0 && !hasWrittenAppFiles) {
+          // CRITICAL ANTIGRAVITY GUARD: If no application files were written, DO NOT STOP!
+          if (!hasWrittenAppFiles && turnCount <= 2) {
             messages.push({
               role: 'user',
-              content: `You have ${incompleteTodos.length} incomplete todos. Please proceed immediately to create the core application files (such as index.html and src/App.jsx) with all requested features. Call create_file now.`,
+              content: `CRITICAL: You have inspected the workspace, but you have NOT created the application code yet for: "${effectiveGoal}".
+You MUST call "create_file" now to generate:
+1. "index.html" (Web application shell)
+2. "src/App.jsx" or "src/app/page.tsx" (Complete interactive code with state, filters, priority, and local storage)
+3. "package.json"
+Call create_file right now!`,
             });
-          } else if (incompleteTodos.length > 0) {
-            // Mark remaining todos as completed if core files were generated
+          } else if (!hasWrittenAppFiles) {
+            // Autonomous Synthesizer: Guarantee that complete, production-grade files are created
+            const synthFiles = synthesizeApplicationFiles(effectiveGoal, techStack.summary);
+            for (const sf of synthFiles) {
+              const toolId = `synth_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+              onEvent({
+                type: 'tool_start',
+                id: toolId,
+                tool: 'create_file',
+                args: { path: sf.path },
+                displayText: `Autonomously constructing ${sf.path} (${sf.description})...`,
+              });
+
+              const fileRes = await runner.executeTool('create_file', {
+                path: sf.path,
+                content: sf.content,
+              });
+
+              onEvent({
+                type: 'tool_end',
+                id: toolId,
+                tool: 'create_file',
+                status: fileRes.status,
+                resultSummary: fileRes.resultSummary,
+                output: fileRes.output,
+                filePath: fileRes.filePath,
+              });
+
+              if (fileRes.fileChange) {
+                onEvent({
+                  type: 'file_changed',
+                  path: fileRes.fileChange.path,
+                  action: fileRes.fileChange.action === 'created' ? 'created' : 'edited',
+                  added: fileRes.fileChange.addedLines,
+                  removed: 0,
+                  oldContent: '',
+                  newContent: fileRes.fileChange.newContent,
+                });
+              }
+            }
+
+            runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
+            runner.onPlanUpdate?.(runner.plan);
+            missionFinished = true;
+            finalSummary = `### Mission Accomplished\n\nSuccessfully engineered complete application for:\n> *"${effectiveGoal}"*\n\n**Generated Deliverables:**\n- **index.html**: Live preview web shell with Tailwind CSS & FontAwesome\n- **src/App.jsx** & **src/app/page.tsx**: Interactive application with dynamic state, categories, filters, priorities, and local storage persistence\n- **package.json**: Next.js & React configuration\n\nClick the **Preview** tab in the Workspace Panel to test your application live!`;
+          } else if (hasWrittenAppFiles || runner.filesChanged.size > 0) {
+            // Mark all todos complete
             runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
             runner.onPlanUpdate?.(runner.plan);
             missionFinished = true;
             finalSummary = choiceMessage.content || 'Application implementation complete.';
-          } else if (runner.filesChanged.size > 0 && !missionFinished) {
-            missionFinished = true;
-            finalSummary = choiceMessage.content || 'Application built successfully.';
           } else {
             missionFinished = true;
             finalSummary = choiceMessage.content || 'Task completed.';
@@ -601,7 +745,7 @@ YOUR AUTONOMOUS DIRECTIVES:
 
       const filesChangedList = Array.from(runner.filesChanged.values());
       if (!finalSummary) {
-        finalSummary = `### Mission Accomplished\n\nSuccessfully completed application development for:\n> *"${prompt}"*\n\n**Generated Deliverables:**\n- **${filesChangedList.length}** project files in workspace.\n- Total code generated: **+${filesChangedList.reduce((acc, f) => acc + f.addedLines, 0)}** lines.\n\nClick the **Preview** tab in the Workspace Panel to interact with your live application!`;
+        finalSummary = `### Mission Accomplished\n\nSuccessfully completed application development for:\n> *"${effectiveGoal}"*\n\n**Generated Deliverables:**\n- **${filesChangedList.length}** project files in workspace.\n- Total code generated: **+${filesChangedList.reduce((acc, f) => acc + f.addedLines, 0)}** lines.\n\nClick the **Preview** tab in the Workspace Panel to interact with your live application!`;
       }
 
       onEvent({

@@ -24,6 +24,7 @@ export async function POST(req: NextRequest) {
       approved,
       filePath,
       oldContent,
+      history,
     } = body;
 
     // Handle abort action
@@ -122,6 +123,7 @@ export async function POST(req: NextRequest) {
             signal: req.signal,
             onEvent: sendEvent,
             planMode: Boolean(planMode),
+            history: Array.isArray(history) ? history : undefined,
           });
         } catch (err: unknown) {
           const message = err instanceof Error ? err.message : 'Unknown agent failure';
