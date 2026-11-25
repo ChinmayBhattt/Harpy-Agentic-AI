@@ -9,18 +9,49 @@ export interface TechStackInfo {
   buildTool: string;
   packageManager: string;
   summary: string;
+  isEmptyWorkspace: boolean;
+  hasPackageJson: boolean;
+  detectedFiles: string[];
+}
+
+function listWorkspaceTopFiles(workspaceRoot: string): string[] {
+  if (!fs.existsSync(workspaceRoot)) return [];
+  const results: string[] = [];
+  const walk = (dir: string, relBase: string, depth: number) => {
+    if (depth > 2 || results.length >= 60) return;
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch {
+      return;
+    }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.name === '.next' || entry.name === 'dist') {
+        continue;
+      }
+      const rel = relBase ? `${relBase}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(path.join(dir, entry.name), rel, depth + 1);
+      } else {
+        results.push(rel);
+      }
+    }
+  };
+  walk(workspaceRoot, '', 0);
+  return results;
 }
 
 /**
  * Analyzes workspace directory and user specifications to determine the effective technology stack.
- * Respects user prompt choices when creating applications, and follows existing project configs when present.
+ * Respects existing project files and honors explicit user instructions when adding/scaffolding apps.
  */
 export function detectWorkspaceTechStack(workspaceRoot: string, userPrompt = ''): TechStackInfo {
   const pkgPath = path.join(workspaceRoot, 'package.json');
+  const hasPackageJson = fs.existsSync(pkgPath);
   let dependencies: Record<string, string> = {};
   let devDependencies: Record<string, string> = {};
 
-  if (fs.existsSync(pkgPath)) {
+  if (hasPackageJson) {
     try {
       const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf-8'));
       dependencies = pkg.dependencies || {};
@@ -30,44 +61,93 @@ export function detectWorkspaceTechStack(workspaceRoot: string, userPrompt = '')
 
   const allDeps = { ...devDependencies, ...dependencies };
   const hasExistingDeps = Object.keys(allDeps).length > 0;
+  const detectedFiles = listWorkspaceTopFiles(workspaceRoot).filter((f) => f !== 'AGENTS.md');
+  const isEmptyWorkspace = detectedFiles.length === 0;
   const pLower = (userPrompt || '').toLowerCase();
 
-  // 1. Determine Framework
-  let framework = 'Modern Web (React / Next.js)';
-  if (pLower.includes('next.js') || pLower.includes('nextjs') || pLower.includes('next app') || allDeps['next']) {
+  const hasHtmlFiles = detectedFiles.some((f) => /\.(html?|htm)$/i.test(f));
+  const hasCssFiles = detectedFiles.some((f) => /\.(css|scss|sass)$/i.test(f));
+  const hasJsxTsx = detectedFiles.some((f) => /\.(jsx|tsx)$/i.test(f));
+  const hasPythonFiles =
+    detectedFiles.some((f) => f.endsWith('.py')) ||
+    fs.existsSync(path.join(workspaceRoot, 'requirements.txt')) ||
+    fs.existsSync(path.join(workspaceRoot, 'pyproject.toml'));
+
+  // 1. Determine Framework accurately (never force React/Next onto static HTML/CSS requests!)
+  let framework = 'Vanilla HTML / CSS / JavaScript';
+  const promptMentionsNext = pLower.includes('next.js') || pLower.includes('nextjs') || pLower.includes('next app');
+  const promptMentionsReact = pLower.includes('react') || pLower.includes('.jsx') || pLower.includes('.tsx');
+  const promptMentionsVue = pLower.includes('vue');
+  const promptMentionsSvelte = pLower.includes('svelte');
+  const promptMentionsPython = pLower.includes('python') || pLower.includes('fastapi') || pLower.includes('flask') || pLower.includes('django');
+  const promptMentionsStaticWeb =
+    /\b(index\.html|style\.css|\.html|\.css|html\s*(and|&|\+)?\s*css|vanilla\s*(js|javascript|html)|static\s*(site|page|website))\b/i.test(
+      pLower
+    );
+
+  if (allDeps['next'] || (!hasHtmlFiles && promptMentionsNext)) {
     framework = 'Next.js (App Router / React)';
-  } else if (pLower.includes('react') || allDeps['react']) {
+  } else if (allDeps['react'] || hasJsxTsx || (!hasHtmlFiles && promptMentionsReact)) {
     framework = 'React SPA (Vite / Modern Web)';
-  } else if (pLower.includes('vue') || allDeps['vue']) {
+  } else if (allDeps['vue'] || promptMentionsVue) {
     framework = 'Vue.js';
-  } else if (pLower.includes('svelte') || allDeps['svelte']) {
+  } else if (allDeps['svelte'] || promptMentionsSvelte) {
     framework = 'Svelte';
-  } else if (pLower.includes('express') || allDeps['express']) {
+  } else if (hasPythonFiles || promptMentionsPython) {
+    framework = 'Python';
+  } else if (allDeps['express'] || pLower.includes('express')) {
     framework = 'Node.js + Express';
-  } else if (hasExistingDeps) {
+  } else if (hasHtmlFiles || hasCssFiles || promptMentionsStaticWeb || isEmptyWorkspace) {
+    framework = 'Vanilla HTML / CSS / JavaScript';
+  } else if (hasExistingDeps || hasPackageJson) {
     framework = 'Node.js';
   }
 
   // 2. Determine Language
   const isTypeScript =
-    pLower.includes('typescript') ||
+    (!promptMentionsStaticWeb && (pLower.includes('typescript') || pLower.includes('.ts'))) ||
     fs.existsSync(path.join(workspaceRoot, 'tsconfig.json')) ||
     Boolean(allDeps['typescript']);
-  const language = isTypeScript ? 'TypeScript' : 'JavaScript / TypeScript';
+  const language =
+    framework === 'Python'
+      ? 'Python'
+      : isTypeScript
+        ? 'TypeScript'
+        : framework.includes('Vanilla')
+          ? 'HTML5 / CSS3 / JavaScript'
+          : 'JavaScript';
 
   // 3. Determine Styling
-  let styling = 'Tailwind CSS';
-  if (pLower.includes('tailwind') || allDeps['tailwindcss'] || fs.existsSync(path.join(workspaceRoot, 'tailwind.config.js')) || fs.existsSync(path.join(workspaceRoot, 'tailwind.config.ts'))) {
+  let styling = 'Standard CSS';
+  if (
+    pLower.includes('tailwind') ||
+    allDeps['tailwindcss'] ||
+    fs.existsSync(path.join(workspaceRoot, 'tailwind.config.js')) ||
+    fs.existsSync(path.join(workspaceRoot, 'tailwind.config.ts'))
+  ) {
     styling = 'Tailwind CSS';
   } else if (pLower.includes('css modules')) {
     styling = 'CSS Modules';
+  } else if (hasCssFiles || promptMentionsStaticWeb || framework.includes('Vanilla')) {
+    styling = 'Standard CSS';
   }
 
-  // 4. Build Tool
-  let buildTool = 'Next.js / Vite';
-  if (framework.includes('Next.js')) buildTool = 'Next.js Turbopack / Webpack';
-  else if (framework.includes('React') || framework.includes('Vue')) buildTool = 'Vite';
-  else if (allDeps['vite']) buildTool = 'Vite';
+  // 4. Build Tool & Runtime
+  let buildTool = 'Browser Direct / Zero-Build';
+  let runtime = 'Modern Browser';
+  if (framework.includes('Next.js')) {
+    buildTool = 'Next.js';
+    runtime = 'Node.js / Modern Browser';
+  } else if (framework.includes('React') || framework.includes('Vue') || framework.includes('Svelte') || allDeps['vite']) {
+    buildTool = 'Vite';
+    runtime = 'Node.js / Modern Browser';
+  } else if (framework === 'Python') {
+    buildTool = 'Python';
+    runtime = 'Python 3';
+  } else if (framework.includes('Node.js')) {
+    buildTool = 'npm scripts';
+    runtime = 'Node.js';
+  }
 
   const summary = `${framework} | ${language} | ${styling} | Build: ${buildTool}`;
 
@@ -75,59 +155,60 @@ export function detectWorkspaceTechStack(workspaceRoot: string, userPrompt = '')
     framework,
     language,
     styling,
-    runtime: 'Node.js / Modern Browser',
+    runtime,
     buildTool,
-    packageManager: 'npm',
+    packageManager: framework === 'Python' ? 'pip' : 'npm',
     summary,
+    isEmptyWorkspace,
+    hasPackageJson,
+    detectedFiles,
   };
 }
 
 /**
- * Generates an AGENTS.md file inside the workspace aligned with the project's target tech stack.
+ * Returns workspace guidelines for the agent without clobbering or polluting user workspace files.
+ * Reads existing AGENTS.md if real project files exist; generates context in memory otherwise.
  */
-export function ensureAgentsMarkdown(workspaceRoot: string, userPrompt = ''): string {
+export function ensureAgentsMarkdown(workspaceRoot: string, userPrompt = '', writeToDisk = false): string {
   const agentsPath = path.join(workspaceRoot, 'AGENTS.md');
   const stack = detectWorkspaceTechStack(workspaceRoot, userPrompt);
 
+  const fileListNote =
+    stack.detectedFiles.length > 0
+      ? `Existing workspace files (${stack.detectedFiles.length}): ${stack.detectedFiles.slice(0, 25).join(', ')}`
+      : 'Workspace is currently empty (0 project files).';
+
   const content = `# Project Architecture & Agent Guidelines
 
-## Target Tech Stack
+## Detected Workspace Context
+- Workspace State: ${fileListNote}
 - Framework: ${stack.framework}
 - Language: ${stack.language}
 - Styling: ${stack.styling}
 - Build / Tooling: ${stack.buildTool}
 
-## Core Autonomous Principles (Antigravity / Claude Code Style)
-1. COMPLETE DELIVERABLES: Always build complete, functional, production-ready code. Never leave placeholders like "TODO", "rest of code here", or half-finished 1-line stubs.
-2. FULL ARCHITECTURE: For web applications, construct all necessary files: HTML shell (index.html), core application components (App/Page), interactive state, responsive styling (Tailwind CSS), and configurations (package.json).
-3. SURGICAL EDITS: Read files with read_file before modifying existing code. Use edit_file for targeted changes; use create_file only for new files.
-4. VERIFY: Ensure the application runs cleanly with zero syntax or runtime errors.
+## Core Autonomous Principles
+1. FOLLOW THE USER REQUEST EXACTLY: Build or modify ONLY what the user requested. If the user asks for a single file (e.g. \`index.html\` or \`style.css\`), build/modify cleanly without adding unrelated framework boilerplate. If the user asks for an app in a specific framework, honor it.
+2. PRESERVE EXISTING FILES: Never delete, clear, or overwrite existing workspace files when creating or editing another file unless the user explicitly instructed you to delete/replace them.
+3. SURGICAL EDITS ONLY: Always call \`read_file\` before editing an existing file, and use \`edit_file\` for targeted hunk replacements preserving existing code and functionality. Use \`create_file\` ONLY for files that do not exist yet.
+4. COMPLETE & VERIFIED DELIVERABLES: Write complete, functional code (never placeholders like "TODO" or "// rest of code"), then verify all modified/created files pass checks before finishing.
 `;
 
-  // Always update AGENTS.md if user provided a specific stack requirement or framework
-  if (fs.existsSync(agentsPath)) {
+  if (fs.existsSync(agentsPath) && !stack.isEmptyWorkspace) {
     try {
       const existing = fs.readFileSync(agentsPath, 'utf-8');
-      const pLower = (userPrompt || '').toLowerCase();
-      const needsUpdate =
-        (existing.includes('Vanilla / Node.js') && (stack.framework.includes('Next') || stack.framework.includes('React'))) ||
-        pLower.includes('next') ||
-        pLower.includes('react') ||
-        pLower.includes('vue') ||
-        pLower.includes('build') ||
-        pLower.includes('app');
-
-      if (needsUpdate) {
-        fs.writeFileSync(agentsPath, content, 'utf-8');
-        return content;
+      // Only reuse user-authored AGENTS.md, not stale Harpy stub files
+      if (!existing.includes('# Project Architecture & Agent Guidelines')) {
+        return existing;
       }
-      return existing;
     } catch {}
   }
 
-  try {
-    fs.writeFileSync(agentsPath, content, 'utf-8');
-  } catch {}
+  if (writeToDisk && !stack.isEmptyWorkspace) {
+    try {
+      fs.writeFileSync(agentsPath, content, 'utf-8');
+    } catch {}
+  }
 
   return content;
 }

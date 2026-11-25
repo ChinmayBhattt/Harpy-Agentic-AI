@@ -1,9 +1,8 @@
 import path from 'path';
 import fs from 'fs';
 import { WorkspaceSandbox, AgentToolRunner, AGENT_TOOLS_DEFINITIONS, AGENT_PLAN_TOOLS_DEFINITIONS } from './tools';
-import { AgentEvent, PlanStep, FileChangeRecord } from './events';
+import { AgentEvent, PlanStep, PlanSpecification, FileChangeRecord } from './events';
 import { detectWorkspaceTechStack, ensureAgentsMarkdown } from './techStack';
-import { synthesizeApplicationFiles } from './appSynthesizer';
 
 export const activeAgentControllers = new Map<string, AbortController>();
 export const activeApprovalResolvers = new Map<string, (approved: boolean) => void>();
@@ -20,87 +19,86 @@ interface AgentLoopOptions {
   onEvent: (event: AgentEvent) => void;
   maxTurns?: number;
   planMode?: boolean;
+  approvedPlan?: PlanSpecification;
   history?: Array<{ role: 'user' | 'assistant'; content: string }>;
 }
 
 /**
- * Extracts code blocks from markdown responses as fallback for open models
+ * Compacts conversation history cleanly without breaking assistant(tool_calls) <-> tool pairs.
  */
-function extractFilesFromMarkdown(text: string): Array<{ path: string; content: string }> {
-  const files: Array<{ path: string; content: string }> = [];
-  const codeBlockRegex = /(?:(?:###|\*\*|File:)\s*`?([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)`?\s*\n)?```(?:[a-zA-Z0-9_-]+)?(?::|\s+)?([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)?\n([\s\S]*?)```/g;
-  let match;
-  while ((match = codeBlockRegex.exec(text)) !== null) {
-    let filePath = match[2]?.trim() || match[1]?.trim();
-    let code = match[3];
-    if (!code) continue;
+export function compactMessages(messages: Array<Record<string, unknown>>, maxRecentGroups = 7): Array<Record<string, unknown>> {
+  if (messages.length <= 18) return messages;
 
-    // Check first 3 lines for a filename comment
-    if (!filePath) {
-      const lines = code.split('\n').slice(0, 3);
-      for (const line of lines) {
-        const commentMatch = line.trim().match(/^(?:\/\/|\/\*|#|\/\/ file:|\/\/ filepath:)\s*([a-zA-Z0-9_./\\-]+\.[a-zA-Z0-9]+)/i);
-        if (commentMatch) {
-          filePath = commentMatch[1];
-          break;
+  // Group into atomic units: system/user standalone, or assistant + its subsequent tool results
+  const groups: Array<Array<Record<string, unknown>>> = [];
+  let i = 0;
+  while (i < messages.length) {
+    const msg = messages[i];
+    if (
+      msg.role === 'assistant' &&
+      Array.isArray(msg.tool_calls) &&
+      msg.tool_calls.length > 0
+    ) {
+      const group: Array<Record<string, unknown>> = [msg];
+      let j = i + 1;
+      while (j < messages.length && messages[j].role === 'tool') {
+        group.push(messages[j]);
+        j++;
+      }
+      groups.push(group);
+      i = j;
+    } else {
+      groups.push([msg]);
+      i++;
+    }
+  }
+
+  if (groups.length <= maxRecentGroups + 2) {
+    return messages;
+  }
+
+  const head = groups.slice(0, 2); // system prompt + initial prompt/history start
+  const middle = groups.slice(2, groups.length - maxRecentGroups);
+  const tail = groups.slice(groups.length - maxRecentGroups);
+
+  const compactedMiddle = middle.map((group) =>
+    group.map((msg) => {
+      if (msg.role === 'tool') {
+        const content = typeof msg.content === 'string' ? msg.content : '';
+        if (content.length > 350) {
+          return {
+            ...msg,
+            content: `${content.slice(0, 260)}\n... [Older tool output compacted (${content.length} chars)]`,
+          };
         }
       }
-    }
+      return msg;
+    })
+  );
 
-    // Heuristics based on code content
-    if (!filePath && code.trim().length > 20) {
-      const c = code.trim();
-      if (c.includes('<!DOCTYPE html>') || (c.includes('<html') && c.includes('</html>'))) {
-        filePath = 'index.html';
-      } else if (c.includes('"name":') && (c.includes('"scripts":') || c.includes('"dependencies":'))) {
-        filePath = 'package.json';
-      } else if (c.includes('@tailwind') || (c.includes('body {') && c.includes('margin:'))) {
-        filePath = 'src/index.css';
-      } else if (c.includes('export default function') || c.includes('import React') || c.includes('useState') || c.includes('use client')) {
-        filePath = c.includes('page') ? 'src/app/page.tsx' : 'src/App.jsx';
-      }
-    }
-
-    if (filePath && code && code.trim().length > 0) {
-      const cleanPath = filePath.replace(/^[/\\]+/, '').trim();
-      if (!files.some((f) => f.path === cleanPath)) {
-        files.push({ path: cleanPath, content: code.trim() });
-      }
-    }
-  }
-  return files;
+  return [...head.flat(), ...compactedMiddle.flat(), ...tail.flat()];
 }
 
-/**
- * Compacts conversation history to prevent context window overflow
- * Keeps system message, user prompt, and compacts older tool outputs
- */
-function compactMessages(messages: Array<Record<string, unknown>>, maxFullTurns = 6): Array<Record<string, unknown>> {
-  if (messages.length <= 15) return messages;
+export function isContinuationOrApprovalPrompt(rawPrompt: string): boolean {
+  const p = rawPrompt.trim();
+  return /^(now\s+build|build\s+it|continue|proceed|go\s+ahead|execute(\s+the)?\s+plan|plan\s+approved|approve\s*&?\s*execute|do\s+it|start\s+building|apply(\s+the)?\s+changes|yes,?\s*(execute|proceed|build))(?:\b|[.!:\s]|$)/i.test(
+    p
+  );
+}
 
-  const result: Array<Record<string, unknown>> = [];
-  const cutoffIndex = Math.max(2, messages.length - maxFullTurns * 2);
-
-  for (let i = 0; i < messages.length; i++) {
-    const msg = messages[i];
-    if (i <= 1 || i >= cutoffIndex) {
-      result.push(msg);
-    } else if (msg.role === 'tool') {
-      const content = typeof msg.content === 'string' ? msg.content : '';
-      if (content.length > 300) {
-        result.push({
-          ...msg,
-          content: `${content.slice(0, 250)}\n... [Tool output truncated for context compaction]`,
-        });
-      } else {
-        result.push(msg);
-      }
-    } else {
-      result.push(msg);
-    }
+export function isImplementationRequest(goal: string): boolean {
+  const g = (goal || '').trim();
+  if (!g) return false;
+  if (/^(what|why|how|when|where|who|explain|describe|summarize|list|show\s+me|tell\s+me)\b/i.test(g) && !/\b(create|build|write|edit|fix|modify|add|update|implement|make|refactor)\b/i.test(g)) {
+    return false;
   }
+  return /\b(build|create|code|implement|fix|make|refactor|generate|setup|set\s+up|develop|add|write|update|edit|modify|style|design|delete|remove|change|index\.html|style\.css|\.[a-z]{1,4})\b/i.test(
+    g
+  );
+}
 
-  return result;
+function normalizePathSafe(p: string): string {
+  return path.posix.normalize((p || '').trim().replace(/\\/g, '/')).replace(/^(\.\/)+/, '').replace(/^\/+/, '');
 }
 
 export class AgentLoop {
@@ -128,6 +126,7 @@ export class AgentLoop {
     plan: PlanStep[];
     filesChanged: FileChangeRecord[];
     summary: string;
+    planSpec?: PlanSpecification;
   }> {
     const {
       prompt,
@@ -140,6 +139,7 @@ export class AgentLoop {
       onEvent,
       maxTurns = 35,
       planMode = false,
+      approvedPlan,
       history,
     } = options;
 
@@ -154,60 +154,65 @@ export class AgentLoop {
     const runner = new AgentToolRunner(sandbox);
     runner.planMode = Boolean(planMode);
 
-    // Rehydrate existing files on disk so every tool (list_dir, read_file, edit_file) sees them immediately
+    // 1. Rehydrate existing workspace files onto disk WITHOUT pre-marking them as changed or read
     if (existingFiles && Array.isArray(existingFiles)) {
       for (const ef of existingFiles) {
-        if (ef && ef.path) {
-          try {
-            const safeAbs = sandbox.resolveSafePath(ef.path);
-            const parentDir = path.dirname(safeAbs);
-            if (!fs.existsSync(parentDir)) {
-              fs.mkdirSync(parentDir, { recursive: true });
-            }
-            if (ef.newContent !== undefined && ef.newContent !== null) {
-              fs.writeFileSync(safeAbs, ef.newContent, 'utf-8');
-            }
-          } catch {}
-          runner.filesChanged.set(ef.path, ef);
-          runner.sessionReadFiles.add(ef.path);
-        }
+        if (!ef || !ef.path) continue;
+        const cleanPath = normalizePathSafe(ef.path);
+        if (!cleanPath || cleanPath === '.' || cleanPath === 'AGENTS.md') continue;
+        try {
+          const safeAbs = sandbox.resolveSafePath(cleanPath);
+          if (ef.action === 'deleted') {
+            if (fs.existsSync(safeAbs)) fs.unlinkSync(safeAbs);
+            continue;
+          }
+          const parentDir = path.dirname(safeAbs);
+          if (!fs.existsSync(parentDir)) {
+            fs.mkdirSync(parentDir, { recursive: true });
+          }
+          if (ef.newContent !== undefined && ef.newContent !== null) {
+            fs.writeFileSync(safeAbs, ef.newContent, 'utf-8');
+            runner.registerBaselineFile(cleanPath, ef.newContent);
+          } else if (fs.existsSync(safeAbs)) {
+            runner.registerBaselineFile(cleanPath, fs.readFileSync(safeAbs, 'utf-8'));
+          }
+        } catch {}
       }
     }
+    runner.snapshotDiskBaseline();
 
-    // Determine the overarching goal (especially if current prompt is "now build", "continue", etc.)
+    // 2. Resolve the authentic user goal without hijacking short standalone requests (e.g. "Create style.css")
     let effectiveGoal = prompt.trim();
-    const isFollowupPrompt =
-      prompt.trim().length < 65 ||
-      /^(now\s+build|build\s+it|continue|proceed|make\s+it|start|run|fix\s+it|create\s+it|build\s+the\s+app)/i.test(
-        prompt.trim()
-      );
-
-    if (isFollowupPrompt && history && history.length > 0) {
+    const isContinuation = isContinuationOrApprovalPrompt(prompt);
+    if (approvedPlan?.originalPrompt && approvedPlan.originalPrompt.trim()) {
+      effectiveGoal = approvedPlan.originalPrompt.trim();
+    } else if (isContinuation && history && Array.isArray(history)) {
       const priorUserMsg = [...history].reverse().find(
         (h) =>
           h.role === 'user' &&
           h.content &&
-          h.content.trim().length >= 25 &&
-          !/^(now\s+build|continue|proceed|start|run)/i.test(h.content.trim())
+          !isContinuationOrApprovalPrompt(h.content)
       );
-      if (priorUserMsg) {
-        effectiveGoal = `${priorUserMsg.content} (User follow-up: "${prompt}")`;
+      if (priorUserMsg?.content) {
+        effectiveGoal = priorUserMsg.content.trim();
       }
     }
+    runner.setUserGoal(effectiveGoal);
 
     // Wire live plan updates to UI stream
     runner.onPlanUpdate = (plan) => {
       onEvent({ type: 'plan', steps: plan });
     };
 
-    // Ensure plan is initialized immediately so user always sees the live checklist
-    if (runner.plan.length === 0) {
-      runner.plan = [
-        { id: 'step-1', title: 'Inspect workspace and configure dependencies', status: 'in_progress' },
-        { id: 'step-2', title: 'Build core application UI and interactive components', status: 'pending' },
-        { id: 'step-3', title: 'Implement state management, persistence, and styling', status: 'pending' },
-        { id: 'step-4', title: 'Verify application and final delivery', status: 'pending' },
-      ];
+    // In Execute Mode after plan approval, restore approved steps directly rather than a dummy template
+    if (!planMode && approvedPlan?.steps && approvedPlan.steps.length > 0) {
+      runner.plan = approvedPlan.steps.map((s, idx) => ({
+        id: s.id || `step-${idx + 1}`,
+        title: s.title,
+        status: idx === 0 ? ('in_progress' as const) : ('pending' as const),
+        ...(s.detail ? { detail: s.detail } : {}),
+        ...(s.targetFiles ? { targetFiles: s.targetFiles } : {}),
+      }));
       runner.onPlanUpdate?.(runner.plan);
     }
 
@@ -237,9 +242,9 @@ export class AgentLoop {
       });
     };
 
-    // SECTION D: Tech stack detection adapting to user prompt and project
+    // SECTION D: Dynamic tech stack detection adapting cleanly to workspace + user prompt
     const techStack = detectWorkspaceTechStack(sandbox.workspaceRoot, effectiveGoal);
-    const agentsMd = ensureAgentsMarkdown(sandbox.workspaceRoot, effectiveGoal);
+    const agentsMd = ensureAgentsMarkdown(sandbox.workspaceRoot, effectiveGoal, false);
 
     const cleanKey = (apiKey && apiKey.trim() !== '')
       ? apiKey.trim()
@@ -275,46 +280,79 @@ export class AgentLoop {
     }
 
     const candidateModels = isAnthropic
-      ? ['claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022']
-      : [
-          model,
-          'openai/gpt-oss-120b',
-          'llama-3.3-70b-versatile',
-          'qwen/qwen3.8-27b',
-          'llama-3.1-8b-instant',
-        ].filter(Boolean);
+      ? [model?.startsWith('claude') ? model : 'claude-3-7-sonnet-20250219', 'claude-3-5-sonnet-20241022', 'claude-3-5-haiku-20241022'].filter(Boolean)
+      : isOpenAI
+        ? [model?.startsWith('gpt-') ? model : 'gpt-4o', 'gpt-4o-mini'].filter(Boolean)
+        : [
+            model,
+            'openai/gpt-oss-120b',
+            'llama-3.3-70b-versatile',
+            'qwen/qwen3.8-27b',
+            'llama-3.1-8b-instant',
+          ].filter(Boolean);
 
-    // Mode-specific directives
+    const existingFileSummary =
+      runner.baselineFiles.size > 0
+        ? Array.from(runner.baselineFiles.entries())
+            .map(([p, st]) => `- ${p} (${st.content.split('\n').length} lines)`)
+            .join('\n')
+        : '(Workspace is currently empty — 0 files exist)';
+
+    const approvedPlanSection =
+      !planMode && approvedPlan
+        ? `\n<approved-plan>\nSummary: ${approvedPlan.summary}\nFiles to Create: ${(approvedPlan.filesToCreate || []).join(', ') || 'None specified'}\nFiles to Modify: ${(approvedPlan.filesToModify || []).join(', ') || 'None specified'}\nSteps:\n${approvedPlan.steps.map((s, idx) => `${idx + 1}. ${s.title}${s.detail ? ` — ${s.detail}` : ''}`).join('\n')}\nVerification Checks: ${(approvedPlan.verificationSteps || []).join('; ') || 'Verify syntax, file existence, and existing file preservation'}\n</approved-plan>\n`
+        : '';
+
     const modeDirectives = planMode
-      ? `CURRENT OPERATIONAL MODE: PLAN MODE (READ-ONLY ANALYSIS & TODO LIST FORMULATION)
-- You are strictly in READ-ONLY planning mode.
-- You are PROHIBITED from creating or editing any files in Plan Mode.
-- Your tools in this mode are strictly read-only: list_dir, read_file, grep_search, update_todos, finish.
-- Explore the workspace, inspect existing configurations, and formulate a clear, multi-step implementation plan using update_todos.
-- In your final response, summarize your plan and prompt the user to click "Approve & Execute" or switch to Execute Mode to begin building.`
-      : `CURRENT OPERATIONAL MODE: EXECUTE MODE (AUTONOMOUS CODE IMPLEMENTATION & BUILD)
-- The user wants you to EXECUTE and BUILD the complete application now!
-- Target Application Goal: "${effectiveGoal}".
-- You MUST create the complete, working application files right now:
-  1) "index.html" (Web application shell with Tailwind CSS & FontAwesome)
-  2) "src/App.jsx" AND "src/app/page.tsx" (Full interactive application code with all requested features, state, UI, search, filters, categories, priorities, animations, and local storage persistence)
-  3) "package.json"
-- NEVER stop after merely creating configuration files. You MUST write the actual application component code!`;
+      ? `CURRENT OPERATIONAL MODE: PLAN MODE (STRICTLY READ-ONLY EXPLORATION & PLANNING)
+- You are strictly in READ-ONLY planning mode. File creation, file editing, file deletion, and shell execution are BLOCKED.
+- Do NOT write code blocks of full implementations in your chat reply, and do NOT claim files were created.
+- Step 1: Call \`list_dir\` (and \`read_file\` / \`grep_search\` on relevant existing files) to understand the current workspace state.
+- Step 2: Analyze the user's exact request: "${effectiveGoal}". Never force an unrelated framework or extra boilerplate files.
+- Step 3: Call \`update_todos\` with concise, tailored steps, and then call \`submit_plan\` (listing exact \`filesToCreate\`, \`filesToModify\`, and \`verificationSteps\`).
+- Step 4: Present a concise, clear summary of the plan and prompt the user to click "Approve & Execute".`
+      : `CURRENT OPERATIONAL MODE: EXECUTE MODE (EXPLORE -> PLAN -> EXECUTE -> VERIFY)
+- Primary User Request: "${effectiveGoal}"${approvedPlanSection}
+- Follow this strict execution discipline:
+  1. EXPLORE FIRST: Always call \`list_dir\` (and \`read_file\` on any existing files you may interact with or wire into) before creating or editing files.
+  2. PLAN ACCURATELY: Ensure \`update_todos\` reflects exact steps tailored ONLY to the user's request. Update each step's status (\`in_progress\` -> \`done\`) as you progress.
+  3. PROTECT EXISTING FILES (CRITICAL):
+     - Existing files already in the workspace MUST NOT be deleted or overwritten unless the user explicitly instructed you to delete/replace them.
+     - Example: If \`index.html\` already exists and the user asks to create \`style.css\`, ONLY create \`style.css\` via \`create_file\` (and ONLY call \`read_file("index.html")\` + surgical \`edit_file("index.html")\` if adding a \`<link rel="stylesheet" href="style.css">\` tag cleanly without altering the rest of \`index.html\`). NEVER recreate or replace \`index.html\`.
+  4. SURGICAL MODIFICATIONS ONLY:
+     - Use \`create_file\` ONLY for brand-new files that do not exist yet.
+     - When updating an existing file, ALWAYS call \`read_file\` first, then \`edit_file\` with exact targeted \`old_str\` and \`new_str\` preserving all existing code and functionality.
+  5. VERIFY & FINISH:
+     - Never finish prematurely after only reading files or outputting markdown code blocks. Actually apply changes via tools!
+     - Run checks/commands if needed, confirm no unintended files were altered, mark ALL todos \`done\` via \`update_todos\`, and call \`finish\`.`;
 
-    // SECTION E: Standard Senior Autonomous Agent System Prompt (Antigravity & Claude Style)
-    const systemPromptContent = `You are Harpy Agent, an elite autonomous senior software engineer (Antigravity / Claude Code style) working in the user's workspace.
-TARGET TECH STACK: ${techStack.summary}
+    // SECTION E: Autonomous Coding Agent System Prompt (Claude Agent SDK / Antigravity Architecture)
+    const systemPromptContent = `You are Harpy Agent, an autonomous senior software engineer working inside the user's sandboxed workspace.
 
-PROJECT INSTRUCTIONS (from AGENTS.md):
+<workspace-state>
+${existingFileSummary}
+</workspace-state>
+
+<tech-stack>
+${techStack.summary}
+</tech-stack>
+
+<project-guidelines>
 ${agentsMd}
+</project-guidelines>
 
 ${modeDirectives}
 
-AUTONOMOUS RULES:
-1. EXPLORE: Read relevant files with read_file before modifying existing code.
-2. LIVE TODOS: Keep your todo checklist updated using update_todos.
-3. SURGICAL TOOLS: Use create_file for brand NEW files. Use edit_file for EXISTING files with exact search-and-replace old_str and new_str.
-4. FINISH: Call finish only when all todos are done and the application code is complete.`;
+CRITICAL RULES:
+- Match the user's actual request and chosen stack precisely. Do NOT refuse a user's explicit request or substitute an unrelated template.
+- Never output application code only in prose when tools should write/edit files on disk. Always use tools to make file changes.
+- Preserve existing files intact at all times.
+
+AUTONOMOUS WORKFLOW:
+1. EXPLORE: list_dir and read_file relevant existing files first.
+2. PLAN: maintain an accurate checklist with update_todos.
+3. EXECUTE: create_file for new files, read_file + edit_file for surgical edits to existing files.
+4. VERIFY & FINISH: verify deliverables on disk and call finish.`;
 
     const activeTools = planMode ? AGENT_PLAN_TOOLS_DEFINITIONS : AGENT_TOOLS_DEFINITIONS;
 
@@ -322,10 +360,10 @@ AUTONOMOUS RULES:
       { role: 'system', content: systemPromptContent },
     ];
 
-    // Include prior conversation history so context is fully preserved across turns
+    // Include prior conversation history so context is preserved across turns
     if (history && Array.isArray(history) && history.length > 0) {
       for (const h of history) {
-        if (h && h.content && h.content !== prompt) {
+        if (h && h.content && h.content.trim() !== prompt.trim()) {
           messages.push({
             role: h.role === 'assistant' ? 'assistant' : 'user',
             content: h.content,
@@ -334,20 +372,80 @@ AUTONOMOUS RULES:
       }
     }
 
-    // Append current prompt with explicit goal context
+    // Append current user turn with resolved goal context
     messages.push({
       role: 'user',
-      content: prompt === effectiveGoal ? prompt : `Task: "${effectiveGoal}". User instruction: "${prompt}". Execute and build the complete application now.`,
+      content:
+        prompt.trim() === effectiveGoal
+          ? prompt.trim()
+          : `Original requirement: "${effectiveGoal}"\nUser command: "${prompt.trim()}"`,
     });
 
-    // Helper to invoke model across candidate models
+    // Helper to convert internal OpenAI-style messages cleanly into Anthropic Messages API blocks
+    const formatAnthropicMessages = (rawMsgs: Array<Record<string, unknown>>) => {
+      const converted: Array<{ role: 'user' | 'assistant'; content: any }> = [];
+      let idx = 0;
+      const filtered = rawMsgs.filter((m) => m.role !== 'system');
+      while (idx < filtered.length) {
+        const m = filtered[idx];
+        if (m.role === 'assistant') {
+          const blocks: any[] = [];
+          if (typeof m.content === 'string' && m.content.trim()) {
+            blocks.push({ type: 'text', text: m.content });
+          }
+          if (Array.isArray(m.tool_calls)) {
+            for (const tc of m.tool_calls as any[]) {
+              let parsedInput: Record<string, unknown> = {};
+              try {
+                parsedInput = JSON.parse(tc.function?.arguments || '{}');
+              } catch {}
+              blocks.push({
+                type: 'tool_use',
+                id: tc.id,
+                name: tc.function?.name || 'unknown',
+                input: parsedInput,
+              });
+            }
+          }
+          if (blocks.length > 0) {
+            converted.push({ role: 'assistant', content: blocks });
+          }
+          idx++;
+        } else if (m.role === 'tool') {
+          const toolResultBlocks: any[] = [];
+          while (idx < filtered.length && filtered[idx].role === 'tool') {
+            const tm = filtered[idx];
+            toolResultBlocks.push({
+              type: 'tool_result',
+              tool_use_id: tm.tool_call_id,
+              content: typeof tm.content === 'string' ? tm.content : JSON.stringify(tm.content),
+            });
+            idx++;
+          }
+          converted.push({ role: 'user', content: toolResultBlocks });
+        } else {
+          converted.push({
+            role: 'user',
+            content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
+          });
+          idx++;
+        }
+      }
+      return converted;
+    };
+
+    // Helper to invoke model across candidate models with per-request timeout protection
     const callLLM = async (
       currentMessages: Array<Record<string, unknown>>,
-      tools?: Array<Record<string, unknown>>,
-      currentTurn = 1
+      tools?: Array<Record<string, unknown>>
     ): Promise<any> => {
       let lastInferenceError = '';
       for (const testModel of candidateModels) {
+        const reqTimeout = new AbortController();
+        const timer = setTimeout(() => reqTimeout.abort(), 30000);
+        const onParentAbort = () => reqTimeout.abort();
+        abortController.signal.addEventListener('abort', onParentAbort, { once: true });
+
         try {
           if (isAnthropic) {
             const anthropicTools = (tools || []).map((t: any) => ({
@@ -357,23 +455,7 @@ AUTONOMOUS RULES:
             }));
 
             const sysMsg = currentMessages.find((m) => m.role === 'system');
-            const nonSysMessages = currentMessages
-              .filter((m) => m.role !== 'system')
-              .map((m) => ({
-                role: m.role === 'tool' ? 'user' : m.role,
-                content:
-                  m.role === 'tool'
-                    ? [
-                        {
-                          type: 'tool_result',
-                          tool_use_id: m.tool_call_id,
-                          content: typeof m.content === 'string' ? m.content : JSON.stringify(m.content),
-                        },
-                      ]
-                    : typeof m.content === 'string'
-                    ? m.content
-                    : JSON.stringify(m.content),
-              }));
+            const nonSysMessages = formatAnthropicMessages(currentMessages);
 
             const payload: Record<string, unknown> = {
               model: testModel,
@@ -391,7 +473,7 @@ AUTONOMOUS RULES:
               method: 'POST',
               headers,
               body: JSON.stringify(payload),
-              signal: abortController.signal,
+              signal: reqTimeout.signal,
             });
 
             if (res.ok) {
@@ -430,30 +512,26 @@ AUTONOMOUS RULES:
 
             const errData = await res.json().catch(() => ({}));
             lastInferenceError = errData?.error?.message || res.statusText || 'Anthropic API error';
+            if (res.status === 401) {
+              throw new Error(`Authentication failed: ${lastInferenceError}`);
+            }
           } else {
             const bodyPayload: Record<string, unknown> = {
               model: testModel,
               messages: currentMessages,
               temperature: 0.2,
-              max_tokens: 3500,
+              max_tokens: 4096,
             };
             if (tools && tools.length > 0) {
               bodyPayload.tools = tools;
-              const hasAppFiles = Array.from(runner.filesChanged.keys()).some((k) =>
-                /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)|todo/i.test(k)
-              );
-              if (!planMode && !hasAppFiles && currentTurn >= 2) {
-                bodyPayload.tool_choice = { type: 'function', function: { name: 'create_file' } };
-              } else {
-                bodyPayload.tool_choice = 'auto';
-              }
+              bodyPayload.tool_choice = 'auto';
             }
 
             const res = await fetch(apiEndpoint, {
               method: 'POST',
               headers,
               body: JSON.stringify(bodyPayload),
-              signal: abortController.signal,
+              signal: reqTimeout.signal,
             });
 
             if (res.ok) {
@@ -469,6 +547,9 @@ AUTONOMOUS RULES:
         } catch (fetchErr: unknown) {
           if (abortController.signal.aborted) throw fetchErr;
           lastInferenceError = fetchErr instanceof Error ? fetchErr.message : 'Inference error';
+        } finally {
+          clearTimeout(timer);
+          abortController.signal.removeEventListener('abort', onParentAbort);
         }
       }
       throw new Error(`Agent model failed to respond: ${lastInferenceError || 'Unknown error'}`);
@@ -481,16 +562,17 @@ AUTONOMOUS RULES:
       let turnCount = 0;
       let missionFinished = false;
       let finalSummary = '';
+      let continuationNudges = 0;
+      let maxTokenContinuations = 0;
+      const wantsImplementation = isImplementationRequest(effectiveGoal);
 
-      // SECTION A: Continuous Autonomous Agent Loop
+      // SECTION A: Structured Autonomous Agent Loop (Explore -> Plan -> Execute -> Verify)
       while (turnCount < maxTurns && !missionFinished) {
         if (abortController.signal.aborted) break;
         turnCount++;
 
-        // Compact context to avoid token limits
         const activeMessages = compactMessages(messages);
-
-        const llmResponse = await callLLM(activeMessages, activeTools, turnCount);
+        const llmResponse = await callLLM(activeMessages, activeTools);
         const choice = llmResponse?.choices?.[0];
         const choiceMessage = choice?.message;
         const finishReason = choice?.finish_reason;
@@ -499,61 +581,20 @@ AUTONOMOUS RULES:
 
         messages.push(choiceMessage);
 
-        // Stream assistant text delta
+        // Stream assistant message delta (in Plan Mode or final commentary; never parse markdown into phantom files!)
         if (choiceMessage.content) {
           onEvent({
             type: 'message_delta',
             delta: choiceMessage.content,
           });
-
-          // Fallback: extract markdown code blocks if the model emitted files inside code blocks (Execute Mode only)
-          const extractedFiles = extractFilesFromMarkdown(choiceMessage.content);
-          if (extractedFiles.length > 0 && !planMode) {
-            for (const ef of extractedFiles) {
-              const toolId = `codeblock_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-              onEvent({
-                type: 'tool_start',
-                id: toolId,
-                tool: 'create_file',
-                args: { path: ef.path },
-                displayText: `Creating ${ef.path}...`,
-              });
-
-              const fileRes = await runner.executeTool('create_file', {
-                path: ef.path,
-                content: ef.content,
-              });
-
-              onEvent({
-                type: 'tool_end',
-                id: toolId,
-                tool: 'create_file',
-                status: fileRes.status,
-                resultSummary: fileRes.resultSummary,
-                output: fileRes.output,
-                filePath: fileRes.filePath,
-              });
-
-              if (fileRes.fileChange) {
-                onEvent({
-                  type: 'file_changed',
-                  path: fileRes.fileChange.path,
-                  action: fileRes.fileChange.action === 'created' ? 'created' : 'edited',
-                  added: fileRes.fileChange.addedLines,
-                  removed: fileRes.fileChange.removedLines,
-                  oldContent: fileRes.fileChange.oldContent,
-                  newContent: fileRes.fileChange.newContent,
-                });
-              }
-            }
-          }
         }
 
         // Handle max_tokens continuation seamlessly
-        if (finishReason === 'length') {
+        if (finishReason === 'length' && maxTokenContinuations < 3) {
+          maxTokenContinuations++;
           messages.push({
             role: 'user',
-            content: 'Your previous response reached max tokens. Please continue directly from where you left off without repeating or stopping.',
+            content: 'Your previous output reached the token limit. Continue cleanly using tool calls from exactly where you stopped.',
           });
           continue;
         }
@@ -567,20 +608,26 @@ AUTONOMOUS RULES:
             const toolId = toolCall.id || `call_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
             const toolName = toolCall.function?.name || '';
             let toolArgs: Record<string, unknown> = {};
+            let argsParseError: string | null = null;
             try {
               toolArgs = JSON.parse(toolCall.function?.arguments || '{}');
-            } catch {
-              toolArgs = {};
+            } catch (parseErr) {
+              argsParseError =
+                parseErr instanceof Error
+                  ? `Invalid JSON arguments for ${toolName}: ${parseErr.message}. Please retry with valid JSON.`
+                  : `Invalid JSON arguments for ${toolName}. Please retry.`;
             }
 
             let displayText = `Executing ${toolName}...`;
-            if (toolName === 'create_file') displayText = `Creating ${toolArgs.path || 'file'}...`;
-            else if (toolName === 'edit_file') displayText = `Editing ${toolArgs.path || 'file'}...`;
-            else if (toolName === 'read_file') displayText = `Reading ${toolArgs.path || 'file'}...`;
-            else if (toolName === 'run_command') displayText = `Running ${toolArgs.command || 'command'}...`;
-            else if (toolName === 'grep_search') displayText = `Searching for "${toolArgs.query || ''}"...`;
-            else if (toolName === 'update_todos') displayText = `Updating plan checklist...`;
-            else if (toolName === 'finish') displayText = `Verifying application and finishing mission...`;
+            if (toolName === 'create_file' || toolName === 'Write') displayText = `Creating ${toolArgs.path || 'file'}...`;
+            else if (toolName === 'edit_file' || toolName === 'Edit') displayText = `Editing ${toolArgs.path || 'file'}...`;
+            else if (toolName === 'read_file' || toolName === 'Read') displayText = `Reading ${toolArgs.path || 'file'}...`;
+            else if (toolName === 'list_dir' || toolName === 'Glob') displayText = `Inspecting ${toolArgs.path || '.'}...`;
+            else if (toolName === 'run_command' || toolName === 'Bash') displayText = `Running ${toolArgs.command || 'command'}...`;
+            else if (toolName === 'grep_search' || toolName === 'Grep') displayText = `Searching for "${toolArgs.query || ''}"...`;
+            else if (toolName === 'update_todos' || toolName === 'TodoWrite') displayText = `Updating plan checklist...`;
+            else if (toolName === 'submit_plan' || toolName === 'ExitPlanMode') displayText = `Finalizing implementation plan...`;
+            else if (toolName === 'finish') displayText = `Verifying deliverables and finishing...`;
 
             onEvent({
               type: 'tool_start',
@@ -590,28 +637,22 @@ AUTONOMOUS RULES:
               displayText,
             });
 
-            // In Plan Mode, formulate plan then pause for user approval before modifying files
-            if (planMode && (toolName === 'update_todos' || toolName === 'create_plan')) {
-              const toolResult = await runner.executeTool(toolName, toolArgs);
+            if (argsParseError) {
               onEvent({
                 type: 'tool_end',
                 id: toolId,
                 tool: toolName,
-                status: toolResult.status,
-                resultSummary: toolResult.resultSummary,
-                output: toolResult.output,
+                status: 'error',
+                resultSummary: argsParseError,
+                output: argsParseError,
               });
-
               messages.push({
                 role: 'tool',
                 tool_call_id: toolId,
                 name: toolName,
-                content: toolResult.output || toolResult.resultSummary,
+                content: argsParseError,
               });
-
-              finalSummary = `Plan formulated with ${runner.plan.length} steps. Ready for user review. Click "Approve & Execute" to begin.`;
-              missionFinished = true;
-              break;
+              continue;
             }
 
             const toolResult = await runner.executeTool(toolName, toolArgs);
@@ -638,26 +679,17 @@ AUTONOMOUS RULES:
                 oldContent: toolResult.fileChange.oldContent,
                 newContent: toolResult.fileChange.newContent,
               });
-
-              // Dynamically advance todos as code files are created
-              const createdPath = toolResult.fileChange.path.toLowerCase();
-              if (createdPath.includes('package.json') || createdPath.includes('config')) {
-                runner.plan = runner.plan.map((s, idx) =>
-                  idx === 0 ? { ...s, status: 'done' as const } : idx === 1 ? { ...s, status: 'in_progress' as const } : s
-                );
-                runner.onPlanUpdate?.(runner.plan);
-              } else if (createdPath.includes('app') || createdPath.includes('index.html') || createdPath.includes('page')) {
-                runner.plan = runner.plan.map((s, idx) =>
-                  idx <= 2 ? { ...s, status: 'done' as const } : { ...s, status: 'in_progress' as const }
-                );
-                runner.onPlanUpdate?.(runner.plan);
-              }
             }
 
-            // Check if finish succeeded
-            if (toolName === 'finish' && toolResult.status === 'success') {
-              missionFinished = true;
-              finalSummary = toolResult.output || toolResult.resultSummary;
+            if (toolResult.verificationChecks && toolResult.verificationChecks.length > 0) {
+              for (const chk of toolResult.verificationChecks) {
+                onEvent({
+                  type: 'build_verification',
+                  status: chk.passed ? 'passed' : 'failed',
+                  command: chk.name,
+                  output: chk.detail,
+                });
+              }
             }
 
             messages.push({
@@ -666,84 +698,101 @@ AUTONOMOUS RULES:
               name: toolName,
               content: toolResult.output || toolResult.resultSummary,
             });
-          }
-        } else {
-          // Model did not call tools in this turn
-          if (planMode) {
-            missionFinished = true;
-            finalSummary = choiceMessage.content || `Plan formulated with ${runner.plan.length} steps. Ready for user review. Click "Approve & Execute" or switch to Execute Mode to begin building.`;
-          } else {
-            const hasWrittenAppFiles = Array.from(runner.filesChanged.keys()).some((k) =>
-              /app\.(jsx|tsx|js)|index\.html|page\.(jsx|tsx|js)|todo/i.test(k)
-            );
 
-            // CRITICAL ANTIGRAVITY GUARD: If no application files were written, DO NOT STOP!
-            if (!hasWrittenAppFiles && turnCount <= 2) {
-              messages.push({
-                role: 'user',
-                content: `CRITICAL: You have inspected the workspace, but you have NOT created the application code yet for: "${effectiveGoal}".
-You MUST call "create_file" now to generate:
-1. "index.html" (Web application shell)
-2. "src/App.jsx" or "src/app/page.tsx" (Complete interactive code with state, filters, priority, and local storage)
-3. "package.json"
-Call create_file right now!`,
-              });
-            } else if (!hasWrittenAppFiles) {
-              // Autonomous Synthesizer: Guarantee that complete, production-grade files are created
-              const synthFiles = synthesizeApplicationFiles(effectiveGoal, techStack.summary);
-              for (const sf of synthFiles) {
-                const toolId = `synth_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-                onEvent({
-                  type: 'tool_start',
-                  id: toolId,
-                  tool: 'create_file',
-                  args: { path: sf.path },
-                  displayText: `Autonomously constructing ${sf.path} (${sf.description})...`,
-                });
-
-                const fileRes = await runner.executeTool('create_file', {
-                  path: sf.path,
-                  content: sf.content,
-                });
-
-                onEvent({
-                  type: 'tool_end',
-                  id: toolId,
-                  tool: 'create_file',
-                  status: fileRes.status,
-                  resultSummary: fileRes.resultSummary,
-                  output: fileRes.output,
-                  filePath: fileRes.filePath,
-                });
-
-                if (fileRes.fileChange) {
-                  onEvent({
-                    type: 'file_changed',
-                    path: fileRes.fileChange.path,
-                    action: 'created',
-                    added: fileRes.fileChange.addedLines,
-                    removed: 0,
-                    oldContent: '',
-                    newContent: fileRes.fileChange.newContent,
-                  });
-                }
+            // Plan Mode ends ONLY when submit_plan or finish succeeds (allowing exploration BEFORE finalizing plan)
+            if (planMode && (toolName === 'submit_plan' || toolName === 'ExitPlanMode' || toolName === 'finish') && toolResult.status === 'success') {
+              missionFinished = true;
+              if (runner.submittedPlanSpec) {
+                onEvent({ type: 'plan_spec', planSpec: runner.submittedPlanSpec });
               }
+              finalSummary =
+                (choiceMessage.content && choiceMessage.content.trim()) ||
+                runner.submittedPlanSpec?.summary ||
+                `Plan ready (${runner.plan.length} steps). Review the checklist above and click "Approve & Execute" to apply these changes.`;
+            }
 
-              runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
-              runner.onPlanUpdate?.(runner.plan);
+            // Execute Mode completes ONLY when finish verification succeeds
+            if (!planMode && toolName === 'finish' && toolResult.status === 'success') {
               missionFinished = true;
-              finalSummary = `### Mission Accomplished\n\nSuccessfully engineered complete application for:\n> *"${effectiveGoal}"*\n\n**Generated Deliverables:**\n- **index.html**: Live preview web shell with Tailwind CSS & FontAwesome\n- **src/App.jsx** & **src/app/page.tsx**: Interactive application with dynamic state, categories, filters, priorities, and local storage persistence\n- **package.json**: Next.js & React configuration\n\nClick the **Preview** tab in the Workspace Panel to test your application live!`;
-            } else if (hasWrittenAppFiles || runner.filesChanged.size > 0) {
-              // Mark all todos complete
-              runner.plan = runner.plan.map((s) => ({ ...s, status: 'done' as const }));
-              runner.onPlanUpdate?.(runner.plan);
-              missionFinished = true;
-              finalSummary = choiceMessage.content || 'Application implementation complete.';
-            } else {
-              missionFinished = true;
-              finalSummary = choiceMessage.content || 'Task completed.';
+              finalSummary = toolResult.output || toolResult.resultSummary;
             }
           }
+        } else {
+          // Model stopped calling tools in this turn
+          if (planMode) {
+            if (runner.plan.length === 0 && continuationNudges < 2) {
+              continuationNudges++;
+              messages.push({
+                role: 'user',
+                content: `You are in READ-ONLY Plan Mode. Before responding, inspect the workspace with \`list_dir\` (and \`read_file\` if files exist), call \`update_todos\` with concrete steps for "${effectiveGoal}", and call \`submit_plan\`.`,
+              });
+              continue;
+            }
+
+            if (!runner.submittedPlanSpec && runner.plan.length > 0) {
+              runner.submittedPlanSpec = {
+                summary: choiceMessage.content || `Plan formulated (${runner.plan.length} steps)`,
+                steps: runner.plan,
+                filesToCreate: [],
+                filesToModify: [],
+                verificationSteps: [],
+                originalPrompt: effectiveGoal,
+              };
+            }
+            if (runner.submittedPlanSpec) {
+              onEvent({ type: 'plan_spec', planSpec: runner.submittedPlanSpec });
+            }
+            missionFinished = true;
+            finalSummary =
+              choiceMessage.content ||
+              runner.submittedPlanSpec?.summary ||
+              `Plan ready (${runner.plan.length} steps). Click "Approve & Execute" to proceed.`;
+          } else {
+            // Execute Mode enforcement: prevent bailing out with markdown text or skipping verification
+            const hasIncompleteTodos = runner.plan.some((s) => s.status !== 'done');
+            const missingFileWork = wantsImplementation && runner.filesChanged.size === 0;
+            const needsPlan = wantsImplementation && runner.plan.length === 0;
+
+            if ((missingFileWork || needsPlan || hasIncompleteTodos) && continuationNudges < 3) {
+              continuationNudges++;
+              const reasons: string[] = [];
+              if (needsPlan) reasons.push('call `update_todos` to plan the exact steps');
+              if (missingFileWork) reasons.push(`use \`create_file\` / \`edit_file\` to implement "${effectiveGoal}" on disk (do NOT paste code in chat prose)`);
+              if (hasIncompleteTodos) reasons.push('complete all remaining todos and mark each step `done` with `update_todos`');
+              reasons.push('call `finish` after verifying your changes');
+
+              messages.push({
+                role: 'user',
+                content: `DO NOT stop early. You have not completed the execution loop yet. Next, you MUST: ${reasons.join('; ')}.`,
+              });
+              continue;
+            }
+
+            // If files were written and model summarized without calling finish, run finish verification directly
+            if (runner.filesChanged.size > 0 && continuationNudges >= 3) {
+              if (runner.plan.length === 0) {
+                runner.plan = [
+                  { id: 'step-1', title: `Implement ${effectiveGoal}`, status: 'done' },
+                ];
+                runner.onPlanUpdate?.(runner.plan);
+              }
+            }
+            missionFinished = true;
+            finalSummary = choiceMessage.content || 'Execution completed.';
+          }
+        }
+      }
+
+      // Final baseline integrity check before reporting done
+      if (!planMode) {
+        const finalIntegrity = runner.verifyWorkspacePreservation();
+        if (!finalIntegrity.ok) {
+          onEvent({
+            type: 'build_verification',
+            status: 'failed',
+            command: 'Baseline File Integrity Check',
+            output: finalIntegrity.violations.join('\n'),
+          });
         }
       }
 
@@ -751,24 +800,33 @@ Call create_file right now!`,
       onEvent({
         type: 'thinking_end',
         durationSeconds: durationSec,
-        thoughtSummary: `Completed autonomous mission in ${turnCount} turns across ${runner.filesChanged.size} files.`,
+        thoughtSummary: planMode
+          ? `Formulated read-only plan (${runner.plan.length} steps) in ${turnCount} turns.`
+          : `Completed execution in ${turnCount} turns across ${runner.filesChanged.size} changed file(s).`,
       });
 
-      const filesChangedList = Array.from(runner.filesChanged.values());
+      const filesChangedList = planMode ? [] : Array.from(runner.filesChanged.values());
       if (!finalSummary) {
-        finalSummary = `### Mission Accomplished\n\nSuccessfully completed application development for:\n> *"${effectiveGoal}"*\n\n**Generated Deliverables:**\n- **${filesChangedList.length}** project files in workspace.\n- Total code generated: **+${filesChangedList.reduce((acc, f) => acc + f.addedLines, 0)}** lines.\n\nClick the **Preview** tab in the Workspace Panel to interact with your live application!`;
+        finalSummary = planMode
+          ? `Formulated a ${runner.plan.length}-step plan for "${effectiveGoal}". Click **Approve & Execute** to apply changes.`
+          : filesChangedList.length > 0
+            ? `Completed "${effectiveGoal}". Updated ${filesChangedList.length} file(s): ${filesChangedList.map((f) => `\`${f.path}\``).join(', ')}.`
+            : `Completed analysis for "${effectiveGoal}".`;
       }
 
       onEvent({
         type: 'done',
         filesChanged: filesChangedList,
         summary: finalSummary,
+        ...(planMode && runner.submittedPlanSpec ? { planSpec: runner.submittedPlanSpec } : {}),
+        ...(runner.lastVerificationChecks.length > 0 ? { verificationChecks: runner.lastVerificationChecks } : {}),
       });
 
       return {
         plan: runner.plan,
         filesChanged: filesChangedList,
         summary: finalSummary,
+        planSpec: runner.submittedPlanSpec,
       };
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Agent mission error';

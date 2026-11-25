@@ -6,6 +6,23 @@ export interface PlanStep {
   id: string;
   title: string;
   status: PlanStepStatus;
+  detail?: string;
+  targetFiles?: string[];
+}
+
+export interface PlanSpecification {
+  summary: string;
+  steps: PlanStep[];
+  filesToCreate: string[];
+  filesToModify: string[];
+  verificationSteps: string[];
+  originalPrompt: string;
+}
+
+export interface VerificationCheckResult {
+  name: string;
+  passed: boolean;
+  detail: string;
 }
 
 export interface FileChangeRecord {
@@ -16,6 +33,7 @@ export interface FileChangeRecord {
   oldContent?: string;
   newContent?: string;
   timestamp: string;
+  preExistingHash?: string;
 }
 
 export type AgentEvent =
@@ -31,6 +49,10 @@ export type AgentEvent =
   | {
       type: 'plan';
       steps: PlanStep[];
+    }
+  | {
+      type: 'plan_spec';
+      planSpec: PlanSpecification;
     }
   | {
       type: 'message_delta';
@@ -67,6 +89,8 @@ export type AgentEvent =
       type: 'done';
       filesChanged: FileChangeRecord[];
       summary: string;
+      planSpec?: PlanSpecification;
+      verificationChecks?: VerificationCheckResult[];
     }
   | {
       type: 'approval_required';
@@ -95,6 +119,8 @@ export interface AgentRunData {
   workspacePath: string;
   status: 'running' | 'completed' | 'failed' | 'aborted' | 'waiting_approval' | 'plan_ready';
   plan: PlanStep[];
+  planSpec?: PlanSpecification;
+  verificationChecks?: VerificationCheckResult[];
   events: AgentEvent[];
   filesChanged: FileChangeRecord[];
   thinkingDuration?: number;

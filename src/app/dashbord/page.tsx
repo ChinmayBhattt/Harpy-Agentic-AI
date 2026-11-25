@@ -64,7 +64,7 @@ import DiffModal from "@/components/agent/DiffModal";
 import AgentWorkspacePanel from "@/components/agent/AgentWorkspacePanel";
 import VoiceAssistantModal from "@/components/voice/VoiceAssistantModal";
 import ConnectorsWorkspace from "@/components/connectors/ConnectorsWorkspace";
-import { AgentRunData, FileChangeRecord, AgentEvent } from "@/lib/agent/events";
+import { AgentRunData, FileChangeRecord, AgentEvent, PlanSpecification } from "@/lib/agent/events";
 
 interface Message {
   id: string;
@@ -690,7 +690,13 @@ export default function DashboardPage() {
     }
   };
 
-  const handleSendMessage = async (customPrompt?: string, forceAgentMode?: boolean) => {
+  const handleSendMessage = async (
+    customPrompt?: string,
+    forceAgentMode?: boolean,
+    forcePlanMode?: boolean,
+    approvedPlanSpec?: PlanSpecification
+  ) => {
+    const effectivePlanMode = forcePlanMode !== undefined ? forcePlanMode : agentExecutionMode === 'plan';
     // If voice recording is running, stop it
     if (isRecordingRef.current) {
       stopRecording();
@@ -825,12 +831,16 @@ export default function DashboardPage() {
         const engine = detectEngineFromKey(apiKey || "gsk_default");
         const chosenModel = selectedModelId || engine.defaultModelId;
 
-        // Gather all existing files from the session so the agent preserves and builds upon them
+        // Gather all existing non-deleted files from the session so the agent preserves and builds upon them
         const sessionFileMap = new Map<string, FileChangeRecord>();
         for (const m of currentSession?.messages || []) {
           if (m.isAgent && m.agentRun?.filesChanged) {
             for (const f of m.agentRun.filesChanged) {
-              sessionFileMap.set(f.path, f);
+              if (f.action === 'deleted') {
+                sessionFileMap.delete(f.path);
+              } else {
+                sessionFileMap.set(f.path, f);
+              }
             }
           }
         }
@@ -855,7 +865,8 @@ export default function DashboardPage() {
             model: chosenModel,
             apiKey: apiKey || '',
             existingFiles: existingWorkspaceFiles,
-            planMode: agentExecutionMode === 'plan',
+            planMode: effectivePlanMode,
+            approvedPlan: approvedPlanSpec,
             history: chatHistory,
           }),
           signal: abortController.signal,
@@ -896,6 +907,10 @@ export default function DashboardPage() {
                 currentRun.events = [...currentRun.events, event];
               } else if (event.type === 'plan') {
                 currentRun.plan = event.steps;
+              } else if (event.type === 'plan_spec') {
+                currentRun.planSpec = event.planSpec;
+              } else if (event.type === 'build_verification') {
+                currentRun.events = [...currentRun.events, event];
               } else if (event.type === 'message_delta') {
                 currentRun.finalMessage = (currentRun.finalMessage || '') + event.delta;
               } else if (event.type === 'tool_start') {
@@ -928,12 +943,10 @@ export default function DashboardPage() {
                   currentRun.filesChanged = [...currentRun.filesChanged, rec];
                 }
               } else if (event.type === 'done') {
-                currentRun.status = agentExecutionMode === 'plan' ? 'plan_ready' : 'completed';
-                // Merge session existing files with newly generated files
-                const mergedMap = new Map<string, FileChangeRecord>();
-                for (const ef of existingWorkspaceFiles) mergedMap.set(ef.path, ef);
-                for (const nf of event.filesChanged) mergedMap.set(nf.path, nf);
-                currentRun.filesChanged = Array.from(mergedMap.values());
+                currentRun.status = effectivePlanMode ? 'plan_ready' : 'completed';
+                currentRun.filesChanged = effectivePlanMode ? [] : event.filesChanged;
+                if (event.planSpec) currentRun.planSpec = event.planSpec;
+                if (event.verificationChecks) currentRun.verificationChecks = event.verificationChecks;
                 if (!currentRun.finalMessage) currentRun.finalMessage = event.summary;
               } else if (event.type === 'error') {
                 currentRun.status = 'failed';
@@ -2102,7 +2115,29 @@ export default function DashboardPage() {
                             onReviewDiff={(file) => setReviewingDiffFile(file)}
                             onApprovePlan={() => {
                               setAgentExecutionMode('execute');
-                              handleSendMessage('Plan approved by user. Execute all planned tasks now.', true);
+                              const msgIdx = currentSession.messages.findIndex((m) => m.id === msg.id);
+                              const priorUserMsg = msgIdx > 0
+                                ? currentSession.messages
+                                    .slice(0, msgIdx)
+                                    .reverse()
+                                    .find((m) => m.sender === 'user')
+                                : undefined;
+                              const approvedSpec: PlanSpecification = msg.agentRun?.planSpec || {
+                                summary: msg.text || '',
+                                steps: msg.agentRun?.plan || [],
+                                filesToCreate: [],
+                                filesToModify: [],
+                                verificationSteps: [],
+                                originalPrompt: priorUserMsg?.text || '',
+                              };
+                              handleSendMessage(
+                                priorUserMsg?.text
+                                  ? `Plan approved by user. Execute the approved plan for: ${priorUserMsg.text}`
+                                  : 'Plan approved by user. Execute all planned tasks now.',
+                                true,
+                                false,
+                                approvedSpec
+                              );
                             }}
                             onResolveApproval={async (approvalId, approved) => {
                               try {
@@ -2447,7 +2482,11 @@ export default function DashboardPage() {
               for (const m of currentSession?.messages || []) {
                 if (m.isAgent && m.agentRun?.filesChanged) {
                   for (const f of m.agentRun.filesChanged) {
-                    fileMap.set(f.path, f);
+                    if (f.action === 'deleted') {
+                      fileMap.delete(f.path);
+                    } else {
+                      fileMap.set(f.path, f);
+                    }
                   }
                 }
               }
@@ -3121,11 +3160,12 @@ export default function DashboardPage() {
                 userId: authUser?.id || 'anonymous',
                 filePath: file.path,
                 oldContent: file.oldContent,
+                fileAction: file.action,
               }),
             });
-            // Update local state to remove or update file change
-            setSessions((prev) =>
-              prev.map((s) => {
+            // Update local state cleanly: revert created file by removing it, revert edit by restoring oldContent
+            setSessions((prev) => {
+              const next = prev.map((s) => {
                 if (s.id !== currentSessionId) return s;
                 return {
                   ...s,
@@ -3135,13 +3175,28 @@ export default function DashboardPage() {
                       ...m,
                       agentRun: {
                         ...m.agentRun,
-                        filesChanged: m.agentRun.filesChanged.filter((f) => f.path !== file.path),
+                        filesChanged:
+                          file.action === 'created'
+                            ? m.agentRun.filesChanged.filter((f) => f.path !== file.path)
+                            : m.agentRun.filesChanged.filter(
+                                (f) =>
+                                  !(
+                                    f.path === file.path &&
+                                    f.action === 'edited' &&
+                                    f.newContent === file.newContent &&
+                                    f.oldContent === file.oldContent
+                                  )
+                              ),
                       },
                     };
                   }),
                 };
-              })
-            );
+              });
+              try {
+                localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
+              } catch {}
+              return next;
+            });
           } catch (e) {
             console.error('Revert file error:', e);
           }

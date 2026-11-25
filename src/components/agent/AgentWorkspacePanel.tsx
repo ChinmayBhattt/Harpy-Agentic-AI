@@ -130,37 +130,51 @@ function buildTreeFromFiles(files: FileChangeRecord[]): FileNode[] {
 
 // Generates live interactive web preview bundle for iframe
 function generatePreviewHtml(files: FileChangeRecord[], theme: 'dark' | 'light' = 'dark'): string {
-  if (!files || files.length === 0) {
+  const activeFiles = (files || []).filter((f) => f && f.action !== 'deleted');
+  if (activeFiles.length === 0) {
     if (theme === 'light') {
       return `<!DOCTYPE html><html><body style="background:#F8F9FB;color:#0F172A;font-family:system-ui,-apple-system,sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center;"><h2 style="color:#0F172A;font-size:18px;margin-bottom:8px;">No Web Assets Yet</h2><p style="color:#64748B;font-size:13px;margin:0;">Files created by Harpy Agent will render live here.</p></div></body></html>`;
     }
     return `<!DOCTYPE html><html><body style="background:#09090E;color:#E8DDC7;font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;"><div style="text-align:center;"><h2>No Web Assets Yet</h2><p style="opacity:0.6;">Files created by Harpy Agent will render live here.</p></div></body></html>`;
   }
 
-  // 1. Check for index.html
-  const indexHtmlFile = files.find(
-    (f) => f.path.toLowerCase() === 'index.html' || f.path.toLowerCase().endsWith('/index.html')
-  );
+  // 1. Check for index.html (prefer root index.html if multiple)
+  const indexHtmlFile =
+    activeFiles.find((f) => f.path.toLowerCase() === 'index.html') ||
+    activeFiles.find((f) => f.path.toLowerCase().endsWith('/index.html'));
 
   // 2. Gather CSS files
-  const cssFiles = files.filter((f) => f.path.endsWith('.css'));
+  const cssFiles = activeFiles.filter((f) => f.path.endsWith('.css'));
   const combinedCss = cssFiles.map((f) => `/* ${f.path} */\n${f.newContent || ''}`).join('\n\n');
 
   // 3. Gather JS/JSX/TSX files
-  const jsFiles = files.filter(
+  const jsFiles = activeFiles.filter(
     (f) =>
       /\.(js|jsx|ts|tsx)$/i.test(f.path) &&
       !f.path.includes('vite.config') &&
       !f.path.includes('tailwind.config')
   );
 
-  const isReact = jsFiles.some((f) =>
-    /import.*react|from ['"]react['"]|<[A-Z]/i.test(f.newContent || '')
+  // Only treat as React if explicit React imports or uppercase JSX tags exist (case-sensitive!)
+  const hasExplicitReactSyntax = jsFiles.some((f) =>
+    /import\s+(?:React|\*\s+as\s+React|\{[^}]*\})\s+from\s+['"]react['"]|ReactDOM\.createRoot|<\s*[A-Z][A-Za-z0-9]*(?:\s|\/?>)/.test(
+      f.newContent || ''
+    )
   );
+  const isViteRootShell =
+    Boolean(indexHtmlFile?.newContent) &&
+    /<div\s+id=["']root["']\s*><\/div>/i.test(indexHtmlFile!.newContent!) &&
+    /<script\s+type=["']module["'][^>]*main\.(jsx|tsx|js|ts)/i.test(indexHtmlFile!.newContent!);
+  const isReact = hasExplicitReactSyntax && (!indexHtmlFile?.newContent || isViteRootShell);
 
-  // Standalone HTML/CSS/JS Project
+  // Standalone HTML/CSS/JS Project — inline workspace CSS/JS cleanly while keeping CDN links intact
   if (!isReact && indexHtmlFile && indexHtmlFile.newContent) {
     let html = indexHtmlFile.newContent;
+    for (const cssFile of cssFiles) {
+      const base = cssFile.path.split('/').pop() || cssFile.path;
+      const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      html = html.replace(new RegExp(`<link[^>]*href=["'](?:\\.?/)?(?:[^"']*\\/)?${escaped}["'][^>]*>`, 'gi'), '');
+    }
     if (combinedCss) {
       if (html.includes('</head>')) {
         html = html.replace('</head>', `<style>\n${combinedCss}\n</style></head>`);
@@ -168,19 +182,27 @@ function generatePreviewHtml(files: FileChangeRecord[], theme: 'dark' | 'light' 
         html = `<style>\n${combinedCss}\n</style>\n` + html;
       }
     }
+    for (const jsFile of jsFiles) {
+      const base = jsFile.path.split('/').pop() || jsFile.path;
+      const escaped = base.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      html = html.replace(new RegExp(`<script[^>]*src=["'](?:\\.?/)?(?:[^"']*\\/)?${escaped}["'][^>]*>\\s*</script>`, 'gi'), '');
+    }
     const nonEntryJs = jsFiles.filter(
       (f) => !f.path.endsWith('main.js') && !f.path.endsWith('index.js')
     );
     const entryJs =
       jsFiles.find((f) => f.path.endsWith('main.js') || f.path.endsWith('index.js')) || jsFiles[0];
-    const scriptTags = [...nonEntryJs, ...(entryJs ? [entryJs] : [])]
+    const orderedJs = [...nonEntryJs, ...(entryJs && !nonEntryJs.includes(entryJs) ? [entryJs] : [])];
+    const scriptTags = orderedJs
       .map((f) => `<script>\n/* ${f.path} */\n${f.newContent || ''}\n</script>`)
       .join('\n');
 
-    if (html.includes('</body>')) {
-      html = html.replace('</body>', `${scriptTags}</body>`);
-    } else {
-      html += `\n${scriptTags}`;
+    if (scriptTags) {
+      if (html.includes('</body>')) {
+        html = html.replace('</body>', `${scriptTags}</body>`);
+      } else {
+        html += `\n${scriptTags}`;
+      }
     }
     return html;
   }
@@ -355,14 +377,15 @@ export default function AgentWorkspacePanel({
     return generatePreviewHtml(filesChanged, theme);
   }, [filesChanged, previewKey, theme]);
 
-  // Sync tree with filesChanged in state/localStorage
+  // Sync tree with active non-deleted filesChanged in state/localStorage
   useEffect(() => {
-    if (filesChanged && filesChanged.length > 0) {
-      const builtTree = buildTreeFromFiles(filesChanged);
+    const activeFiles = (filesChanged || []).filter((f) => f && f.action !== 'deleted');
+    if (activeFiles.length > 0) {
+      const builtTree = buildTreeFromFiles(activeFiles);
       setTree(builtTree);
 
       const allDirs = new Set<string>(['.']);
-      filesChanged.forEach((f) => {
+      activeFiles.forEach((f) => {
         const parts = f.path.split(/[/\\]/);
         for (let i = 1; i < parts.length; i++) {
           allDirs.add(parts.slice(0, i).join('/'));
@@ -370,8 +393,8 @@ export default function AgentWorkspacePanel({
       });
       setExpandedFolders((prev) => new Set([...Array.from(prev), ...Array.from(allDirs)]));
 
-      if (!activeFile || !filesChanged.some((f) => f.path === activeFile)) {
-        setActiveFile(filesChanged[0].path);
+      if (!activeFile || !activeFiles.some((f) => f.path === activeFile)) {
+        setActiveFile(activeFiles[0].path);
       }
     } else if (isOpen) {
       fetchTree();

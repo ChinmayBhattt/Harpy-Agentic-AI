@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import fs from 'fs';
 import { AgentLoop } from '@/lib/agent/agentLoop';
-import { AgentEvent, FileChangeRecord } from '@/lib/agent/events';
+import { AgentEvent, FileChangeRecord, PlanSpecification } from '@/lib/agent/events';
 import { WorkspaceSandbox } from '@/lib/agent/tools';
 
 export const dynamic = 'force-dynamic';
@@ -20,10 +20,12 @@ export async function POST(req: NextRequest) {
       existingFiles,
       command,
       planMode = false,
+      approvedPlan,
       approvalId,
       approved,
       filePath,
       oldContent,
+      fileAction,
       history,
     } = body;
 
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest) {
       try {
         const sandbox = new WorkspaceSandbox(userId, sessionId);
         const absPath = sandbox.resolveSafePath(filePath);
-        if (oldContent === undefined || oldContent === null || oldContent === '') {
+        if (fileAction === 'created' || oldContent === undefined || oldContent === null) {
           if (fs.existsSync(absPath)) {
             fs.unlinkSync(absPath);
           }
@@ -123,6 +125,7 @@ export async function POST(req: NextRequest) {
             signal: req.signal,
             onEvent: sendEvent,
             planMode: Boolean(planMode),
+            approvedPlan: approvedPlan && typeof approvedPlan === 'object' ? (approvedPlan as PlanSpecification) : undefined,
             history: Array.isArray(history) ? history : undefined,
           });
         } catch (err: unknown) {
