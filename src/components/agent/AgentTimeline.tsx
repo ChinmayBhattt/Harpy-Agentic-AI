@@ -95,29 +95,29 @@ export default function AgentTimeline({
   const events = runData.events || [];
 
   return (
-    <div className="space-y-3 font-sans text-xs text-[#E8DDC7]">
+    <div className="space-y-3 font-sans text-xs text-[#ECEAE6]">
       {/* ────────────────────────────────────────────────────────── */}
       {/* 1. PLAN / TASK CHECKLIST CARD */}
       {/* ────────────────────────────────────────────────────────── */}
       {plan.length > 0 && (
-        <div className="rounded-xl border border-[#C6A46A]/20 bg-[#0A0A0F] overflow-hidden shadow-sm">
+        <div className="rounded-xl border border-[#2C2824] bg-[#181614] overflow-hidden shadow-sm">
           <button
             type="button"
             onClick={() => setIsPlanExpanded(!isPlanExpanded)}
-            className="w-full flex items-center justify-between px-3 py-2 bg-[#0E0E16] hover:bg-[#12121C] transition-colors border-b border-[#1C1C26] text-left"
+            className="w-full flex items-center justify-between px-3 py-2 bg-[#1D1B18] hover:bg-[#24201C] transition-colors border-b border-[#2A2622] text-left"
           >
             <div className="flex items-center gap-2">
-              <span className="font-cinzel text-xs font-semibold text-[#C6A46A] tracking-wider uppercase">
-                Plan &amp; Execution Checklist
+              <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
+                Plan &amp; Checklist
               </span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded-full bg-[#C6A46A]/10 text-[#C6A46A] border border-[#C6A46A]/25">
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-[#262320] text-[#A8A199] border border-[#332E29]">
                 {plan.filter((s) => s.status === 'done').length}/{plan.length} Done
               </span>
             </div>
             {isPlanExpanded ? (
-              <ChevronDown className="w-3.5 h-3.5 text-[#C6A46A]" />
+              <ChevronDown className="w-3.5 h-3.5 text-[#8E8880]" />
             ) : (
-              <ChevronRight className="w-3.5 h-3.5 text-[#C6A46A]" />
+              <ChevronRight className="w-3.5 h-3.5 text-[#8E8880]" />
             )}
           </button>
 
@@ -128,17 +128,17 @@ export default function AgentTimeline({
                   {step.status === 'done' ? (
                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400 mt-0.5 shrink-0" />
                   ) : step.status === 'in_progress' ? (
-                    <Loader2 className="w-3.5 h-3.5 text-[#C6A46A] animate-spin mt-0.5 shrink-0" />
+                    <Loader2 className="w-3.5 h-3.5 text-[#E06D44] animate-spin mt-0.5 shrink-0" />
                   ) : (
-                    <Circle className="w-3.5 h-3.5 text-[#E8DDC7]/30 mt-0.5 shrink-0" />
+                    <Circle className="w-3.5 h-3.5 text-[#5C564F] mt-0.5 shrink-0" />
                   )}
                   <span
                     className={`leading-relaxed ${
                       step.status === 'done'
-                        ? 'text-[#E8DDC7]/50 line-through'
+                        ? 'text-[#78726B] line-through'
                         : step.status === 'in_progress'
-                        ? 'text-[#C6A46A] font-medium'
-                        : 'text-[#E8DDC7]/80'
+                        ? 'text-[#ECEAE6] font-medium'
+                        : 'text-[#C8C2BA]'
                     }`}
                   >
                     {step.title}
@@ -148,9 +148,9 @@ export default function AgentTimeline({
 
               {/* Plan Mode Approval Banner */}
               {runData.status === 'plan_ready' && onApprovePlan && (
-                <div className="mt-2.5 pt-2.5 border-t border-[#1C1C26] space-y-2">
+                <div className="mt-2.5 pt-2.5 border-t border-[#2A2622] space-y-2">
                   {runData.planSpec && (
-                    <div className="text-[11px] font-mono space-y-1 text-[#A09885]">
+                    <div className="text-[11px] font-mono space-y-1 text-[#8E8880]">
                       {runData.planSpec.filesToCreate?.length > 0 && (
                         <div>
                           <span className="text-emerald-400">Create:</span>{' '}
@@ -159,18 +159,18 @@ export default function AgentTimeline({
                       )}
                       {runData.planSpec.filesToModify?.length > 0 && (
                         <div>
-                          <span className="text-[#C6A46A]">Edit:</span>{' '}
+                          <span className="text-[#E06D44]">Edit:</span>{' '}
                           {runData.planSpec.filesToModify.join(', ')}
                         </div>
                       )}
                     </div>
                   )}
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] text-[#A09885]">Read-only plan formulated. No files were modified yet.</span>
+                    <span className="text-[11px] text-[#8E8880]">Read-only plan formulated. No files were modified yet.</span>
                     <button
                       type="button"
                       onClick={onApprovePlan}
-                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#C6A46A] hover:bg-[#D4B37F] text-black font-semibold text-xs transition-colors shadow-sm shrink-0"
+                      className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-[#ECEAE6] hover:bg-white text-[#141210] font-medium text-xs transition-colors shadow-sm shrink-0"
                     >
                       <Play className="w-3 h-3 fill-current" />
                       <span>Approve &amp; Execute</span>
@@ -196,23 +196,23 @@ export default function AgentTimeline({
                 <button
                   type="button"
                   onClick={() => toggleThinking(idx)}
-                  className="inline-flex items-center gap-1.5 text-[11px] text-[#A09885] hover:text-[#C6A46A] font-mono transition-colors group cursor-pointer"
+                  className="inline-flex items-center gap-1.5 text-[11px] text-[#8E8880] hover:text-[#ECEAE6] font-mono transition-colors group cursor-pointer"
                 >
-                  <Brain className="w-3 h-3 text-[#C6A46A]" />
-                  <span>Thinking for {ev.durationSeconds || 1}s</span>
+                  <Brain className="w-3 h-3 text-[#8E8880]" />
+                  <span>Thought for {ev.durationSeconds || 1}s</span>
                   {isExpanded ? (
-                    <ChevronDown className="w-3 h-3 text-[#C6A46A]" />
+                    <ChevronDown className="w-3 h-3 text-[#8E8880]" />
                   ) : (
-                    <ChevronRight className="w-3 h-3 text-[#C6A46A]" />
+                    <ChevronRight className="w-3 h-3 text-[#8E8880]" />
                   )}
                 </button>
                 {isExpanded && (
-                  <div className="mt-1 p-2.5 rounded-xl bg-[#08080E] border border-[#1E1E2C] text-[11px] font-mono text-[#D5C2A5]/90 whitespace-pre-wrap leading-relaxed shadow-lg">
-                    <div className="flex items-center gap-1.5 text-[10px] text-[#C6A46A] uppercase font-cinzel font-semibold mb-1">
-                      <Sparkles className="w-3 h-3 text-[#C6A46A]" />
-                      <span>Reasoning Process &amp; Architecture</span>
+                  <div className="mt-1 p-2.5 rounded-xl bg-[#161412] border border-[#2A2622] text-[11px] font-mono text-[#B8B2AA] whitespace-pre-wrap leading-relaxed shadow-sm">
+                    <div className="flex items-center gap-1.5 text-[10px] text-[#ECEAE6] font-sans font-semibold mb-1">
+                      <Sparkles className="w-3 h-3 text-[#E06D44]" />
+                      <span>Reasoning Summary</span>
                     </div>
-                    {ev.thoughtSummary || "Synthesizing architectural specifications and reviewing file dependencies."}
+                    {ev.thoughtSummary || "Reviewing workspace state and dependencies."}
                   </div>
                 )}
               </div>
@@ -225,8 +225,8 @@ export default function AgentTimeline({
             if (hasEnd) return null;
 
             return (
-              <div key={`tool-start-${ev.id}`} className="flex items-center gap-2 py-1 text-[11px] text-[#C6A46A] font-mono">
-                <Loader2 className="w-3 h-3 animate-spin shrink-0 text-[#C6A46A]" />
+              <div key={`tool-start-${ev.id}`} className="flex items-center gap-2 py-1 text-[11px] text-[#C8C2BA] font-mono">
+                <Loader2 className="w-3 h-3 animate-spin shrink-0 text-[#E06D44]" />
                 <span className="truncate">{ev.displayText}</span>
               </div>
             );
@@ -241,17 +241,17 @@ export default function AgentTimeline({
             return (
               <div key={`tool-end-${ev.id}`} className="py-0.5 font-mono text-[11px]">
                 <div
-                  className={`flex items-center justify-between py-1 px-2 rounded-lg border transition-all ${
+                  className={`flex items-center justify-between py-1 px-2.5 rounded-lg border transition-all ${
                     ev.status === 'error'
                       ? 'border-rose-900/40 bg-rose-950/20 text-rose-300'
-                      : 'border-[#1C1C26] bg-[#0A0A0E] text-[#D5C2A5]/90 hover:border-[#C6A46A]/40'
+                      : 'border-[#272420] bg-[#181614] text-[#D8D3CC] hover:border-[#3A3530]'
                   }`}
                 >
                   <div className="flex items-center gap-2 truncate min-w-0 pr-2">
                     {isCmd ? (
-                      <Terminal className="w-3 h-3 text-[#C6A46A] shrink-0" />
+                      <Terminal className="w-3 h-3 text-[#E06D44] shrink-0" />
                     ) : isFileRead ? (
-                      <FileCode className="w-3 h-3 text-cyan-400 shrink-0" />
+                      <FileCode className="w-3 h-3 text-sky-400 shrink-0" />
                     ) : (
                       <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
                     )}
@@ -264,7 +264,7 @@ export default function AgentTimeline({
                       <button
                         type="button"
                         onClick={() => onSelectFile(ev.filePath!)}
-                        className="p-1 rounded text-[#C6A46A]/80 hover:text-[#C6A46A] hover:bg-[#181822] transition-colors"
+                        className="p-1 rounded text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#262320] transition-colors"
                         title={`Inspect ${ev.filePath} in code viewer`}
                       >
                         <Eye className="w-3 h-3" />
@@ -275,7 +275,7 @@ export default function AgentTimeline({
                       <button
                         type="button"
                         onClick={() => toggleCommand(ev.id)}
-                        className="p-1 rounded text-[#C6A46A] hover:bg-white/5 transition-colors"
+                        className="p-1 rounded text-[#8E8880] hover:text-[#ECEAE6] hover:bg-white/5 transition-colors"
                         title={isExpanded ? 'Collapse output' : 'Expand terminal output'}
                       >
                         {isExpanded ? (
@@ -289,7 +289,7 @@ export default function AgentTimeline({
                 </div>
 
                 {isCmd && isExpanded && ev.output && (
-                  <div className="mt-1 p-2.5 rounded-lg bg-black border border-[#22222E] text-[10px] font-mono text-emerald-300/90 whitespace-pre-wrap max-h-48 overflow-y-auto selection:bg-emerald-800">
+                  <div className="mt-1 p-2.5 rounded-lg bg-[#100F0E] border border-[#272420] text-[10px] font-mono text-emerald-300/90 whitespace-pre-wrap max-h-48 overflow-y-auto selection:bg-emerald-800">
                     {ev.output}
                   </div>
                 )}
@@ -350,7 +350,7 @@ export default function AgentTimeline({
             return (
               <div
                 key={`file-${ev.path}-${idx}`}
-                className="flex items-center justify-between py-1 px-2 rounded-lg border border-[#1A1A24] bg-[#07070B] font-mono text-[11px] hover:border-[#C6A46A]/40 transition-colors"
+                className="flex items-center justify-between py-1 px-2.5 rounded-lg border border-[#272420] bg-[#181614] font-mono text-[11px] hover:border-[#3A3530] transition-colors"
               >
                 <div
                   onClick={() => onSelectFile && onSelectFile(ev.path)}
@@ -362,7 +362,7 @@ export default function AgentTimeline({
                   ) : (
                     <FileEdit className="w-3 h-3 text-amber-400 shrink-0" />
                   )}
-                  <span className="text-[#E8DDC7] group-hover:text-[#C6A46A] font-medium truncate">{ev.path}</span>
+                  <span className="text-[#ECEAE6] group-hover:text-white font-medium truncate">{ev.path}</span>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">
@@ -375,7 +375,7 @@ export default function AgentTimeline({
                     <button
                       type="button"
                       onClick={() => onSelectFile(ev.path)}
-                      className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-[#E8DDC7]/80 hover:bg-white/10 hover:text-white transition-colors"
+                      className="px-1.5 py-0.5 rounded text-[10px] bg-white/5 text-[#C8C2BA] hover:bg-white/10 hover:text-white transition-colors"
                       title="Inspect code in Workspace"
                     >
                       View
@@ -396,7 +396,7 @@ export default function AgentTimeline({
                           timestamp: '',
                         })
                       }
-                      className="px-1.5 py-0.5 rounded text-[10px] bg-[#C6A46A]/10 text-[#C6A46A] hover:bg-[#C6A46A]/20 border border-[#C6A46A]/30 transition-colors"
+                      className="px-1.5 py-0.5 rounded text-[10px] bg-[#262320] text-[#ECEAE6] hover:bg-[#322E2A] border border-[#38322D] transition-colors"
                       title="Review file changes diff"
                     >
                       Review
@@ -453,11 +453,11 @@ export default function AgentTimeline({
       {/* 3. FINAL SUMMARY CARD & CHANGED FILES SUMMARY */}
       {/* ────────────────────────────────────────────────────────── */}
       {filesChanged.length > 0 && (
-        <div className="rounded-xl border border-[#C6A46A]/30 bg-[#08080D] overflow-hidden shadow-md mt-2">
-          <div className="flex items-center justify-between px-3 py-2 bg-[#0D0D14] border-b border-[#1A1A24]">
+        <div className="rounded-xl border border-[#2C2824] bg-[#181614] overflow-hidden shadow-sm mt-2">
+          <div className="flex items-center justify-between px-3 py-2 bg-[#1D1B18] border-b border-[#2A2622]">
             <div className="flex items-center gap-2">
-              <FolderGit2 className="w-3.5 h-3.5 text-[#C6A46A]" />
-              <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
+              <FolderGit2 className="w-3.5 h-3.5 text-[#8E8880]" />
+              <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
                 {filesChanged.length} {filesChanged.length === 1 ? 'file' : 'files'} changed
               </span>
               <span className="text-[10px] font-mono text-emerald-400 font-bold">+{totalAdded}</span>
@@ -467,22 +467,22 @@ export default function AgentTimeline({
             <button
               type="button"
               onClick={() => setIsFilesExpanded(!isFilesExpanded)}
-              className="text-[#C6A46A] hover:text-white p-0.5"
+              className="text-[#8E8880] hover:text-white p-0.5"
             >
               {isFilesExpanded ? <ChevronDown className="w-3 h-3" /> : <ChevronRight className="w-3 h-3" />}
             </button>
           </div>
 
           {isFilesExpanded && (
-            <div className="divide-y divide-[#14141C]">
+            <div className="divide-y divide-[#24201C]">
               {filesChanged.map((file) => (
                 <div
                   key={file.path}
-                  className="flex items-center justify-between px-3 py-2 hover:bg-[#101018] transition-colors"
+                  className="flex items-center justify-between px-3 py-2 hover:bg-[#1E1B18] transition-colors"
                 >
                   <div className="flex items-center gap-2 truncate min-w-0 pr-2">
-                    <FileText className="w-3 h-3 text-[#C6A46A]/70 shrink-0" />
-                    <span className="font-mono text-xs text-[#E8DDC7]/90 truncate">{file.path}</span>
+                    <FileText className="w-3 h-3 text-[#8E8880] shrink-0" />
+                    <span className="font-mono text-xs text-[#ECEAE6] truncate">{file.path}</span>
                   </div>
 
                   <div className="flex items-center gap-2 shrink-0">
@@ -496,7 +496,7 @@ export default function AgentTimeline({
                         <button
                           type="button"
                           onClick={() => onSelectFile(file.path)}
-                          className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/5 hover:bg-white/10 text-[#E8DDC7] transition-colors"
+                          className="px-2 py-0.5 rounded text-[10px] font-mono bg-white/5 hover:bg-white/10 text-[#ECEAE6] transition-colors"
                           title="Open in Code Viewer"
                         >
                           View
@@ -507,7 +507,7 @@ export default function AgentTimeline({
                         <button
                           type="button"
                           onClick={() => onReviewDiff(file)}
-                          className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#C6A46A]/15 text-[#C6A46A] hover:bg-[#C6A46A]/25 border border-[#C6A46A]/30 transition-colors font-medium"
+                          className="px-2 py-0.5 rounded text-[10px] font-mono bg-[#262320] text-[#ECEAE6] hover:bg-[#322E2A] border border-[#38322D] transition-colors font-medium"
                         >
                           Review Diff
                         </button>
@@ -525,7 +525,7 @@ export default function AgentTimeline({
       {/* 4. FINAL ASSISTANT SUMMARY MESSAGE */}
       {/* ────────────────────────────────────────────────────────── */}
       {runData.finalMessage && (
-        <div className="pt-2 text-sm text-[#E8DDC7]/90 leading-relaxed font-light">
+        <div className="pt-2 text-sm text-[#ECEAE6] leading-relaxed font-normal">
           <MarkdownRenderer content={runData.finalMessage} />
         </div>
       )}

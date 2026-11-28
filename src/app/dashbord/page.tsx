@@ -19,20 +19,14 @@ import {
   Layers,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   CheckCircle2,
   Sparkles,
   X,
   Trash2,
-  Globe,
-  Mail,
-  FileText,
-  Code,
-  Smartphone,
-  ExternalLink,
   ArrowRight,
   Copy,
   Check,
-  ChevronUp,
   Key,
   Eye,
   EyeOff,
@@ -46,24 +40,33 @@ import {
   User,
   LogOut,
   ShieldCheck,
-  Menu,
   PanelLeftClose,
   PanelLeftOpen,
-  Compass,
-  FolderGit2,
   Square,
   Radio,
   Sun,
   Moon,
   Palette,
+  Home,
+  LayoutGrid,
+  GitBranch,
+  GitPullRequest,
+  Search,
+  SlidersHorizontal,
+  FolderPlus,
+  ArrowUpDown,
+  Monitor,
+  Lightbulb,
+  ChevronsRight,
+  GitFork,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
-import BrowserPanel from "@/components/BrowserPanel";
 import AgentTimeline from "@/components/agent/AgentTimeline";
 import DiffModal from "@/components/agent/DiffModal";
-import AgentWorkspacePanel from "@/components/agent/AgentWorkspacePanel";
 import VoiceAssistantModal from "@/components/voice/VoiceAssistantModal";
-import ConnectorsWorkspace from "@/components/connectors/ConnectorsWorkspace";
+import WorkspacesView, { WorkspaceSessionSummary } from "@/components/dashboard/WorkspacesView";
+import PluginsView from "@/components/dashboard/PluginsView";
+import VersionControlView from "@/components/dashboard/VersionControlView";
 import { AgentRunData, FileChangeRecord, AgentEvent, PlanSpecification } from "@/lib/agent/events";
 
 interface Message {
@@ -157,87 +160,20 @@ function detectEngineFromKey(key: string): DetectedEngine {
   };
 }
 
-const CONNECTORS = [
-  {
-    id: "gmail",
-    name: "Gmail",
-    desc: "Read, draft, and dispatch emails autonomously",
-    status: "Connected",
-    icon: Mail,
-    color: "#EA4335",
-  },
-  {
-    id: "notion",
-    name: "Notion",
-    desc: "Sync roadmaps, update databases & documents",
-    status: "Connected",
-    icon: FileText,
-    color: "#FFFFFF",
-  },
-  {
-    id: "whatsapp",
-    name: "WhatsApp",
-    desc: "Autonomous group alerts & direct client messaging",
-    status: "Connected",
-    icon: Smartphone,
-    color: "#25D366",
-  },
-  {
-    id: "instagram",
-    name: "Instagram",
-    desc: "Direct messages, campaign monitoring & inquiries",
-    status: "Connected",
-    icon: Globe,
-    color: "#E1306C",
-  },
-  {
-    id: "code-editor",
-    name: "AI Code Editor",
-    desc: "Cursor & VS Code real-time file editing & Git PRs",
-    status: "Connected",
-    icon: Code,
-    color: "#C6A46A",
-  },
-  {
-    id: "discord",
-    name: "Discord",
-    desc: "Channel bots, team pings & release notifications",
-    status: "Connected",
-    icon: MessageSquare,
-    color: "#5865F2",
-  },
-  {
-    id: "chrome",
-    name: "Chrome Browser",
-    desc: "Autonomous web browsing, forms & DOM extraction",
-    status: "Connected",
-    icon: Globe,
-    color: "#4285F4",
-  },
-];
-
 const INITIAL_SESSIONS: ChatSession[] = [];
 
-const SUGGESTIONS = [
+const QUICK_ACTIONS = [
   {
-    title: "Gmail → Notion Sync",
-    desc: "Extract client inquiries from Gmail and create tasks in Notion",
-    prompt: "Scan unread emails in Gmail from the last 24h, summarize action items, and create structured cards in my Notion 'Tasks' board.",
+    title: "Set up this project for Harpy",
+    prompt: "Analyze this repository structure, verify configuration scripts, and summarize how to run and extend it cleanly.",
   },
   {
-    title: "Discord → AI Code Editor",
-    desc: "Parse bug reports from Discord and prepare code patch",
-    prompt: "Read recent bug discussions in Discord #dev-bugs, locate the affected file in my AI code editor, and generate a verified unit test.",
+    title: "Get more out of Harpy",
+    prompt: "Review my current workspace and suggest practical improvements, missing tests, or modular refactors.",
   },
   {
-    title: "Chrome → WhatsApp Alert",
-    desc: "Monitor live web URLs and notify team over WhatsApp",
-    prompt: "Browse our staging environment in Chrome, verify all endpoints return 200 OK, and dispatch an executive status report to WhatsApp.",
-  },
-  {
-    title: "Multi-App Orchestration",
-    desc: "Stitch Gmail, Notion, WhatsApp & Code into one mission",
-    prompt: "Authenticate my tools, audit pending customer tickets across Gmail and Notion, notify the on-call engineer via WhatsApp, and stage a fix in Cursor.",
+    title: "Improve the agent instructions",
+    prompt: "Inspect the codebase and draft concise project guidelines covering architecture, conventions, and verification commands.",
   },
 ];
 
@@ -263,7 +199,59 @@ export default function DashboardPage() {
   const [inputValue, setInputValue] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [connectorsModalOpen, setConnectorsModalOpen] = useState(false);
+  const [activeView, setActiveView] = useState<"home" | "workspaces" | "plugins" | "git">("home");
+  const [viewHistory, setViewHistory] = useState<Array<"home" | "workspaces" | "plugins" | "git">>(["home"]);
+  const [viewHistoryIdx, setViewHistoryIdx] = useState(0);
+  const [sidebarSearch, setSidebarSearch] = useState("");
+  const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [activeBranch, setActiveBranch] = useState("main");
+  const [gitBranches, setGitBranches] = useState<string[]>(["main"]);
+  const [worktreeMode, setWorktreeMode] = useState<"Worktree" | "Sandbox">("Worktree");
+  const [deviceTarget, setDeviceTarget] = useState<"This device" | "Cloud">("This device");
+  const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
+  const [isAccessMenuOpen, setIsAccessMenuOpen] = useState(false);
+
+  const navigateView = (nextView: "home" | "workspaces" | "plugins" | "git") => {
+    setActiveView(nextView);
+    setViewHistory((prev) => {
+      const base = prev.slice(0, viewHistoryIdx + 1);
+      if (base[base.length - 1] === nextView) return base;
+      const updated = [...base, nextView];
+      setViewHistoryIdx(updated.length - 1);
+      return updated;
+    });
+  };
+
+  const navigateBack = () => {
+    if (viewHistoryIdx > 0) {
+      const nextIdx = viewHistoryIdx - 1;
+      setViewHistoryIdx(nextIdx);
+      setActiveView(viewHistory[nextIdx]);
+    }
+  };
+
+  const navigateForward = () => {
+    if (viewHistoryIdx < viewHistory.length - 1) {
+      const nextIdx = viewHistoryIdx + 1;
+      setViewHistoryIdx(nextIdx);
+      setActiveView(viewHistory[nextIdx]);
+    }
+  };
+
+  useEffect(() => {
+    fetch("/api/git?state=open")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data?.success && data.branch) {
+          setActiveBranch(data.branch);
+          if (Array.isArray(data.branches) && data.branches.length > 0) {
+            setGitBranches(data.branches);
+          }
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<"models" | "appearance" | "system">("models");
   const [confirmDeleteAllHistory, setConfirmDeleteAllHistory] = useState(false);
@@ -302,18 +290,10 @@ export default function DashboardPage() {
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
 
-  // Integrated AI Browser Automation State
-  const [browserPanelOpen, setBrowserPanelOpen] = useState(false);
-  const [browserExpanded, setBrowserExpanded] = useState(false);
-  const [browserGoal, setBrowserGoal] = useState<string | undefined>(undefined);
-
-  // Autonomous Code Agent Mode State (Cursor / Antigravity Style - default enabled)
+  // Autonomous Code Agent Mode State (default enabled)
   const [agentMode, setAgentMode] = useState(true);
   const [agentExecutionMode, setAgentExecutionMode] = useState<'plan' | 'execute'>('execute');
-  const [isWorkspacePanelOpen, setIsWorkspacePanelOpen] = useState(false);
-  const [activeWorkspaceSessionId, setActiveWorkspaceSessionId] = useState<string | null>(null);
   const [reviewingDiffFile, setReviewingDiffFile] = useState<FileChangeRecord | null>(null);
-  const [selectedWorkspaceFile, setSelectedWorkspaceFile] = useState<string | undefined>(undefined);
   const agentAbortControllerRef = useRef<AbortController | null>(null);
 
   // Vapi Voice Assistant AI State
@@ -705,24 +685,9 @@ export default function DashboardPage() {
     const textToSend = customPrompt || inputValue.trim();
     if (!textToSend && !attachedFile) return;
 
-    // Automatic browser mission intent detection
-    const lowerText = textToSend.toLowerCase();
-    const isBrowserIntent =
-      lowerText.includes("browse") ||
-      lowerText.includes("google search") ||
-      lowerText.includes("search google") ||
-      lowerText.startsWith("open ") ||
-      lowerText.includes("open website") ||
-      lowerText.includes("go to ") ||
-      lowerText.includes("playwright") ||
-      lowerText.includes("navigate to ") ||
-      lowerText.includes("check website") ||
-      lowerText.includes("scrape");
-
-    if (isBrowserIntent) {
-      setBrowserGoal(textToSend);
-      setBrowserPanelOpen(true);
-    }
+    setActiveView("home");
+    setIsModelMenuOpen(false);
+    setIsAccessMenuOpen(false);
 
     const userMsg: Message = {
       id: `usr-${Date.now()}`,
@@ -792,7 +757,6 @@ export default function DashboardPage() {
     const isRunningAsAgent = forceAgentMode !== undefined ? forceAgentMode : (agentMode || isCodingTask);
     if (isRunningAsAgent) {
       if (!agentMode) setAgentMode(true);
-      setIsWorkspacePanelOpen(true);
       const agentMsgId = `harpy-agent-${Date.now()}`;
       const initialAgentRun: AgentRunData = {
         sessionId: currentSessionId,
@@ -1417,7 +1381,6 @@ export default function DashboardPage() {
     const freshId = `session-${Date.now()}`;
     setSessions([]);
     setCurrentSessionId(freshId);
-    setSelectedWorkspaceFile(undefined);
     setReviewingDiffFile(null);
     setConfirmDeleteAllHistory(false);
     setSettingsModalOpen(false);
@@ -1431,1090 +1394,1103 @@ export default function DashboardPage() {
   const activeModelsList =
     customModels.length > 0 ? customModels : currentEngine ? currentEngine.models : [];
 
-  return (
-    <div className={`flex h-screen w-full bg-[#050508] text-[#E8DDC7] overflow-hidden select-none font-inter relative ${theme === "light" ? "light theme-light" : "dark theme-dark"}`} data-theme={theme}>
-      {/* Mobile Backdrop for Sidebar */}
-      {sidebarOpen && (
-        <div
-          onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 bg-black/75 backdrop-blur-sm z-30 lg:hidden animate-in fade-in duration-200"
-        />
+  const workspaceSummaries: WorkspaceSessionSummary[] = (sessions || [])
+    .filter((s) => s?.messages && s.messages.length > 0)
+    .map((s) => {
+      const fMap = new Map<string, FileChangeRecord>();
+      let hasApproval = false;
+      let isWorking = s.id === currentSessionId && isExecuting;
+      for (const m of s.messages) {
+        if (m.agentRun?.status === "waiting_approval") hasApproval = true;
+        if (m.agentRun?.status === "running" && s.id === currentSessionId && isExecuting) isWorking = true;
+        if (m.isAgent && m.agentRun?.filesChanged) {
+          for (const f of m.agentRun.filesChanged) {
+            if (f.action === "deleted") fMap.delete(f.path);
+            else fMap.set(f.path, f);
+          }
+        }
+      }
+      return {
+        id: s.id,
+        title: s.title,
+        timestamp: s.timestamp,
+        messageCount: s.messages.length,
+        status: isWorking ? "working" : hasApproval ? "needs_approval" : "completed",
+        files: Array.from(fMap.values()),
+        branch: activeBranch,
+      };
+    });
+
+  const activeSessionFiles = (() => {
+    const fileMap = new Map<string, FileChangeRecord>();
+    for (const m of currentSession?.messages || []) {
+      if (m.isAgent && m.agentRun?.filesChanged) {
+        for (const f of m.agentRun.filesChanged) {
+          if (f.action === "deleted") {
+            fileMap.delete(f.path);
+          } else {
+            fileMap.set(f.path, f);
+          }
+        }
+      }
+    }
+    return Array.from(fileMap.values());
+  })();
+
+  const filteredSidebarSessions = (sessions || [])
+    .filter((s) => s?.messages && s.messages.length > 0)
+    .filter((s) =>
+      sidebarSearch.trim()
+        ? s.title.toLowerCase().includes(sidebarSearch.toLowerCase())
+        : true
+    )
+    .sort((a, b) => {
+      if (a.isPinned && !b.isPinned) return -1;
+      if (!a.isPinned && b.isPinned) return 1;
+      return 0;
+    });
+
+  const renderComposer = (isCentered = false) => (
+    <div className={`${isCentered ? "max-w-[660px]" : "max-w-4xl"} mx-auto w-full space-y-2.5`}>
+      {/* Attachment preview */}
+      {attachedFile && (
+        <div className="flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#1B1917] border border-[#2C2824] text-xs text-[#D8D3CC]">
+          <div className="flex items-center gap-2 truncate">
+            <Paperclip className="w-3.5 h-3.5 text-[#8E8880]" />
+            <span className="font-mono truncate">{attachedFile}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setAttachedFile(null)}
+            className="text-[#8E8880] hover:text-rose-400 p-0.5"
+            title="Remove attachment"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
       )}
 
-      {/* ──────────────────────────────────────────────────────────
-          METALLIC DEEP OBSIDIAN SIDEBAR
-         ────────────────────────────────────────────────────────── */}
-      <aside
-        className={`fixed lg:relative inset-y-0 left-0 flex flex-col border-r border-[#14141C] bg-[#07070B] transition-all duration-300 ease-in-out z-40 lg:z-30 shadow-2xl flex-shrink-0 ${
-          sidebarOpen
-            ? "w-72 max-w-[85vw] border-r translate-x-0"
-            : "w-0 border-r-0 -translate-x-full lg:translate-x-0 pointer-events-none opacity-0"
-        } overflow-hidden`}
-      >
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_rgba(198,164,106,0.025),_transparent_75%)] pointer-events-none" />
-
-        {/* Sidebar Header: Logo & Title + Close Toggle */}
-        <div className="h-14 px-4 border-b border-[#14141C] flex items-center justify-between relative z-10 flex-shrink-0">
-          <Link
-            href="/"
-            className="flex items-center gap-2.5 group focus:outline-none"
-            title="Return to Home Portal"
-          >
-            <div className="relative w-7 h-7 rounded-full border border-[#C6A46A]/35 flex items-center justify-center bg-[#050508] p-0.5 group-hover:border-[#C6A46A] transition-colors">
-              <Image
-                src={cdn("/images/harpy-logo-light.png")}
-                alt="HARPY AI Emblem"
-                width={22}
-                height={22}
-                className="object-contain"
-              />
-            </div>
-            <div>
-              <span className="font-cinzel text-xs tracking-[0.2em] text-[#E8DDC7] group-hover:text-[#C6A46A] transition-colors block font-semibold leading-none">
-                HARPY AI
-              </span>
-              <span className="font-inter text-[8px] uppercase tracking-[0.22em] text-[#C6A46A]/60 block mt-1">
-                AUTONOMOUS KERNEL
-              </span>
-            </div>
-          </Link>
-
-          {/* Close Sidebar Button */}
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="p-1.5 rounded-lg text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A] border border-transparent hover:border-[#1C1C26] transition-colors"
-            title="Close sidebar (⌘B)"
-            aria-label="Close sidebar"
-          >
-            <PanelLeftClose className="w-4 h-4 text-[#C6A46A]" />
-          </button>
-        </div>
-
-        {/* New Mission / New Chat Button */}
-        <div className="p-3.5 pb-2 relative z-10 flex-shrink-0">
-          <button
-            onClick={handleNewChat}
-            className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-[#0D0D12] border border-[#C6A46A]/30 hover:border-[#C6A46A]/80 text-[#E8DDC7] hover:text-[#C6A46A] hover:bg-[#12121A] transition-all duration-200 shadow-sm group"
-          >
-            <div className="flex items-center gap-2.5">
-              <div className="w-5 h-5 rounded-md bg-[#C6A46A]/10 border border-[#C6A46A]/35 flex items-center justify-center text-[#C6A46A] group-hover:scale-105 transition-transform">
-                <Plus className="w-3 h-3 stroke-[2.5]" />
-              </div>
-              <span className="font-cinzel text-xs tracking-wider uppercase font-semibold">
-                New Chat
-              </span>
-            </div>
-            <span className="text-[10px] font-mono text-[#C6A46A]/50">⌘K</span>
-          </button>
-        </div>
-
-        {/* Connectors Quick Bar */}
-        <div className="px-3.5 py-1.5 relative z-10 flex-shrink-0">
-          <button
-            onClick={() => setConnectorsModalOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[#0B0B0F] border border-[#171720] hover:border-[#C6A46A]/40 transition-colors text-xs text-[#E8DDC7]/75 hover:text-[#E8DDC7] group"
-          >
-            <div className="flex items-center gap-2">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              <Layers className="w-3.5 h-3.5 text-[#C6A46A]" />
-              <span className="font-cinzel text-[11px] tracking-wider uppercase">
-                Connectors
-              </span>
-            </div>
-            <ExternalLink className="w-3 h-3 text-[#C6A46A]/50 group-hover:text-[#C6A46A] transition-colors" />
-          </button>
-        </div>
-
-        {/* History Thread List */}
-        <div className="flex-1 overflow-y-auto px-3.5 py-2 space-y-1 relative z-10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          <div className="flex items-center justify-between px-2 py-1 text-[10px] font-cinzel tracking-[0.22em] uppercase text-[#C6A46A]/60">
-            <span>Mission History</span>
-            <History className="w-3 h-3 opacity-50" />
-          </div>
-
-          <div className="space-y-1 pt-1">
-            {(sessions || []).filter((s) => s?.messages && s.messages.length > 0).length === 0 ? (
-              <div className="px-3 py-6 text-center text-xs text-[#E8DDC7]/30 font-light font-cinzel tracking-wider">
-                No Previous Missions
-              </div>
-            ) : (
-              (sessions || [])
-                .filter((s) => s?.messages && s.messages.length > 0)
-                .sort((a, b) => {
-                  if (a.isPinned && !b.isPinned) return -1;
-                  if (!a.isPinned && b.isPinned) return 1;
-                  return 0;
-                })
-                .map((s) => {
-                  const isActive = s.id === currentSessionId;
-                  const isMenuOpen = activeMenuSessionId === s.id;
-                  const isEditing = editingSessionId === s.id;
-
-                  return (
-                    <div
-                      key={s.id}
-                      onClick={() => {
-                        if (!isEditing) {
-                          setCurrentSessionId(s.id);
-                          if (typeof window !== "undefined" && window.innerWidth < 1024) {
-                            setSidebarOpen(false);
-                          }
-                        }
-                      }}
-                      onKeyDown={(e) => {
-                        if (!isEditing) {
-                          if (e.key === "p" || e.key === "P") {
-                            e.preventDefault();
-                            togglePinSession(s.id);
-                          } else if (e.key === "r" || e.key === "R") {
-                            e.preventDefault();
-                            startRenameSession(s);
-                          }
-                        }
-                      }}
-                      tabIndex={0}
-                      className={`group relative flex items-center justify-between px-3 py-2 rounded-xl cursor-pointer transition-all duration-150 border outline-none ${
-                        isActive
-                          ? "bg-[#101018] border-[#C6A46A]/45 border-l-2 border-l-[#C6A46A] text-[#E8DDC7] shadow-sm"
-                          : "border-transparent text-[#E8DDC7]/65 hover:bg-[#0E0E14] hover:text-[#E8DDC7] focus:bg-[#0E0E14]"
-                      }`}
-                    >
-                      {/* Left: Icon & Title or Inline Edit */}
-                      <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
-                        {s.isPinned ? (
-                          <Pin className="w-3.5 h-3.5 flex-shrink-0 text-[#C6A46A] fill-[#C6A46A]/30" />
-                        ) : (
-                          <MessageSquare
-                            className={`w-3.5 h-3.5 flex-shrink-0 ${
-                              isActive ? "text-[#C6A46A]" : "text-[#E8DDC7]/30"
-                            }`}
-                          />
-                        )}
-
-                        {isEditing ? (
-                          <div
-                            className="flex items-center gap-1.5 flex-1 min-w-0"
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            <input
-                              type="text"
-                              autoFocus
-                              value={editingTitle}
-                              onChange={(e) => setEditingTitle(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === "Enter") saveRenameSession(s.id);
-                                if (e.key === "Escape") setEditingSessionId(null);
-                              }}
-                              className="bg-[#0A0A0F] border border-[#C6A46A]/70 rounded px-2 py-0.5 text-xs text-[#E8DDC7] w-full focus:outline-none focus:ring-1 focus:ring-[#C6A46A]"
-                            />
-                            <button
-                              onClick={() => saveRenameSession(s.id)}
-                              className="p-1 text-emerald-400 hover:text-emerald-300 flex-shrink-0"
-                              title="Save"
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                            </button>
-                            <button
-                              onClick={() => setEditingSessionId(null)}
-                              className="p-1 text-[#E8DDC7]/40 hover:text-[#E8DDC7] flex-shrink-0"
-                              title="Cancel"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <span className="text-xs truncate font-light font-inter">
-                            {s.title}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Right: Actions (Pin Icon + ... Dropdown Menu) */}
-                      {!isEditing && (
-                        <div className="flex items-center gap-1 flex-shrink-0 relative">
-                          {/* Quick Pin Toggle button */}
-                          <button
-                            onClick={(e) => togglePinSession(s.id, e)}
-                            className={`p-1 rounded transition-colors ${
-                              s.isPinned
-                                ? "text-[#C6A46A] opacity-100 hover:text-[#E2C99A]"
-                                : "opacity-0 group-hover:opacity-100 text-[#E8DDC7]/40 hover:text-[#C6A46A]"
-                            }`}
-                            title={s.isPinned ? "Unpin (P)" : "Pin (P)"}
-                          >
-                            <Pin
-                              className={`w-3.5 h-3.5 ${
-                                s.isPinned ? "fill-[#C6A46A]/30 text-[#C6A46A]" : ""
-                              }`}
-                            />
-                          </button>
-
-                          {/* Three Dots Menu Button */}
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setActiveMenuSessionId(isMenuOpen ? null : s.id);
-                            }}
-                            className={`p-1 rounded-md transition-colors ${
-                              isMenuOpen
-                                ? "opacity-100 text-[#C6A46A] bg-[#1C1C26]"
-                                : "opacity-0 group-hover:opacity-100 text-[#E8DDC7]/40 hover:text-[#E8DDC7] hover:bg-[#1C1C26]"
-                            }`}
-                            title="More options"
-                          >
-                            <MoreHorizontal className="w-3.5 h-3.5" />
-                          </button>
-
-                          {/* Dropdown Popover */}
-                          {isMenuOpen && (
-                            <div
-                              ref={menuRef}
-                              onClick={(e) => e.stopPropagation()}
-                              className="absolute right-0 top-7 z-50 min-w-[185px] rounded-2xl bg-[#14141A] border border-[#262635] p-1.5 shadow-[0_12px_36px_rgba(0,0,0,0.85)] backdrop-blur-xl animate-in fade-in zoom-in-95 duration-100 space-y-0.5"
-                            >
-                              {/* Pin / Unpin */}
-                              <button
-                                onClick={(e) => togglePinSession(s.id, e)}
-                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:bg-[#1E1E28] hover:text-[#E8DDC7] transition-colors group/item"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  {s.isPinned ? (
-                                    <PinOff className="w-3.5 h-3.5 text-[#C6A46A]" />
-                                  ) : (
-                                    <Pin className="w-3.5 h-3.5 text-[#E8DDC7]/70 group-hover/item:text-[#C6A46A]" />
-                                  )}
-                                  <span>{s.isPinned ? "Unpin" : "Pin"}</span>
-                                </div>
-                                <span className="text-[11px] font-mono text-[#E8DDC7]/40">P</span>
-                              </button>
-
-                              {/* Rename */}
-                              <button
-                                onClick={(e) => startRenameSession(s, e)}
-                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:bg-[#1E1E28] hover:text-[#E8DDC7] transition-colors group/item"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <Pencil className="w-3.5 h-3.5 text-[#E8DDC7]/70 group-hover/item:text-[#C6A46A]" />
-                                  <span>Rename</span>
-                                </div>
-                                <span className="text-[11px] font-mono text-[#E8DDC7]/40">R</span>
-                              </button>
-
-                              {/* Share */}
-                              <button
-                                onClick={(e) => shareSession(s, e)}
-                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:bg-[#1E1E28] hover:text-[#E8DDC7] transition-colors group/item"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <Share2 className="w-3.5 h-3.5 text-[#E8DDC7]/70 group-hover/item:text-[#C6A46A]" />
-                                  <span>Share</span>
-                                </div>
-                              </button>
-
-                              {/* Divider */}
-                              <div className="my-1 border-t border-[#22222E]" />
-
-                              {/* Delete */}
-                              <button
-                                onClick={(e) => deleteSession(s.id, e)}
-                                className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-red-400 hover:bg-red-500/10 hover:text-red-300 transition-colors"
-                              >
-                                <div className="flex items-center gap-2.5">
-                                  <Trash2 className="w-3.5 h-3.5 text-red-400" />
-                                  <span>Delete</span>
-                                </div>
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-            )}
-          </div>
-        </div>
-
-        {/* Sidebar Footer */}
-        <div className="p-3.5 pt-3 pb-8 border-t border-[#14141C] bg-[#050508] space-y-2 relative z-10 flex-shrink-0">
-          {/* System Settings Button */}
-          <button
-            onClick={() => setSettingsModalOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/70 hover:text-[#C6A46A] hover:bg-[#0E0E14] border border-transparent hover:border-[#1C1C26] transition-colors group"
-          >
-            <div className="flex items-center gap-2.5">
-              <Settings className="w-3.5 h-3.5 text-[#C6A46A]/80 group-hover:text-[#C6A46A]" />
-              <span className="font-cinzel text-[11px] tracking-wider uppercase">System Settings</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="text-[10px] font-mono text-[#C6A46A] uppercase px-1.5 py-0.5 rounded bg-[#C6A46A]/10 border border-[#C6A46A]/20">
-                {theme === "light" ? "Light" : "Dark"}
-              </span>
-              <span className="text-[10px] font-mono text-[#E8DDC7]/30">v2.6</span>
-            </div>
-          </button>
-
-          {/* User Profile (Below System Settings) */}
-          {authUser ? (
-            <div className="relative pt-0.5" ref={profileMenuRef}>
-              <button
-                onClick={() => setProfileMenuOpen(!profileMenuOpen)}
-                className="w-full flex items-center justify-between p-2 rounded-xl bg-[#09090E] border border-[#1C1C28] hover:border-[#C6A46A]/50 hover:bg-[#0E0E16] transition-all duration-200 text-left group shadow-sm"
-              >
-                <div className="flex items-center gap-2.5 min-w-0 pr-1 flex-1">
-                  {/* Avatar */}
-                  {authUser.avatarUrl ? (
-                    <img
-                      src={authUser.avatarUrl}
-                      alt={authUser.fullName}
-                      className="w-8 h-8 rounded-full border border-[#C6A46A]/50 object-cover flex-shrink-0"
-                    />
-                  ) : (
-                    <div className="w-8 h-8 rounded-full border border-[#C6A46A]/40 bg-[#12121A] flex items-center justify-center font-cinzel text-xs text-[#C6A46A] font-semibold flex-shrink-0 shadow-sm group-hover:border-[#C6A46A] transition-colors">
-                      {authUser.fullName.charAt(0).toUpperCase()}
-                    </div>
-                  )}
-
-                  {/* Name and Email */}
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-medium text-[#E8DDC7] truncate font-inter group-hover:text-[#C6A46A] transition-colors">
-                        {authUser.fullName}
-                      </span>
-                    </div>
-                    <p className="text-[10px] text-[#E8DDC7]/45 truncate font-mono">
-                      {authUser.email}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="p-1 rounded-md text-[#E8DDC7]/40 group-hover:text-[#C6A46A] transition-colors flex-shrink-0">
-                  <MoreHorizontal className="w-3.5 h-3.5" />
-                </div>
-              </button>
-
-              {/* Upward Profile Menu Popover */}
-              <AnimatePresence>
-                {profileMenuOpen && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.95 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 8, scale: 0.95 }}
-                    className="absolute left-0 bottom-full mb-2 w-full z-50 rounded-2xl bg-[#0E0E16] border border-[#262638] p-2 shadow-[0_16px_40px_rgba(0,0,0,0.9)] backdrop-blur-xl space-y-1"
-                  >
-                    {/* Header inside popup */}
-                    <div className="px-3 py-2 border-b border-[#1A1A26] space-y-1">
-                      <p className="text-xs font-semibold text-[#E8DDC7] truncate font-inter">
-                        {authUser.fullName}
-                      </p>
-                      <p className="text-[10px] text-[#C6A46A] font-mono truncate">
-                        {authUser.email}
-                      </p>
-                      <span className="inline-flex items-center gap-1 mt-1 px-1.5 py-0.5 rounded bg-[#C6A46A]/10 text-[#C6A46A] text-[9px] font-cinzel tracking-wider uppercase border border-[#C6A46A]/20">
-                        <span className="w-1 h-1 rounded-full bg-emerald-400" />
-                        {authUser.role}
-                      </span>
-                    </div>
-
-                    {/* Manage Profile */}
-                    <button
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        setProfileModalOpen(true);
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-[#E8DDC7]/85 hover:text-[#C6A46A] hover:bg-[#161622] transition-colors text-left"
-                    >
-                      <User className="w-3.5 h-3.5 text-[#C6A46A]" />
-                      <span>Operator Profile</span>
-                    </button>
-
-                    {/* Sign Out */}
-                    <button
-                      onClick={() => {
-                        setProfileMenuOpen(false);
-                        handleSignOut();
-                      }}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-red-400 hover:text-red-300 hover:bg-red-500/10 transition-colors text-left"
-                    >
-                      <LogOut className="w-3.5 h-3.5 text-red-400" />
-                      <span>Sign Out</span>
-                    </button>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ) : (
-            <div className="pt-0.5">
-              <Link
-                href="/started"
-                className="w-full flex items-center justify-between p-2 rounded-xl border border-[#C6A46A]/30 bg-[#09090E] hover:border-[#C6A46A]/70 hover:bg-[#0E0E16] transition-all text-left group"
-              >
-                <div className="flex items-center gap-2 min-w-0">
-                  <div className="w-7 h-7 rounded-full border border-[#C6A46A]/40 bg-[#12121A] flex items-center justify-center text-[#C6A46A] flex-shrink-0">
-                    <User className="w-3.5 h-3.5" />
-                  </div>
-                  <div className="min-w-0">
-                    <span className="text-[11px] font-cinzel tracking-wider uppercase text-[#E8DDC7] group-hover:text-[#C6A46A] transition-colors block truncate">
-                      Sign In Operator
-                    </span>
-                    <span className="text-[9px] text-[#E8DDC7]/40 block font-light truncate">
-                      Supabase Cloud Auth
-                    </span>
-                  </div>
-                </div>
-                <ArrowRight className="w-3 h-3 text-[#C6A46A]/60 group-hover:text-[#C6A46A] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-              </Link>
-            </div>
-          )}
-
-          {/* Status Line */}
-          <div className="flex items-center justify-between px-2 pt-1 text-[10px] text-[#E8DDC7]/45 font-mono">
-            <span>Kernel: Harpy v2.6</span>
-            <span className="text-emerald-400 flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              Online
+      {/* Voice Recording Bar */}
+      {isRecording && (
+        <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-red-950/40 border border-red-500/40">
+          <div className="flex items-center gap-2.5">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500" />
+            </span>
+            <span className="text-xs font-medium text-red-200">
+              {voiceStatus || "Listening... speak into your microphone"}
             </span>
           </div>
-        </div>
-      </aside>
-
-      {/* ──────────────────────────────────────────────────────────
-          MAIN CHAT AREA (Deep Obsidian Metallic Finish)
-         ────────────────────────────────────────────────────────── */}
-      <main className="flex-1 flex flex-col h-full bg-[#050508] relative overflow-hidden">
-        <div className="absolute top-0 right-1/4 w-[500px] h-[500px] bg-[radial-gradient(circle,_rgba(198,164,106,0.025),_transparent_75%)] pointer-events-none" />
-
-        {/* Top Operational Bar */}
-        <header className="h-14 border-b border-[#14141C] bg-[#07070B]/90 backdrop-blur-md px-2.5 sm:px-6 flex items-center justify-between z-20 flex-shrink-0 gap-2">
-          <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
-            {/* Sidebar Open Button (Only visible when sidebar is collapsed) */}
-            {!sidebarOpen && (
-              <button
-                onClick={() => setSidebarOpen(true)}
-                className="p-2 rounded-lg text-[#E8DDC7]/75 hover:text-[#C6A46A] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] transition-all flex items-center justify-center shadow-sm group shrink-0"
-                title="Open sidebar (⌘B)"
-                aria-label="Open sidebar"
-              >
-                <Menu className="w-4 h-4 text-[#C6A46A] group-hover:scale-105 transition-transform" />
-              </button>
-            )}
-
-            {/* Model Badge -> Click to Open API & Models in Settings */}
-            <button
-              type="button"
-              onClick={() => {
-                setSettingsTab("models");
-                setSettingsModalOpen(true);
-              }}
-              className="inline-flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 rounded-full border border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] hover:bg-[#12121A] transition-all cursor-pointer group min-w-0"
-              title="Configure API Key & Models in System Settings"
-            >
-              <span
-                className="w-1.5 h-1.5 rounded-full animate-pulse shrink-0"
-                style={{ backgroundColor: currentEngine?.color || "#F55036" }}
-              />
-              <span className="font-cinzel text-[11px] sm:text-xs text-[#E8DDC7] group-hover:text-[#C6A46A] tracking-wider font-medium transition-colors truncate max-w-[110px] sm:max-w-[200px] md:max-w-none">
-                <span className="hidden sm:inline">HARPY AI · </span>
-                {selectedModelName.replace(/ \(Best Model\)|\(Fast\)/, "")}
-              </span>
-              <span className="text-[#C6A46A] text-[10px] sm:text-xs font-mono hidden md:inline">v2.6</span>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
-            {/* Agent Mode Workspace Panel Toggle */}
-            <button
-              type="button"
-              onClick={() => {
-                setIsWorkspacePanelOpen(!isWorkspacePanelOpen);
-                if (!isWorkspacePanelOpen) {
-                  setBrowserPanelOpen(false);
-                  setActiveWorkspaceSessionId(currentSessionId);
-                }
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full border transition-all cursor-pointer shrink-0 ${
-                isWorkspacePanelOpen
-                  ? "border-[#C6A46A] bg-[#C6A46A]/20 text-[#C6A46A] shadow-[0_0_14px_rgba(198,164,106,0.3)]"
-                  : "border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] text-xs text-[#E8DDC7]/75 hover:text-[#C6A46A]"
-              }`}
-              title="Open Autonomous Code Workspace & Files"
-            >
-              <FolderGit2 className="w-3.5 h-3.5 text-[#C6A46A] shrink-0" />
-              <span className="font-cinzel text-[10px] sm:text-[11px] tracking-wider uppercase font-semibold">
-                Workspace
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse shrink-0" />
-            </button>
-
-            {/* Browser Agent Toggle Button */}
-            <button
-              type="button"
-              onClick={() => {
-                setBrowserPanelOpen(!browserPanelOpen);
-                if (!browserPanelOpen) setIsWorkspacePanelOpen(false);
-              }}
-              className={`inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-1 rounded-full border transition-all cursor-pointer shrink-0 ${
-                browserPanelOpen
-                  ? "border-[#C6A46A] bg-[#C6A46A]/20 text-[#C6A46A] shadow-[0_0_14px_rgba(198,164,106,0.3)]"
-                  : "border-[#1C1C26] hover:border-[#C6A46A]/50 bg-[#0B0B0F] text-xs text-[#E8DDC7]/75 hover:text-[#C6A46A]"
-              }`}
-              title="Open Autonomous AI Browser Panel"
-            >
-              <Compass className={`w-3.5 h-3.5 text-[#C6A46A] shrink-0 ${browserPanelOpen ? "animate-spin" : ""}`} />
-              <span className="font-cinzel text-[10px] sm:text-[11px] tracking-wider uppercase font-semibold">
-                <span className="hidden sm:inline">Browser </span>Agent
-              </span>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-            </button>
-
-            {/* Return to Home Portal */}
-            <Link
-              href="/"
-              className="inline-flex items-center gap-1 text-[11px] sm:text-xs font-cinzel uppercase tracking-widest text-[#C6A46A] hover:text-[#E2C99A] border-b border-[#C6A46A]/30 pb-0.5 transition-colors shrink-0"
-            >
-              <span className="hidden xs:inline">Portal</span>
-              <ExternalLink className="w-3 h-3" />
-            </Link>
-          </div>
-        </header>
-
-        {/* Split Screen Container: Left (Chat Area) & Right (Browser Panel / Workspace Panel) */}
-        <div className="flex-1 flex flex-col lg:flex-row min-h-0 overflow-hidden relative">
-          {/* Chat Container */}
-          <div
-            className={`flex flex-col h-full min-h-0 overflow-hidden transition-all duration-300 ${
-              (browserPanelOpen || isWorkspacePanelOpen) && !browserExpanded
-                ? "hidden lg:flex lg:w-1/2 border-r border-[#14141C]"
-                : browserExpanded
-                ? "hidden"
-                : "w-full"
-            }`}
+          <button
+            type="button"
+            onClick={stopRecording}
+            className="px-2.5 py-0.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-mono font-semibold"
           >
-            {/* Messages Scroll Area */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 z-10 flex flex-col [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {(!currentSession?.messages || currentSession.messages.length === 0) ? (
-            /* Centered Greeting */
-            <div className="flex-1 flex flex-col items-center justify-center min-h-0 py-6 sm:py-8">
-              <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-7xl w-full mx-auto text-center space-y-8 px-2">
-                <motion.div
-                  initial={{ opacity: 0, y: 12 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4 }}
-                  className="space-y-3.5"
-                >
-                  <div className="w-14 h-14 rounded-full border border-[#C6A46A]/40 flex items-center justify-center mx-auto bg-[#0B0B0F] shadow-[0_0_24px_rgba(198,164,106,0.12)]">
-                    <Image
-                      src={cdn("/images/harpy-logo-light.png")}
-                      alt="Harpy AI"
-                      width={38}
-                      height={38}
-                      className="object-contain"
-                    />
-                  </div>
+            Done
+          </button>
+        </div>
+      )}
 
-                  <div className="space-y-2">
-                    <h1 className="font-cinzel text-3xl sm:text-4xl text-[#E8DDC7] font-normal tracking-wide">
-                      Where Shall We Take Flight?
-                    </h1>
-                    <p className="font-cormorant italic text-lg sm:text-xl text-[#E8DDC7]/65 max-w-xl mx-auto">
-                      &ldquo;One agent. Authenticated across Gmail, Notion, WhatsApp, Discord, Code &amp; Chrome.&rdquo;
-                    </p>
-                  </div>
-                </motion.div>
+      {/* Voice Input Error Banner */}
+      {voiceError && (
+        <div className="flex items-center justify-between px-3.5 py-2 rounded-xl bg-[#2A1515] border border-red-500/40 text-red-200 text-xs">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+            <span>{voiceError}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setVoiceError(null)}
+            className="text-red-400 hover:text-red-200 ml-2 font-bold px-1"
+          >
+            ×
+          </button>
+        </div>
+      )}
 
-                {/* Suggestion Prompts Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 w-full text-left">
-                  {SUGGESTIONS.map((item, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => {
-                        if (item.title.toLowerCase().includes("chrome")) {
-                          setBrowserGoal("Browse our staging environment in Chrome, verify all endpoints return 200 OK, and dispatch an executive status report to WhatsApp.");
-                          setBrowserPanelOpen(true);
-                        }
-                        handleSendMessage(item.prompt);
-                      }}
-                      className="p-4 rounded-xl bg-[#09090E] border border-[#171722] hover:border-[#C6A46A]/50 hover:bg-[#0E0E16] transition-all duration-200 text-left flex flex-col justify-between group shadow-sm hover:shadow-[0_0_20px_rgba(198,164,106,0.08)] min-h-[96px]"
-                    >
-                      <div className="flex items-center justify-between w-full mb-1.5">
-                        <span className="font-cinzel text-xs text-[#C6A46A] tracking-wider uppercase font-semibold">
-                          {item.title}
-                        </span>
-                        <ArrowRight className="w-3.5 h-3.5 text-[#C6A46A]/40 group-hover:text-[#C6A46A] group-hover:translate-x-0.5 transition-all flex-shrink-0" />
-                      </div>
-                      <p className="font-inter text-xs text-[#E8DDC7]/60 leading-relaxed font-light">
-                        {item.desc}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          ) : (
-            /* Populated Message History (Wider frame for rich AI outputs) */
-            <div className="max-w-6xl xl:max-w-7xl 2xl:max-w-[1440px] mx-auto w-full space-y-6 pb-4">
-              {currentSession.messages.map((msg) => {
-                const isUser = msg.sender === "user";
-                return (
-                  <motion.div
-                    key={msg.id}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.25 }}
-                    className={`flex gap-3 sm:gap-4 ${isUser ? "justify-end" : "justify-start w-full"}`}
-                  >
-                    {!isUser && (
-                      <div className="w-7 h-7 rounded-full border border-[#C6A46A]/35 flex items-center justify-center bg-[#0B0B10] flex-shrink-0 mt-1 shadow-sm">
-                        <Image
-                          src={cdn("/images/harpy-logo-light.png")}
-                          alt="Harpy AI"
-                          width={18}
-                          height={18}
-                          className="object-contain"
-                        />
-                      </div>
-                    )}
+      {/* Top Metadata Strip Above Pill (Screenshot 6) */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#9E978F]">
+        <div className="flex items-center gap-3 flex-wrap">
+          <button
+            type="button"
+            onClick={() => navigateView("workspaces")}
+            className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
+            title="Switch workspace"
+          >
+            <span className="w-4 h-4 rounded-full bg-[#2A2622] text-[#D8D3CC] text-[10px] font-semibold inline-flex items-center justify-center">
+              H
+            </span>
+            <span className="font-medium text-[#D8D3CC]">Harpy</span>
+            <ChevronDown className="w-3 h-3 text-[#78726B]" />
+          </button>
 
-                    <div
-                      className={`space-y-3 rounded-2xl ${
-                        isUser
-                          ? "max-w-[85%] sm:max-w-[75%] rounded-tr-sm bg-[#12121A] border border-[#22222E] text-[#E8DDC7] p-4 shadow-md"
-                          : msg.isError
-                          ? "flex-1 min-w-0 w-full rounded-tl-sm bg-[#180F12] border border-red-500/40 text-red-200 p-5 sm:p-6 shadow-lg"
-                          : "flex-1 min-w-0 w-full rounded-tl-sm bg-[#0B0B10] border border-[#C6A46A]/25 text-[#E8DDC7] p-5 sm:p-6 shadow-lg"
-                      }`}
-                    >
-                      {/* Attached File Pill */}
-                      {msg.attachment && (
-                        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#050508] border border-[#C6A46A]/30 text-xs text-[#C6A46A]">
-                          <Paperclip className="w-3 h-3" />
-                          <span className="font-mono text-[11px] truncate max-w-xs">{msg.attachment}</span>
-                        </div>
-                      )}
+          <button
+            type="button"
+            onClick={() => setWorktreeMode(worktreeMode === "Worktree" ? "Sandbox" : "Worktree")}
+            className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
+            title="Toggle execution isolation mode"
+          >
+            <GitFork className="w-3.5 h-3.5 text-[#78726B]" />
+            <span>{worktreeMode}</span>
+            <ChevronDown className="w-3 h-3 text-[#78726B]" />
+          </button>
 
-                      {/* Error Indicator */}
-                      {msg.isError && (
-                        <div className="flex items-center gap-2 text-xs font-cinzel text-red-400 uppercase tracking-wider">
-                          <AlertCircle className="w-4 h-4 flex-shrink-0" />
-                          <span>Kernel Execution Notice</span>
-                        </div>
-                      )}
-
-                      {/* Message Content with Rich Markdown Rendering or Agent Timeline */}
-                      <div className={`text-sm ${isLight ? "text-slate-800" : "text-[#E8DDC7]/90"} leading-relaxed font-light`}>
-                        {msg.isAgent && msg.agentRun ? (
-                          <AgentTimeline
-                            runData={msg.agentRun}
-                            sessionId={currentSessionId}
-                            onSelectFile={(filePath) => {
-                              setSelectedWorkspaceFile(filePath);
-                              setActiveWorkspaceSessionId(currentSessionId);
-                              setIsWorkspacePanelOpen(true);
-                              setBrowserPanelOpen(false);
-                            }}
-                            onReviewDiff={(file) => setReviewingDiffFile(file)}
-                            onApprovePlan={() => {
-                              setAgentExecutionMode('execute');
-                              const msgIdx = currentSession.messages.findIndex((m) => m.id === msg.id);
-                              const priorUserMsg = msgIdx > 0
-                                ? currentSession.messages
-                                    .slice(0, msgIdx)
-                                    .reverse()
-                                    .find((m) => m.sender === 'user')
-                                : undefined;
-                              const approvedSpec: PlanSpecification = msg.agentRun?.planSpec || {
-                                summary: msg.text || '',
-                                steps: msg.agentRun?.plan || [],
-                                filesToCreate: [],
-                                filesToModify: [],
-                                verificationSteps: [],
-                                originalPrompt: priorUserMsg?.text || '',
-                              };
-                              handleSendMessage(
-                                priorUserMsg?.text
-                                  ? `Plan approved by user. Execute the approved plan for: ${priorUserMsg.text}`
-                                  : 'Plan approved by user. Execute all planned tasks now.',
-                                true,
-                                false,
-                                approvedSpec
-                              );
-                            }}
-                            onResolveApproval={async (approvalId, approved) => {
-                              try {
-                                await fetch('/api/agent', {
-                                  method: 'POST',
-                                  headers: { 'Content-Type': 'application/json' },
-                                  body: JSON.stringify({
-                                    action: 'approval',
-                                    sessionId: currentSessionId,
-                                    approvalId,
-                                    approved,
-                                  }),
-                                });
-                              } catch (e) {
-                                console.error('Failed to submit approval:', e);
-                              }
-                            }}
-                          />
-                        ) : (
-                          <MarkdownRenderer content={msg.text} />
-                        )}
-                      </div>
-
-                      {/* Bottom Message Bar */}
-                      <div className="flex items-center justify-between pt-1 text-[10px] text-[#E8DDC7]/40 font-mono">
-                        <span>{msg.timestamp}</span>
-                        <button
-                          onClick={() => copyToClipboard(msg.text, msg.id)}
-                          className="hover:text-[#C6A46A] transition-colors flex items-center gap-1"
-                        >
-                          {copiedId === msg.id ? (
-                            <>
-                              <Check className="w-3 h-3 text-emerald-400" />
-                              <span className="text-emerald-400">Copied</span>
-                            </>
-                          ) : (
-                            <>
-                              <Copy className="w-3 h-3" />
-                              <span>Copy</span>
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-
-              {/* Live Autonomous Execution Indicator */}
-              {isExecuting && (
-                <motion.div
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="flex gap-3 items-start"
-                >
-                  <div className="w-7 h-7 rounded-full border border-[#C6A46A]/40 flex items-center justify-center bg-[#0B0B10] flex-shrink-0 mt-1 animate-pulse">
-                    <Sparkles className="w-3.5 h-3.5 text-[#C6A46A]" />
-                  </div>
-                  <div className="bg-[#0B0B10] border border-[#C6A46A]/30 rounded-2xl rounded-tl-sm p-4 space-y-1.5 shadow-lg">
-                    <div className="flex items-center gap-2 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase">
-                      <span className="w-2 h-2 rounded-full bg-[#C6A46A] animate-ping" />
-                      <span>{selectedModelName} Executing...</span>
-                    </div>
-                    <p className="font-mono text-xs text-[#E8DDC7]/60">
-                      &gt; streaming sovereign reasoning across authenticated app connectors
-                    </p>
-                  </div>
-                </motion.div>
-              )}
-
-              <div ref={chatBottomRef} />
-            </div>
-          )}
+          <button
+            type="button"
+            onClick={() => navigateView("git")}
+            className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors font-mono"
+            title="Open Version Control & GitHub"
+          >
+            <GitBranch className="w-3.5 h-3.5 text-[#78726B]" />
+            <span>{activeBranch}</span>
+            <ChevronDown className="w-3 h-3 text-[#78726B]" />
+          </button>
         </div>
 
-        {/* ──────────────────────────────────────────────────────────
-            CHAT INPUT: Centerpiece with Upward Model Selector
-           ────────────────────────────────────────────────────────── */}
-        <div className="p-3.5 sm:p-5 bg-gradient-to-t from-[#050508] via-[#050508]/95 to-transparent z-20 flex-shrink-0">
-          <div className="max-w-5xl xl:max-w-6xl 2xl:max-w-[1360px] mx-auto w-full">
-            {/* Attachment preview banner */}
-            {attachedFile && (
-              <div className="mb-2 flex items-center justify-between px-3 py-1.5 rounded-lg bg-[#0E0E14] border border-[#C6A46A]/30 text-xs text-[#C6A46A]">
-                <div className="flex items-center gap-2 truncate">
-                  <Paperclip className="w-3.5 h-3.5" />
-                  <span className="font-mono truncate">{attachedFile}</span>
-                </div>
-                <button
-                  onClick={() => setAttachedFile(null)}
-                  className="hover:text-red-400 p-0.5"
-                  title="Remove attachment"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            )}
-
-            {/* Real-time Voice Recording Status Bar */}
-            {isRecording && (
-              <div className="mb-2 flex items-center justify-between px-3.5 py-2 rounded-xl bg-red-950/40 border border-red-500/40 backdrop-blur-md animate-fadeIn shadow-lg">
-                <div className="flex items-center gap-2.5">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span>
-                  </span>
-                  <span className="text-xs font-medium text-red-200">
-                    {voiceStatus || "Listening... speak into your microphone"}
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={stopRecording}
-                  className="px-2.5 py-0.5 rounded-lg bg-red-500/20 hover:bg-red-500/30 text-red-300 text-xs font-mono font-semibold transition-colors cursor-pointer"
-                >
-                  Done
-                </button>
-              </div>
-            )}
-
-            {/* Voice Input Error Banner */}
-            {voiceError && (
-              <div className="mb-2 flex items-center justify-between px-3.5 py-2 rounded-xl bg-[#2A1515] border border-red-500/50 text-red-200 text-xs shadow-lg animate-fadeIn">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 text-red-400 flex-shrink-0" />
-                  <span className="leading-snug">{voiceError}</span>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setVoiceError(null)}
-                  className="text-red-400 hover:text-red-200 text-sm ml-2 font-bold px-1"
-                  aria-label="Dismiss voice error"
-                >
-                  ×
-                </button>
-              </div>
-            )}
-
-            {/* Input Box Shell */}
-            <div
-              className={`relative flex items-center gap-2 sm:gap-2.5 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-2xl transition-all duration-200 ${
-                isLight
-                  ? "bg-white border border-[#CBD5E1] shadow-sm focus-within:border-[#9A6F2E] focus-within:ring-1 focus-within:ring-[#9A6F2E]/30"
-                  : "bg-[#0A0A0F] border border-[#1A1A24] shadow-2xl focus-within:border-[#C6A46A]/60 focus-within:ring-1 focus-within:ring-[#C6A46A]/20"
-              }`}
-            >
-              {/* + (Upload Attachments) Button */}
-              <input
-                ref={fileInputRef}
-                type="file"
-                onChange={handleFileUpload}
-                className="hidden"
-                id="harpy-file-upload"
-              />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-colors flex-shrink-0 ${
-                  isLight
-                    ? "text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
-                    : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#14141C]"
-                }`}
-                title="Upload Attachments (+)"
-                aria-label="Upload Attachments"
-              >
-                <Plus className="w-4 h-4 stroke-[2.2]" />
-              </button>
-
-              {/* Agent Mode Toggle Button */}
-              <button
-                type="button"
-                onClick={() => setAgentMode(!agentMode)}
-                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-cinzel tracking-wider uppercase transition-all duration-200 border shrink-0 ${
-                  agentMode
-                    ? "bg-[#C6A46A]/20 border-[#C6A46A] text-[#C6A46A] shadow-[0_0_12px_rgba(198,164,106,0.3)] font-semibold"
-                    : isLight
-                    ? "bg-[#F8F9FA] border-[#CBD5E1] text-[#64748B] hover:text-[#0F172A] hover:border-[#94A3B8]"
-                    : "bg-[#111118] border-[#22222E] text-[#E8DDC7]/50 hover:text-[#C6A46A] hover:border-[#C6A46A]/40"
-                }`}
-                title={agentMode ? "Agent Mode Active: Autonomous Senior Software Engineer" : "Switch to Agent Mode"}
-              >
-                <Sparkles className={`w-3.5 h-3.5 ${agentMode ? "text-[#C6A46A] animate-pulse" : ""}`} />
-                <span className="hidden sm:inline">Agent Mode</span>
-                <span className="sm:hidden">Agent</span>
-              </button>
-
-              {/* Plan Mode / Execute Mode Switcher when Agent Mode is Active */}
-              {agentMode && (
-                <button
-                  type="button"
-                  onClick={() => setAgentExecutionMode(agentExecutionMode === 'plan' ? 'execute' : 'plan')}
-                  className={`flex items-center gap-1 px-2 py-1 rounded-xl text-[10px] font-mono uppercase tracking-wider transition-all duration-200 border shrink-0 ${
-                    agentExecutionMode === 'plan'
-                      ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/50 shadow-[0_0_8px_rgba(6,182,212,0.25)] font-semibold"
-                      : "bg-[#C6A46A]/10 text-[#C6A46A] border-[#C6A46A]/30 hover:border-[#C6A46A]/60"
-                  }`}
-                  title={agentExecutionMode === 'plan' ? "Plan Mode: Formulate todos and await approval before modifying files" : "Execute Mode: Fully autonomous explore, execute, and verify"}
-                >
-                  <span>{agentExecutionMode === 'plan' ? 'Plan Mode' : 'Execute Mode'}</span>
-                </button>
-              )}
-
-              {/* Textarea without scrollbars/sliders */}
-              <textarea
-                ref={textareaRef}
-                rows={1}
-                value={inputValue}
-                onChange={handleTextareaInput}
-                onKeyDown={handleKeyDown}
-                placeholder={
-                  agentMode
-                    ? "Instruct Harpy Agent (e.g. 'Build a portfolio website with Next.js')..."
-                    : `Instruct Harpy AI (${selectedModelName})...`
-                }
-                className={`flex-1 max-h-40 py-1 px-1 bg-transparent text-sm focus:outline-none resize-none font-inter font-light leading-relaxed no-scrollbar ${
-                  isLight
-                    ? "text-[#0F172A] placeholder-[#94A3B8]"
-                    : "text-[#E8DDC7] placeholder-[#E8DDC7]/35"
-                }`}
-                style={{ overflowY: "hidden", resize: "none", scrollbarWidth: "none", msOverflowStyle: "none" }}
-              />
-
-              {/* MIC (Microphone Voice Input) */}
-              <button
-                type="button"
-                onClick={toggleRecording}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                  isRecording
-                    ? "bg-red-500/25 text-red-400 border border-red-500/50 animate-pulse shadow-[0_0_14px_rgba(239,68,68,0.5)]"
-                    : isLight
-                    ? "text-[#64748B] hover:text-[#0F172A] hover:bg-[#F1F5F9]"
-                    : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#14141C]"
-                }`}
-                title={isRecording ? "Listening... click to stop (or click Done)" : "Voice Input (Click to speak into microphone)"}
-                aria-label={isRecording ? "Stop voice recording" : "Start voice recording"}
-              >
-                {isRecording ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
-              </button>
-
-              {/* Stop Button when executing in Agent Mode */}
-              {isExecuting && (
-                <button
-                  type="button"
-                  onClick={handleStopAgent}
-                  className="w-8 h-8 rounded-xl flex items-center justify-center bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 transition-all duration-200 flex-shrink-0 shadow-[0_0_12px_rgba(244,63,94,0.3)] cursor-pointer"
-                  title="Stop Execution (Cancel)"
-                  aria-label="Stop Execution"
-                >
-                  <Square className="w-3.5 h-3.5 fill-rose-400" />
-                </button>
-              )}
-
-              {/* Enter / Send Button */}
-              {!isExecuting && (
-                <button
-                  type="button"
-                  onClick={() => handleSendMessage()}
-                  disabled={(!inputValue.trim() && !attachedFile)}
-                  className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 ${
-                    (inputValue.trim() || attachedFile)
-                      ? "bg-[#C6A46A] text-[#050508] hover:bg-[#E2C99A] shadow-[0_0_12px_rgba(198,164,106,0.35)] cursor-pointer"
-                      : "bg-[#14141C] text-[#E8DDC7]/20 cursor-not-allowed"
-                  }`}
-                  title="Send Mission (Enter)"
-                  aria-label="Send message"
-                >
-                  <ArrowUp className="w-4 h-4 stroke-[2.4]" />
-                </button>
-              )}
-
-              {/* Vapi Live Voice AI Assistant Button (Right side of Enter button) */}
-              <button
-                type="button"
-                onClick={() => {
-                  if (!isVoiceAssistantOpen) {
-                    setIsVoiceAssistantOpen(true);
-                    setIsVoiceAssistantDocked(false);
-                  } else if (isVoiceAssistantDocked) {
-                    setIsVoiceAssistantDocked(false);
-                  } else {
-                    setIsVoiceAssistantDocked(true);
-                  }
-                }}
-                className={`w-8 h-8 rounded-xl flex items-center justify-center transition-all duration-200 flex-shrink-0 cursor-pointer ${
-                  isVoiceAssistantActive
-                    ? "bg-gradient-to-tr from-[#C6A46A] to-amber-200 text-[#050508] shadow-[0_0_16px_rgba(198,164,106,0.6)] animate-pulse"
-                    : "bg-[#111118] text-[#C6A46A] border border-[#C6A46A]/30 hover:border-[#C6A46A] hover:bg-[#1A1A26] shadow-sm hover:shadow-[0_0_12px_rgba(198,164,106,0.25)]"
-                }`}
-                title={
-                  isVoiceAssistantActive
-                    ? isVoiceAssistantDocked
-                      ? "Expand Harpy Voice Assistant"
-                      : "Dock Harpy Voice Assistant to Plate"
-                    : "Start Voice Assistant (Vapi AI - Multilingual Voice with Auto-Agent & Browser Action)"
-                }
-                aria-label="Toggle Voice Assistant"
-              >
-                <Radio className={`w-4 h-4 ${isVoiceAssistantActive ? "animate-pulse text-[#050508]" : "text-[#C6A46A]"}`} />
-              </button>
-            </div>
-
-            {/* Disclaimer Footer Note */}
-            <p className="pt-2 text-center text-[10px] sm:text-[11px] text-[#E8DDC7]/40 font-inter font-light">
-              Autonomous execution powered by <span className="text-[#C6A46A] font-medium">{hasActiveKey ? selectedModelName : "Harpy Autonomous Kernel"}</span>. Press <span className="font-mono text-[#C6A46A]/70">Enter</span> to execute.
-            </p>
-          </div>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => setDeviceTarget(deviceTarget === "This device" ? "Cloud" : "This device")}
+            className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
+          >
+            <Monitor className="w-3.5 h-3.5 text-[#78726B]" />
+            <span>{deviceTarget}</span>
+            <ChevronDown className="w-3 h-3 text-[#78726B]" />
+          </button>
         </div>
       </div>
 
-      {/* Integrated Browser Panel */}
-      {browserPanelOpen && (
-        <div
-          className={`h-full min-h-0 transition-all duration-300 flex flex-col ${
-            browserExpanded ? "w-full" : "w-full lg:w-1/2"
+      {/* Main Pill Composer (Screenshot 6) */}
+      <div
+        className={`relative flex items-center gap-2 px-2.5 py-2 transition-all duration-150 ${
+          inputValue.includes("\n") ? "rounded-2xl" : "rounded-full"
+        } ${
+          isLight
+            ? "bg-white border border-slate-300 shadow-sm focus-within:border-slate-400"
+            : "bg-[#1D1B18] border border-[#2E2A25] focus-within:border-[#46403A] shadow-lg"
+        }`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          onChange={handleFileUpload}
+          className="hidden"
+          id="harpy-file-upload"
+        />
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+            isLight
+              ? "bg-slate-100 text-slate-600 hover:bg-slate-200 hover:text-slate-900"
+              : "bg-[#2A2622] text-[#A8A199] hover:bg-[#342F2A] hover:text-[#ECEAE6]"
           }`}
+          title="Attach file (+)"
+          aria-label="Upload Attachments"
         >
-          <BrowserPanel
-            isOpen={browserPanelOpen}
-            onClose={() => setBrowserPanelOpen(false)}
-            apiKey={apiKey}
-            selectedModel={selectedModelId}
-            initialGoal={browserGoal}
-            isExpanded={browserExpanded}
-            onToggleExpand={() => setBrowserExpanded(!browserExpanded)}
-          />
-        </div>
-      )}
+          <Plus className="w-4 h-4 stroke-[2]" />
+        </button>
 
-      {/* Integrated Autonomous Code Workspace Panel */}
-      {isWorkspacePanelOpen && (
-        <div className="h-full min-h-0 transition-all duration-300 flex flex-col w-full lg:w-1/2">
-          <AgentWorkspacePanel
-            sessionId={activeWorkspaceSessionId || currentSessionId}
-            userId={authUser?.id || "anonymous"}
-            userDisplayName={authUser?.fullName || authUser?.email?.split('@')[0] || 'chinmaybhatt'}
-            isOpen={isWorkspacePanelOpen}
-            onClose={() => setIsWorkspacePanelOpen(false)}
-            theme={theme}
-            selectedFilePath={selectedWorkspaceFile}
-            onSelectFile={(path) => setSelectedWorkspaceFile(path)}
-            filesChanged={(() => {
-              const fileMap = new Map<string, FileChangeRecord>();
-              for (const m of currentSession?.messages || []) {
-                if (m.isAgent && m.agentRun?.filesChanged) {
-                  for (const f of m.agentRun.filesChanged) {
-                    if (f.action === 'deleted') {
-                      fileMap.delete(f.path);
-                    } else {
-                      fileMap.set(f.path, f);
-                    }
-                  }
-                }
-              }
-              return Array.from(fileMap.values());
-            })()}
-            onOpenBrowserAgent={(goal) => {
-              if (goal) setBrowserGoal(goal);
-              setBrowserPanelOpen(true);
+        <textarea
+          ref={textareaRef}
+          rows={1}
+          value={inputValue}
+          onChange={handleTextareaInput}
+          onKeyDown={handleKeyDown}
+          placeholder="Do anything in Harpy"
+          className={`flex-1 max-h-40 py-1 px-1.5 bg-transparent text-sm focus:outline-none resize-none font-sans leading-relaxed no-scrollbar ${
+            isLight
+              ? "text-slate-900 placeholder-slate-400"
+              : "text-[#ECEAE6] placeholder-[#78726B]"
+          }`}
+          style={{ overflowY: "hidden", resize: "none", scrollbarWidth: "none", msOverflowStyle: "none" }}
+        />
+
+        {/* Voice Microphone */}
+        <button
+          type="button"
+          onClick={toggleRecording}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+            isRecording
+              ? "bg-red-500/20 text-red-400 animate-pulse"
+              : isLight
+                ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                : "text-[#9E978F] hover:bg-[#2A2622] hover:text-[#ECEAE6]"
+          }`}
+          title={isRecording ? "Stop recording" : "Voice Input"}
+          aria-label={isRecording ? "Stop voice recording" : "Start voice recording"}
+        >
+          {isRecording ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
+        </button>
+
+        {/* Stop or Send */}
+        {isExecuting ? (
+          <button
+            type="button"
+            onClick={handleStopAgent}
+            className="w-8 h-8 rounded-full flex items-center justify-center bg-rose-500/20 text-rose-400 border border-rose-500/40 hover:bg-rose-500/30 transition-colors shrink-0"
+            title="Stop Execution"
+            aria-label="Stop Execution"
+          >
+            <Square className="w-3.5 h-3.5 fill-rose-400" />
+          </button>
+        ) : (
+          <button
+            type="button"
+            onClick={() => handleSendMessage()}
+            disabled={!inputValue.trim() && !attachedFile}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+              inputValue.trim() || attachedFile
+                ? isLight
+                  ? "bg-slate-900 text-white hover:bg-slate-800 cursor-pointer"
+                  : "bg-[#ECEAE6] text-[#141210] hover:bg-white cursor-pointer"
+                : isLight
+                  ? "bg-slate-100 text-slate-300 cursor-not-allowed"
+                  : "bg-[#2A2622] text-[#666059] cursor-not-allowed"
+            }`}
+            title="Send (Enter)"
+            aria-label="Send message"
+          >
+            <ArrowUp className="w-4 h-4 stroke-[2.2]" />
+          </button>
+        )}
+
+        {/* Voice AI Assistant Trigger */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!isVoiceAssistantOpen) {
+              setIsVoiceAssistantOpen(true);
+              setIsVoiceAssistantDocked(false);
+            } else {
+              setIsVoiceAssistantDocked(!isVoiceAssistantDocked);
+            }
+          }}
+          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+            isVoiceAssistantActive
+              ? "bg-[#E06D44] text-white animate-pulse"
+              : isLight
+                ? "text-slate-500 hover:bg-slate-100"
+                : "text-[#8E8880] hover:bg-[#2A2622] hover:text-[#ECEAE6]"
+          }`}
+          title="Live Voice Assistant"
+          aria-label="Toggle Voice Assistant"
+        >
+          <Radio className="w-3.5 h-3.5" />
+        </button>
+      </div>
+
+      {/* Bottom Mode & Model Selector Row Below Pill (Screenshot 6) */}
+      <div className="flex items-center justify-between px-2 text-xs relative">
+        {/* Access / Execution Mode Selector */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setIsAccessMenuOpen(!isAccessMenuOpen);
+              setIsModelMenuOpen(false);
             }}
-          />
-        </div>
-      )}
-    </div>
-  </main>
+            className="inline-flex items-center gap-1.5 text-[#C8C2BA] hover:text-[#ECEAE6] transition-colors py-0.5"
+          >
+            <ChevronsRight
+              className={`w-3.5 h-3.5 ${
+                agentExecutionMode === "plan" ? "text-sky-400" : "text-[#E06D44]"
+              }`}
+            />
+            <span className="font-medium">
+              {agentExecutionMode === "plan" ? "Plan mode" : "Full access"}
+            </span>
+            <ChevronDown className="w-3 h-3 text-[#78726B]" />
+          </button>
 
-      {/* ──────────────────────────────────────────────────────────
-          CONNECTORS FULL-SCREEN WORKSPACE (FIGMA-INSPIRED AUTOMATION CANVAS)
-         ────────────────────────────────────────────────────────── */}
-      <ConnectorsWorkspace
-        isOpen={connectorsModalOpen}
-        onClose={() => setConnectorsModalOpen(false)}
-        theme={theme}
-        onRunWorkflowFromChat={(prompt) => {
-          setConnectorsModalOpen(false);
-          setInputValue(prompt);
-          handleSendMessage(prompt);
-        }}
-      />
+          {isAccessMenuOpen && (
+            <div
+              className={`absolute left-0 bottom-full mb-2 w-56 rounded-xl border p-1.5 shadow-2xl z-50 space-y-0.5 ${
+                isLight ? "bg-white border-slate-200" : "bg-[#1B1917] border-[#2E2A25]"
+              }`}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  setAgentMode(true);
+                  setAgentExecutionMode("execute");
+                  setIsAccessMenuOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between ${
+                  agentExecutionMode === "execute"
+                    ? isLight
+                      ? "bg-slate-100 text-slate-900 font-medium"
+                      : "bg-[#282420] text-[#ECEAE6] font-medium"
+                    : "text-[#9E978F] hover:bg-[#221F1C]"
+                }`}
+              >
+                <div>
+                  <div>Full access</div>
+                  <div className="text-[10px] text-[#78726B]">Explore, edit files, verify &amp; run</div>
+                </div>
+                {agentExecutionMode === "execute" && <Check className="w-3.5 h-3.5 text-[#E06D44]" />}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAgentMode(true);
+                  setAgentExecutionMode("plan");
+                  setIsAccessMenuOpen(false);
+                }}
+                className={`w-full text-left px-3 py-2 rounded-lg text-xs flex items-center justify-between ${
+                  agentExecutionMode === "plan"
+                    ? isLight
+                      ? "bg-slate-100 text-slate-900 font-medium"
+                      : "bg-[#282420] text-[#ECEAE6] font-medium"
+                    : "text-[#9E978F] hover:bg-[#221F1C]"
+                }`}
+              >
+                <div>
+                  <div>Plan mode</div>
+                  <div className="text-[10px] text-[#78726B]">Read-only exploration &amp; checklist</div>
+                </div>
+                {agentExecutionMode === "plan" && <Check className="w-3.5 h-3.5 text-sky-400" />}
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Model Selector */}
+        <div className="relative">
+          <button
+            type="button"
+            onClick={() => {
+              setIsModelMenuOpen(!isModelMenuOpen);
+              setIsAccessMenuOpen(false);
+            }}
+            className="inline-flex items-center gap-1.5 text-[#C8C2BA] hover:text-[#ECEAE6] transition-colors py-0.5"
+          >
+            <Sparkles className="w-3.5 h-3.5 text-[#E06D44]" />
+            <span className="font-medium truncate max-w-[180px]">
+              {selectedModelName.replace(/ \(Best Model\)|\(Fast\)/g, "") || "Default"}
+            </span>
+            <ChevronDown className="w-3 h-3 text-[#78726B]" />
+          </button>
+
+          {isModelMenuOpen && (
+            <div
+              className={`absolute right-0 bottom-full mb-2 w-64 rounded-xl border p-1.5 shadow-2xl z-50 space-y-0.5 ${
+                isLight ? "bg-white border-slate-200" : "bg-[#1B1917] border-[#2E2A25]"
+              }`}
+            >
+              <div className="max-h-52 overflow-y-auto space-y-0.5">
+                {activeModelsList.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => {
+                      handleSelectModel(m.id, m.name);
+                      setIsModelMenuOpen(false);
+                    }}
+                    className={`w-full text-left px-3 py-1.5 rounded-lg text-xs flex items-center justify-between ${
+                      selectedModelId === m.id
+                        ? isLight
+                          ? "bg-slate-100 text-slate-900 font-medium"
+                          : "bg-[#282420] text-[#ECEAE6] font-medium"
+                        : "text-[#9E978F] hover:bg-[#221F1C]"
+                    }`}
+                  >
+                    <span className="truncate">{m.name}</span>
+                    {selectedModelId === m.id && <Check className="w-3.5 h-3.5 text-[#E06D44] shrink-0" />}
+                  </button>
+                ))}
+              </div>
+              <div className="pt-1 mt-1 border-t border-[#2A2622]">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsModelMenuOpen(false);
+                    setSettingsTab("models");
+                    setSettingsModalOpen(true);
+                  }}
+                  className="w-full text-left px-3 py-1.5 rounded-lg text-[11px] text-[#9E978F] hover:text-[#ECEAE6] hover:bg-[#221F1C] flex items-center gap-1.5"
+                >
+                  <Key className="w-3 h-3" />
+                  <span>Configure API Keys...</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+
+  return (
+    <div
+      className={`flex flex-col h-screen w-full bg-[#13110F] text-[#ECEAE6] overflow-hidden select-none font-sans relative ${
+        theme === "light" ? "light theme-light" : "dark theme-dark"
+      }`}
+      data-theme={theme}
+    >
+      {/* Top Window Navigation Chrome (Matches Screenshots 2-5) */}
+      <header className="h-9 px-3 border-b border-[#25221E] bg-[#181614] flex items-center justify-between shrink-0 z-30">
+        <div className="flex items-center gap-1">
+          <button
+            type="button"
+            onClick={navigateBack}
+            disabled={viewHistoryIdx <= 0}
+            className="p-1 rounded-md text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#24211E] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            title="Back"
+          >
+            <ChevronLeft className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={navigateForward}
+            disabled={viewHistoryIdx >= viewHistory.length - 1}
+            className="p-1 rounded-md text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#24211E] disabled:opacity-30 disabled:pointer-events-none transition-colors"
+            title="Forward"
+          >
+            <ChevronRight className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className="p-1 rounded-md text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#24211E] transition-colors ml-1"
+            title="Toggle Sidebar (⌘B)"
+          >
+            {sidebarOpen ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+          </button>
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => setSettingsModalOpen(true)}
+            className="p-1 rounded-md text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#24211E] transition-colors"
+            title="Settings"
+          >
+            <SlidersHorizontal className="w-4 h-4" />
+          </button>
+          <button
+            type="button"
+            onClick={() => navigateView("workspaces")}
+            className={`p-1 rounded-md transition-colors ${
+              activeView === "workspaces"
+                ? "bg-[#282420] text-[#ECEAE6]"
+                : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#24211E]"
+            }`}
+            title="All Workspaces & History"
+          >
+            <History className="w-4 h-4" />
+          </button>
+        </div>
+      </header>
+
+      <div className="flex-1 flex min-h-0 overflow-hidden relative">
+        {/* Mobile Backdrop for Sidebar */}
+        {sidebarOpen && (
+          <div
+            onClick={() => setSidebarOpen(false)}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm z-30 lg:hidden"
+          />
+        )}
+
+        {/* Far-Left Slim Activity Icon Rail (Matches Screenshots 2-5) */}
+        <nav className="w-12 border-r border-[#25221E] bg-[#161412] flex flex-col items-center justify-between py-2.5 shrink-0 z-30">
+          <div className="flex flex-col items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => navigateView("home")}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                activeView === "home"
+                  ? "bg-[#282420] text-[#ECEAE6]"
+                  : "text-[#78726B] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
+              }`}
+              title="Home"
+            >
+              <Home className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigateView("workspaces")}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                activeView === "workspaces"
+                  ? "bg-[#282420] text-[#ECEAE6]"
+                  : "text-[#78726B] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
+              }`}
+              title="Workspaces"
+            >
+              <Layers className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigateView("plugins")}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                activeView === "plugins"
+                  ? "bg-[#282420] text-[#ECEAE6]"
+                  : "text-[#78726B] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
+              }`}
+              title="Plugins & Skills"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => navigateView("git")}
+              className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
+                activeView === "git"
+                  ? "bg-[#282420] text-[#ECEAE6]"
+                  : "text-[#78726B] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
+              }`}
+              title="Version Control & GitHub"
+            >
+              <GitPullRequest className="w-4 h-4" />
+            </button>
+          </div>
+
+          <div className="flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setSettingsModalOpen(true)}
+              className="w-8 h-8 rounded-lg flex items-center justify-center text-[#78726B] hover:text-[#ECEAE6] hover:bg-[#221F1C] transition-colors"
+              title="Settings & API Keys"
+            >
+              <Settings className="w-4 h-4" />
+            </button>
+
+            {authUser ? (
+              <div className="relative" ref={profileMenuRef}>
+                <button
+                  type="button"
+                  onClick={() => setProfileMenuOpen(!profileMenuOpen)}
+                  className="w-7 h-7 rounded-full border border-[#332E29] bg-[#24211E] flex items-center justify-center text-[11px] font-semibold text-[#ECEAE6] overflow-hidden hover:border-[#5C564F] transition-colors"
+                  title={authUser.fullName}
+                >
+                  {authUser.avatarUrl ? (
+                    <img src={authUser.avatarUrl} alt={authUser.fullName} className="w-full h-full object-cover" />
+                  ) : (
+                    authUser.fullName.charAt(0).toUpperCase()
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {profileMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, x: -6, scale: 0.96 }}
+                      animate={{ opacity: 1, x: 0, scale: 1 }}
+                      exit={{ opacity: 0, x: -6, scale: 0.96 }}
+                      className="absolute left-full bottom-0 ml-2 w-56 z-50 rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1.5 shadow-2xl space-y-1"
+                    >
+                      <div className="px-3 py-2 border-b border-[#272420]">
+                        <p className="text-xs font-semibold text-[#ECEAE6] truncate">{authUser.fullName}</p>
+                        <p className="text-[11px] text-[#8E8880] font-mono truncate">{authUser.email}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          setProfileModalOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320] text-left"
+                      >
+                        <User className="w-3.5 h-3.5" />
+                        <span>Profile</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setProfileMenuOpen(false);
+                          handleSignOut();
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10 text-left"
+                      >
+                        <LogOut className="w-3.5 h-3.5" />
+                        <span>Sign Out</span>
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            ) : (
+              <Link
+                href="/started"
+                className="w-7 h-7 rounded-full border border-[#332E29] bg-[#24211E] flex items-center justify-center text-[#9E978F] hover:text-[#ECEAE6]"
+                title="Sign In"
+              >
+                <User className="w-3.5 h-3.5" />
+              </Link>
+            )}
+          </div>
+        </nav>
+
+        {/* Secondary Sidebar: New Workspace, Search, Sessions, Projects (Matches Screenshots 2-5) */}
+        <aside
+          className={`fixed lg:relative inset-y-0 left-12 lg:left-0 flex flex-col border-r border-[#25221E] bg-[#181614] transition-all duration-200 ease-in-out z-40 lg:z-20 flex-shrink-0 ${
+            sidebarOpen
+              ? "w-60 max-w-[80vw] translate-x-0"
+              : "w-0 border-r-0 -translate-x-full lg:translate-x-0 pointer-events-none opacity-0"
+          } overflow-hidden`}
+        >
+          {/* New Workspace + Search */}
+          <div className="p-2.5 space-y-1.5 shrink-0">
+            <button
+              type="button"
+              onClick={() => {
+                handleNewChat();
+                navigateView("home");
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#24211E] hover:bg-[#2C2824] border border-[#302B26] text-xs font-medium text-[#ECEAE6] transition-colors"
+            >
+              <Plus className="w-3.5 h-3.5 text-[#A8A199]" />
+              <span>New Workspace</span>
+            </button>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-[#78726B] absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={sidebarSearch}
+                onChange={(e) => setSidebarSearch(e.target.value)}
+                placeholder="Search"
+                className="w-full pl-8 pr-2.5 py-1.5 rounded-lg bg-transparent hover:bg-[#1E1B18] focus:bg-[#1E1B18] text-xs text-[#ECEAE6] placeholder-[#78726B] focus:outline-none transition-colors"
+              />
+            </div>
+          </div>
+
+          {/* SESSIONS + PROJECTS List */}
+          <div className="flex-1 overflow-y-auto px-2.5 py-1 space-y-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* SESSIONS Row */}
+            <div>
+              <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold tracking-wider uppercase text-[#78726B]">
+                <span>Sessions</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    handleNewChat();
+                    navigateView("home");
+                  }}
+                  className="hover:text-[#ECEAE6] p-0.5 rounded"
+                  title="New Session"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
+
+            {/* PROJECTS Tree */}
+            <div className="space-y-1">
+              <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold tracking-wider uppercase text-[#78726B]">
+                <span>Projects</span>
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => navigateView("workspaces")}
+                    className="hover:text-[#ECEAE6]"
+                    title="Browse Workspaces"
+                  >
+                    <Search className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setProjectsExpanded(!projectsExpanded)}
+                    className="hover:text-[#ECEAE6]"
+                    title="Toggle Project List"
+                  >
+                    <ArrowUpDown className="w-3 h-3" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleNewChat();
+                      navigateView("home");
+                    }}
+                    className="hover:text-[#ECEAE6]"
+                    title="New Project Workspace"
+                  >
+                    <FolderPlus className="w-3 h-3" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Project Header Row */}
+              <button
+                type="button"
+                onClick={() => setProjectsExpanded(!projectsExpanded)}
+                className="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-lg text-xs font-medium text-[#D8D3CC] hover:bg-[#221F1C] transition-colors text-left"
+              >
+                <span className="w-4 h-4 rounded bg-[#2A2622] text-[#ECEAE6] text-[10px] font-semibold inline-flex items-center justify-center shrink-0">
+                  H
+                </span>
+                <span className="truncate flex-1">Harpy</span>
+              </button>
+
+              {projectsExpanded && (
+                <div className="space-y-0.5 pl-2">
+                  {filteredSidebarSessions.length === 0 ? (
+                    <div className="px-3 py-4 text-xs text-[#6A645D]">No active sessions</div>
+                  ) : (
+                    filteredSidebarSessions.map((s) => {
+                      const isActive = s.id === currentSessionId && activeView === "home";
+                      const isMenuOpen = activeMenuSessionId === s.id;
+                      const isEditing = editingSessionId === s.id;
+
+                      return (
+                        <div
+                          key={s.id}
+                          onClick={() => {
+                            if (!isEditing) {
+                              setCurrentSessionId(s.id);
+                              navigateView("home");
+                              if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                                setSidebarOpen(false);
+                              }
+                            }
+                          }}
+                          tabIndex={0}
+                          className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                            isActive
+                              ? "bg-[#262320] text-[#ECEAE6]"
+                              : "text-[#9E978F] hover:bg-[#1F1C19] hover:text-[#ECEAE6]"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
+                            {s.isPinned ? (
+                              <Pin className="w-3 h-3 shrink-0 text-[#E06D44]" />
+                            ) : (
+                              <span
+                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                                  isActive ? "bg-[#ECEAE6]" : "bg-[#666059]"
+                                }`}
+                              />
+                            )}
+
+                            {isEditing ? (
+                              <div
+                                className="flex items-center gap-1 flex-1 min-w-0"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <input
+                                  type="text"
+                                  autoFocus
+                                  value={editingTitle}
+                                  onChange={(e) => setEditingTitle(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") saveRenameSession(s.id);
+                                    if (e.key === "Escape") setEditingSessionId(null);
+                                  }}
+                                  className="bg-[#13110F] border border-[#3C3732] rounded px-1.5 py-0.5 text-xs text-[#ECEAE6] w-full focus:outline-none"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => saveRenameSession(s.id)}
+                                  className="p-0.5 text-emerald-400"
+                                >
+                                  <Check className="w-3 h-3" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setEditingSessionId(null)}
+                                  className="p-0.5 text-[#8E8880]"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-xs truncate">{s.title}</span>
+                            )}
+                          </div>
+
+                          {!isEditing && (
+                            <div className="flex items-center gap-0.5 shrink-0 relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveMenuSessionId(isMenuOpen ? null : s.id);
+                                }}
+                                className={`p-1 rounded transition-colors ${
+                                  isMenuOpen
+                                    ? "opacity-100 text-[#ECEAE6] bg-[#302B26]"
+                                    : "opacity-0 group-hover:opacity-100 text-[#8E8880] hover:text-[#ECEAE6]"
+                                }`}
+                                title="More options"
+                              >
+                                <MoreHorizontal className="w-3.5 h-3.5" />
+                              </button>
+
+                              {isMenuOpen && (
+                                <div
+                                  ref={menuRef}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="absolute right-0 top-6 z-50 min-w-[165px] rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1 shadow-2xl space-y-0.5"
+                                >
+                                  <button
+                                    type="button"
+                                    onClick={(e) => togglePinSession(s.id, e)}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
+                                  >
+                                    {s.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                                    <span>{s.isPinned ? "Unpin" : "Pin"}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => startRenameSession(s, e)}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
+                                  >
+                                    <Pencil className="w-3.5 h-3.5" />
+                                    <span>Rename</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={(e) => shareSession(s, e)}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
+                                  >
+                                    <Share2 className="w-3.5 h-3.5" />
+                                    <span>Share</span>
+                                  </button>
+                                  <div className="my-1 border-t border-[#2A2622]" />
+                                  <button
+                                    type="button"
+                                    onClick={(e) => deleteSession(s.id, e)}
+                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Delete</span>
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+
+        {/* MAIN WORKSPACE STAGE */}
+        <main className="flex-1 flex flex-col min-w-0 h-full bg-[#13110F] relative overflow-hidden">
+          {activeView === "workspaces" ? (
+            <WorkspacesView
+              workspaces={workspaceSummaries}
+              activeWorkspaceId={currentSessionId}
+              projectName="Harpy"
+              isLight={isLight}
+              onSelectWorkspace={(id) => {
+                setCurrentSessionId(id);
+                navigateView("home");
+              }}
+              onCreateWorkspace={() => {
+                handleNewChat();
+                navigateView("home");
+              }}
+              onDeleteWorkspace={(id) => deleteSession(id)}
+            />
+          ) : activeView === "plugins" ? (
+            <PluginsView
+              isLight={isLight}
+              onRunSkillPrompt={(prompt) => {
+                setInputValue(prompt);
+                navigateView("home");
+              }}
+            />
+          ) : activeView === "git" ? (
+            <VersionControlView
+              isLight={isLight}
+              onBranchLoaded={(br, brList) => {
+                setActiveBranch(br);
+                setGitBranches(brList);
+              }}
+            />
+          ) : (
+            /* HOME: Clean Full-Width Chat Canvas */
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden relative">
+              <div className="flex flex-col h-full min-h-0 overflow-hidden w-full">
+                {!currentSession?.messages || currentSession.messages.length === 0 ? (
+                  /* Centered Clean Composer (Matches Screenshots 2 & 6) */
+                  <div className="flex-1 overflow-y-auto px-4 sm:px-6 flex flex-col items-center justify-center">
+                    <div className="w-full max-w-[660px] mx-auto space-y-5">
+                      {renderComposer(true)}
+
+                      {/* Minimal Quick Action Suggestions Below Composer */}
+                      <div className="px-2 pt-1 space-y-2">
+                        {QUICK_ACTIONS.map((item, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => handleSendMessage(item.prompt)}
+                            className="flex items-center gap-2.5 text-[13px] text-[#8E8880] hover:text-[#ECEAE6] transition-colors text-left group"
+                          >
+                            <Lightbulb className="w-3.5 h-3.5 text-[#78726B] group-hover:text-[#ECEAE6] shrink-0" />
+                            <span>{item.title}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  /* Active Session Message Feed + Bottom Composer */
+                  <>
+                    <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                      <div className="max-w-4xl mx-auto w-full space-y-5 pb-4">
+                        {currentSession.messages.map((msg) => {
+                          const isUser = msg.sender === "user";
+                          return (
+                            <motion.div
+                              key={msg.id}
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className={`flex gap-3 ${isUser ? "justify-end" : "justify-start w-full"}`}
+                            >
+                              {!isUser && (
+                                <div className="w-7 h-7 rounded-full border border-[#2E2A25] flex items-center justify-center bg-[#1B1917] flex-shrink-0 mt-1 text-xs font-semibold text-[#ECEAE6]">
+                                  H
+                                </div>
+                              )}
+
+                              <div
+                                className={`space-y-3 rounded-2xl ${
+                                  isUser
+                                    ? "max-w-[85%] sm:max-w-[75%] rounded-tr-sm bg-[#221F1C] border border-[#2F2B27] text-[#ECEAE6] px-4 py-3"
+                                    : msg.isError
+                                    ? "flex-1 min-w-0 w-full rounded-tl-sm bg-[#1F1515] border border-rose-500/40 text-rose-200 p-4 sm:p-5"
+                                    : "flex-1 min-w-0 w-full rounded-tl-sm bg-[#181614] border border-[#282420] text-[#ECEAE6] p-4 sm:p-5"
+                                }`}
+                              >
+                                {msg.attachment && (
+                                  <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-[#13110F] border border-[#2E2A25] text-xs text-[#D8D3CC]">
+                                    <Paperclip className="w-3 h-3" />
+                                    <span className="font-mono text-[11px] truncate max-w-xs">{msg.attachment}</span>
+                                  </div>
+                                )}
+
+                                {msg.isError && (
+                                  <div className="flex items-center gap-2 text-xs font-medium text-rose-400">
+                                    <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                                    <span>Execution Error</span>
+                                  </div>
+                                )}
+
+                                <div className={`text-sm ${isLight ? "text-slate-800" : "text-[#ECEAE6]"} leading-relaxed font-normal`}>
+                                  {msg.isAgent && msg.agentRun ? (
+                                    <AgentTimeline
+                                      runData={msg.agentRun}
+                                      sessionId={currentSessionId}
+                                      onSelectFile={(filePath) => {
+                                        const match =
+                                          msg.agentRun?.filesChanged?.find((f) => f.path === filePath) ||
+                                          activeSessionFiles.find((f) => f.path === filePath);
+                                        if (match) setReviewingDiffFile(match);
+                                      }}
+                                      onReviewDiff={(file) => setReviewingDiffFile(file)}
+                                      onApprovePlan={() => {
+                                        setAgentExecutionMode("execute");
+                                        const msgIdx = currentSession.messages.findIndex((m) => m.id === msg.id);
+                                        const priorUserMsg =
+                                          msgIdx > 0
+                                            ? currentSession.messages
+                                                .slice(0, msgIdx)
+                                                .reverse()
+                                                .find((m) => m.sender === "user")
+                                            : undefined;
+                                        const approvedSpec: PlanSpecification = msg.agentRun?.planSpec || {
+                                          summary: msg.text || "",
+                                          steps: msg.agentRun?.plan || [],
+                                          filesToCreate: [],
+                                          filesToModify: [],
+                                          verificationSteps: [],
+                                          originalPrompt: priorUserMsg?.text || "",
+                                        };
+                                        handleSendMessage(
+                                          priorUserMsg?.text
+                                            ? `Plan approved by user. Execute the approved plan for: ${priorUserMsg.text}`
+                                            : "Plan approved by user. Execute all planned tasks now.",
+                                          true,
+                                          false,
+                                          approvedSpec
+                                        );
+                                      }}
+                                      onResolveApproval={async (approvalId, approved) => {
+                                        try {
+                                          await fetch("/api/agent", {
+                                            method: "POST",
+                                            headers: { "Content-Type": "application/json" },
+                                            body: JSON.stringify({
+                                              action: "approval",
+                                              sessionId: currentSessionId,
+                                              approvalId,
+                                              approved,
+                                            }),
+                                          });
+                                        } catch (e) {
+                                          console.error("Failed to submit approval:", e);
+                                        }
+                                      }}
+                                    />
+                                  ) : (
+                                    <MarkdownRenderer content={msg.text} />
+                                  )}
+                                </div>
+
+                                <div className="flex items-center justify-between pt-1 text-[10px] text-[#78726B] font-mono">
+                                  <span>{msg.timestamp}</span>
+                                  <button
+                                    type="button"
+                                    onClick={() => copyToClipboard(msg.text, msg.id)}
+                                    className="hover:text-[#ECEAE6] transition-colors flex items-center gap-1"
+                                  >
+                                    {copiedId === msg.id ? (
+                                      <>
+                                        <Check className="w-3 h-3 text-emerald-400" />
+                                        <span className="text-emerald-400">Copied</span>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <Copy className="w-3 h-3" />
+                                        <span>Copy</span>
+                                      </>
+                                    )}
+                                  </button>
+                                </div>
+                              </div>
+                            </motion.div>
+                          );
+                        })}
+
+                        {isExecuting && (
+                          <div className="flex gap-3 items-start">
+                            <div className="w-7 h-7 rounded-full border border-[#2E2A25] flex items-center justify-center bg-[#1B1917] flex-shrink-0 mt-1">
+                              <Sparkles className="w-3.5 h-3.5 text-[#E06D44] animate-pulse" />
+                            </div>
+                            <div className="bg-[#181614] border border-[#282420] rounded-2xl rounded-tl-sm px-4 py-3 space-y-1">
+                              <div className="flex items-center gap-2 text-xs font-medium text-[#ECEAE6]">
+                                <span className="w-2 h-2 rounded-full bg-[#E06D44] animate-ping" />
+                                <span>{selectedModelName} running...</span>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        <div ref={chatBottomRef} />
+                      </div>
+                    </div>
+
+                    {/* Docked Bottom Composer */}
+                    <div className="px-4 sm:px-6 pb-4 pt-2 border-t border-[#211E1B] bg-[#13110F] shrink-0 z-20">
+                      {renderComposer(false)}
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </main>
+      </div>
 
       {/* ──────────────────────────────────────────────────────────
           SETTINGS MODAL: API & MODELS + SYSTEM CONFIG
@@ -2526,40 +2502,40 @@ export default function DashboardPage() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-xl bg-[#08080C] border border-[#1C1C26] rounded-2xl p-6 sm:p-7 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col"
+              className="w-full max-w-xl bg-[#181614] border border-[#2C2824] rounded-2xl p-6 sm:p-7 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col font-sans"
             >
               {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-[#14141C] pb-3.5 flex-shrink-0">
+              <div className="flex items-center justify-between border-b border-[#25221E] pb-3.5 flex-shrink-0">
                 <div className="space-y-0.5">
-                  <div className="inline-flex items-center gap-2 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase">
+                  <div className="inline-flex items-center gap-2 text-xs font-medium text-[#8E8880]">
                     <Settings className="w-3.5 h-3.5" />
                     <span>Configuration &amp; System</span>
                   </div>
-                  <h3 className="font-cinzel text-xl text-[#E8DDC7]">System Settings</h3>
+                  <h3 className="font-sans font-semibold text-xl text-[#ECEAE6]">Settings</h3>
                 </div>
                 <div className="flex items-center gap-2">
                   {/* Quick Theme Toggle Button */}
                   <button
                     type="button"
                     onClick={() => handleSelectTheme(theme === "dark" ? "light" : "dark")}
-                    className="px-2.5 py-1.5 text-[#E8DDC7]/80 hover:text-[#C6A46A] transition-all rounded-lg bg-[#0B0B10] hover:bg-[#12121A] border border-[#1C1C26] hover:border-[#C6A46A]/40 flex items-center gap-1.5 text-xs font-mono shadow-sm"
-                    title={`Switch to ${theme === "dark" ? "Pure White / Light" : "Dark Metallic"} Theme`}
+                    className="px-2.5 py-1.5 text-[#ECEAE6] hover:text-white transition-all rounded-lg bg-[#221F1C] hover:bg-[#2A2622] border border-[#302B26] flex items-center gap-1.5 text-xs font-medium shadow-sm"
+                    title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Theme`}
                   >
                     {theme === "dark" ? (
                       <>
-                        <Sun className="w-3.5 h-3.5 text-amber-400 animate-spin-slow" />
-                        <span className="text-[11px] font-cinzel uppercase tracking-wider font-semibold">White Theme</span>
+                        <Sun className="w-3.5 h-3.5 text-amber-400" />
+                        <span className="text-[11px] font-medium">Light</span>
                       </>
                     ) : (
                       <>
                         <Moon className="w-3.5 h-3.5 text-indigo-400" />
-                        <span className="text-[11px] font-cinzel uppercase tracking-wider font-semibold">Dark Theme</span>
+                        <span className="text-[11px] font-medium">Dark</span>
                       </>
                     )}
                   </button>
                   <button
                     onClick={() => setSettingsModalOpen(false)}
-                    className="p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors rounded-lg hover:bg-[#12121A]"
+                    className="p-1.5 text-[#8E8880] hover:text-[#ECEAE6] transition-colors rounded-lg hover:bg-[#221F1C]"
                     title="Close Settings"
                   >
                     <X className="w-5 h-5" />
@@ -2568,14 +2544,14 @@ export default function DashboardPage() {
               </div>
 
               {/* Tab Selector */}
-              <div className="flex items-center gap-2 border-b border-[#14141C] pb-2 flex-shrink-0 overflow-x-auto no-scrollbar">
+              <div className="flex items-center gap-2 border-b border-[#25221E] pb-2 flex-shrink-0 overflow-x-auto no-scrollbar">
                 <button
                   type="button"
                   onClick={() => setSettingsTab("models")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all flex-shrink-0 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all flex-shrink-0 ${
                     settingsTab === "models"
-                      ? "bg-[#C6A46A] text-[#050508] shadow-sm"
-                      : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
+                      ? "bg-[#ECEAE6] text-[#141210] shadow-sm"
+                      : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5" />
@@ -2585,10 +2561,10 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setSettingsTab("appearance")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all flex-shrink-0 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all flex-shrink-0 ${
                     settingsTab === "appearance"
-                      ? "bg-[#C6A46A] text-[#050508] shadow-sm"
-                      : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
+                      ? "bg-[#ECEAE6] text-[#141210] shadow-sm"
+                      : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
                   }`}
                 >
                   <Palette className="w-3.5 h-3.5" />
@@ -2598,14 +2574,14 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setSettingsTab("system")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-cinzel tracking-wider uppercase font-semibold flex items-center gap-2 transition-all flex-shrink-0 ${
+                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all flex-shrink-0 ${
                     settingsTab === "system"
-                      ? "bg-[#C6A46A] text-[#050508] shadow-sm"
-                      : "text-[#E8DDC7]/60 hover:text-[#C6A46A] hover:bg-[#12121A]"
+                      ? "bg-[#ECEAE6] text-[#141210] shadow-sm"
+                      : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
                   }`}
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Kernel &amp; Data</span>
+                  <span>System &amp; Data</span>
                 </button>
               </div>
 
@@ -2614,7 +2590,7 @@ export default function DashboardPage() {
                 {settingsTab === "models" ? (
                   <>
                     {/* Active Status Card */}
-                    <div className="p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720] flex items-center justify-between">
+                    <div className="p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824] flex items-center justify-between">
                       <div className="flex items-center gap-3">
                         <span
                           className="w-2.5 h-2.5 rounded-full animate-pulse"
@@ -2622,14 +2598,14 @@ export default function DashboardPage() {
                         />
                         <div>
                           <div className="flex items-center gap-2">
-                            <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
+                            <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
                               {isCustomKey ? currentEngine?.providerName : "Groq Cloud (System Default)"}
                             </span>
                             <span className="px-2 py-0.5 rounded text-[9px] font-mono border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 uppercase">
                               {isCustomKey ? "Custom Key" : "Default Key Active"}
                             </span>
                           </div>
-                          <span className="text-[11px] font-mono text-[#C6A46A] block mt-0.5">
+                          <span className="text-[11px] font-mono text-[#9E978F] block mt-0.5">
                             Active Model: {selectedModelName}
                           </span>
                         </div>
@@ -2639,7 +2615,7 @@ export default function DashboardPage() {
                         <button
                           type="button"
                           onClick={handleResetToDefaultKey}
-                          className="px-2.5 py-1 rounded-lg bg-[#14141C] hover:bg-red-500/20 text-[#E8DDC7]/60 hover:text-red-400 border border-[#22222E] hover:border-red-500/30 text-[11px] font-mono transition-colors"
+                          className="px-2.5 py-1 rounded-lg bg-[#262320] hover:bg-red-500/20 text-[#A8A199] hover:text-red-400 border border-[#332E29] hover:border-red-500/30 text-[11px] font-mono transition-colors"
                         >
                           Reset to Default
                         </button>
@@ -2647,17 +2623,17 @@ export default function DashboardPage() {
                     </div>
 
                     {/* API Key Input Section */}
-                    <div className="space-y-2 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
+                    <div className="space-y-2 p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824]">
                       <div className="flex items-center justify-between">
-                        <label className="font-cinzel text-xs uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
                           Custom API Key (Optional)
                         </label>
-                        <span className="text-[10px] text-[#E8DDC7]/40 font-mono">
+                        <span className="text-[10px] text-[#78726B] font-mono">
                           Groq · OpenAI · Anthropic
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#E8DDC7]/60 font-light leading-relaxed">
-                        Harpy runs on the high-speed default Groq API from environment. Enter your own API key below to unlock your custom models:
+                      <p className="text-[11px] text-[#8E8880] leading-relaxed">
+                        Harpy runs on the default Groq API from environment. Enter your own API key below to unlock custom models:
                       </p>
 
                       <div className="flex gap-2 pt-1">
@@ -2673,12 +2649,12 @@ export default function DashboardPage() {
                               if (e.key === "Enter") handleSaveKey();
                             }}
                             placeholder="Paste API key (e.g. gsk_... or sk-...)"
-                            className="w-full py-2 pl-3 pr-9 rounded-xl bg-[#050508] border border-[#1E1E28] focus:border-[#C6A46A] text-xs font-mono text-[#E8DDC7] placeholder-[#E8DDC7]/30 focus:outline-none"
+                            className="w-full py-2 pl-3 pr-9 rounded-xl bg-[#13110F] border border-[#2E2A25] focus:border-[#4A443E] text-xs font-mono text-[#ECEAE6] placeholder-[#666059] focus:outline-none"
                           />
                           <button
                             type="button"
                             onClick={() => setShowKeySecret(!showKeySecret)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#E8DDC7]/40 hover:text-[#C6A46A] p-0.5"
+                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78726B] hover:text-[#ECEAE6] p-0.5"
                             title={showKeySecret ? "Hide secret" : "Show secret"}
                           >
                             {showKeySecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
@@ -2689,10 +2665,10 @@ export default function DashboardPage() {
                           type="button"
                           onClick={handleSaveKey}
                           disabled={isValidatingKey || !tempKeyInput.trim()}
-                          className="px-4 py-2 bg-[#C6A46A] hover:bg-[#E2C99A] text-[#050508] rounded-xl font-cinzel text-xs font-semibold uppercase tracking-wider transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 flex-shrink-0"
+                          className="px-4 py-2 bg-[#ECEAE6] hover:bg-white text-[#141210] rounded-xl font-sans text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 flex-shrink-0"
                         >
                           {isValidatingKey ? (
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-[#050508] border-t-transparent rounded-full animate-spin" />
+                            <span className="inline-block w-3.5 h-3.5 border-2 border-[#141210] border-t-transparent rounded-full animate-spin" />
                           ) : (
                             "Connect"
                           )}
@@ -2710,11 +2686,11 @@ export default function DashboardPage() {
                     {/* Interactive Model Selection List */}
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <label className="font-cinzel text-xs uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
                           Choose Model ({activeModelsList.length} Available)
                         </label>
-                        <span className="text-[10px] text-[#E8DDC7]/40 font-mono">
-                          Select model for missions
+                        <span className="text-[10px] text-[#78726B] font-mono">
+                          Select default workspace model
                         </span>
                       </div>
 
@@ -2728,34 +2704,34 @@ export default function DashboardPage() {
                               onClick={() => handleSelectModel(m.id, m.name)}
                               className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all group ${
                                 isSelected
-                                  ? "bg-[#14141E] border-[#C6A46A] text-[#E8DDC7] shadow-[0_0_15px_rgba(198,164,106,0.15)] ring-1 ring-[#C6A46A]/30"
-                                  : "bg-[#0A0A0F] border-[#161622] text-[#E8DDC7]/70 hover:border-[#C6A46A]/50 hover:text-[#E8DDC7] hover:bg-[#101018]"
+                                  ? "bg-[#262320] border-[#4A443E] text-[#ECEAE6]"
+                                  : "bg-[#1B1917] border-[#282420] text-[#A8A199] hover:border-[#3A3530] hover:text-[#ECEAE6]"
                               }`}
                             >
                               <div className="space-y-0.5">
                                 <div className="flex items-center gap-2">
-                                  <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
+                                  <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
                                     {m.name}
                                   </span>
                                   {m.id.includes("120b") && (
-                                    <span className="px-1.5 py-0.5 rounded text-[8.5px] bg-[#C6A46A]/20 text-[#C6A46A] font-mono border border-[#C6A46A]/40 font-medium">
+                                    <span className="px-1.5 py-0.5 rounded text-[8.5px] bg-[#E06D44]/15 text-[#E06D44] font-mono border border-[#E06D44]/30 font-medium">
                                       RECOMMENDED
                                     </span>
                                   )}
                                 </div>
                                 <div className="flex items-center gap-2 font-mono text-[10px]">
                                   <span className="text-emerald-400">{m.speed}</span>
-                                  <span className="text-[#E8DDC7]/30">·</span>
-                                  <span className="text-[#E8DDC7]/40 truncate max-w-[200px] sm:max-w-xs">{m.id}</span>
+                                  <span className="text-[#5C564F]">·</span>
+                                  <span className="text-[#78726B] truncate max-w-[200px] sm:max-w-xs">{m.id}</span>
                                 </div>
                               </div>
 
                               {isSelected ? (
-                                <div className="w-5 h-5 rounded-full bg-[#C6A46A] flex items-center justify-center text-[#050508] flex-shrink-0 shadow-sm">
+                                <div className="w-5 h-5 rounded-full bg-[#ECEAE6] flex items-center justify-center text-[#141210] flex-shrink-0 shadow-sm">
                                   <Check className="w-3.5 h-3.5 stroke-[3]" />
                                 </div>
                               ) : (
-                                <div className="w-5 h-5 rounded-full border border-[#22222E] flex-shrink-0 group-hover:border-[#C6A46A]/50 transition-colors" />
+                                <div className="w-5 h-5 rounded-full border border-[#332E29] flex-shrink-0 group-hover:border-[#5C564F] transition-colors" />
                               )}
                             </button>
                           );
@@ -2768,15 +2744,15 @@ export default function DashboardPage() {
                     {/* Header Details */}
                     <div className="space-y-1">
                       <div className="flex items-center justify-between">
-                        <label className="font-cinzel text-xs uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
                           Interface Theme &amp; Appearance
                         </label>
-                        <span className="text-[10px] text-[#C6A46A] font-mono uppercase px-2 py-0.5 rounded bg-[#C6A46A]/10 border border-[#C6A46A]/20">
-                          Active: {theme === "light" ? "Pure White" : "Dark Metallic"}
+                        <span className="text-[10px] text-[#D8D3CC] font-mono uppercase px-2 py-0.5 rounded bg-[#262320] border border-[#332E29]">
+                          Active: {theme === "light" ? "Light" : "Dark Charcoal"}
                         </span>
                       </div>
-                      <p className="text-[11px] text-[#E8DDC7]/65 font-light leading-relaxed">
-                        Switch between deep obsidian dark mode and pure white light mode. Your selection is automatically persisted across all chat sessions, history, modals, and connectors.
+                      <p className="text-[11px] text-[#8E8880] leading-relaxed">
+                        Switch between the default dark charcoal studio theme and light mode across all workspaces and panels.
                       </p>
                     </div>
 
@@ -2788,50 +2764,49 @@ export default function DashboardPage() {
                         onClick={() => handleSelectTheme("dark")}
                         className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
                           theme === "dark"
-                            ? "bg-[#14141E] border-[#C6A46A] text-[#E8DDC7] shadow-[0_0_20px_rgba(198,164,106,0.18)] ring-1 ring-[#C6A46A]/50"
-                            : "bg-[#0A0A0F] border-[#161622] text-[#E8DDC7]/70 hover:border-[#C6A46A]/40 hover:bg-[#101018]"
+                            ? "bg-[#262320] border-[#4A443E] text-[#ECEAE6]"
+                            : "bg-[#1B1917] border-[#282420] text-[#9E978F] hover:border-[#3A3530]"
                         }`}
                       >
                         <div className="space-y-3 w-full">
-                          {/* Mini Visual Preview */}
-                          <div className="h-16 w-full rounded-lg bg-[#050508] border border-[#1C1C26] p-2 flex gap-1.5 items-stretch shadow-inner">
-                            <div className="w-1/4 rounded bg-[#07070B] border border-[#14141C] flex flex-col justify-between p-1">
-                              <div className="w-2.5 h-2.5 rounded-full bg-[#C6A46A]/60" />
-                              <div className="w-full h-1 bg-[#1C1C26] rounded-full" />
+                          <div className="h-16 w-full rounded-lg bg-[#13110F] border border-[#282420] p-2 flex gap-1.5 items-stretch">
+                            <div className="w-1/4 rounded bg-[#181614] border border-[#25221E] flex flex-col justify-between p-1">
+                              <div className="w-2.5 h-2.5 rounded-full bg-[#E06D44]" />
+                              <div className="w-full h-1 bg-[#2C2824] rounded-full" />
                             </div>
-                            <div className="flex-1 rounded bg-[#0B0B10] border border-[#171720] p-1.5 flex flex-col justify-between">
-                              <div className="w-1/2 h-1.5 bg-[#C6A46A]/70 rounded-full" />
-                              <div className="w-3/4 h-1 bg-[#22222E] rounded-full" />
-                              <div className="w-full h-2.5 bg-[#050508] rounded border border-[#1C1C26]" />
+                            <div className="flex-1 rounded bg-[#1B1917] border border-[#282420] p-1.5 flex flex-col justify-between">
+                              <div className="w-1/2 h-1.5 bg-[#ECEAE6]/70 rounded-full" />
+                              <div className="w-3/4 h-1 bg-[#2E2A25] rounded-full" />
+                              <div className="w-full h-2.5 bg-[#13110F] rounded border border-[#282420]" />
                             </div>
                           </div>
 
                           <div className="space-y-1">
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
-                                <Moon className="w-4 h-4 text-[#C6A46A]" />
-                                <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
-                                  Dark Metallic
+                                <Moon className="w-4 h-4 text-[#ECEAE6]" />
+                                <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
+                                  Dark Charcoal
                                 </span>
                               </div>
-                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-[#C6A46A]/40 bg-[#C6A46A]/10 text-[#C6A46A] uppercase">
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-[#38322D] bg-[#221F1C] text-[#D8D3CC] uppercase">
                                 DEFAULT
                               </span>
                             </div>
-                            <p className="text-[10.5px] text-[#E8DDC7]/60 leading-relaxed font-light">
-                              Deep obsidian canvas with warm parchment typography and gold metallic highlights.
+                            <p className="text-[10.5px] text-[#8E8880] leading-relaxed">
+                              Clean warm charcoal workspace canvas with crisp neutral typography.
                             </p>
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2.5 border-t border-[#1C1C26] flex items-center justify-between w-full">
-                          <span className="text-[10px] font-mono text-[#E8DDC7]/50">Titanium Dark</span>
+                        <div className="mt-3 pt-2.5 border-t border-[#2C2824] flex items-center justify-between w-full">
+                          <span className="text-[10px] font-mono text-[#78726B]">Studio Dark</span>
                           {theme === "dark" ? (
-                            <div className="w-4 h-4 rounded-full bg-[#C6A46A] flex items-center justify-center text-[#050508] shadow-sm">
+                            <div className="w-4 h-4 rounded-full bg-[#ECEAE6] flex items-center justify-center text-[#141210] shadow-sm">
                               <Check className="w-2.5 h-2.5 stroke-[3]" />
                             </div>
                           ) : (
-                            <div className="w-4 h-4 rounded-full border border-[#22222E] group-hover:border-[#C6A46A]/50 transition-colors" />
+                            <div className="w-4 h-4 rounded-full border border-[#332E29] transition-colors" />
                           )}
                         </div>
                       </button>
@@ -2842,19 +2817,18 @@ export default function DashboardPage() {
                         onClick={() => handleSelectTheme("light")}
                         className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
                           theme === "light"
-                            ? "bg-[#14141E] border-[#C6A46A] text-[#E8DDC7] shadow-[0_0_20px_rgba(198,164,106,0.18)] ring-1 ring-[#C6A46A]/50"
-                            : "bg-[#0A0A0F] border-[#161622] text-[#E8DDC7]/70 hover:border-[#C6A46A]/40 hover:bg-[#101018]"
+                            ? "bg-[#262320] border-[#4A443E] text-[#ECEAE6]"
+                            : "bg-[#1B1917] border-[#282420] text-[#9E978F] hover:border-[#3A3530]"
                         }`}
                       >
                         <div className="space-y-3 w-full">
-                          {/* Mini Visual Preview */}
-                          <div className="h-16 w-full rounded-lg bg-[#FFFFFF] border border-[#E2E4E9] p-2 flex gap-1.5 items-stretch shadow-inner">
+                          <div className="h-16 w-full rounded-lg bg-[#FFFFFF] border border-[#E2E4E9] p-2 flex gap-1.5 items-stretch">
                             <div className="w-1/4 rounded bg-[#F1F3F6] border border-[#E2E4E9] flex flex-col justify-between p-1">
-                              <div className="w-2.5 h-2.5 rounded-full bg-[#9A6F2E]" />
+                              <div className="w-2.5 h-2.5 rounded-full bg-[#E06D44]" />
                               <div className="w-full h-1 bg-[#CBD5E1] rounded-full" />
                             </div>
                             <div className="flex-1 rounded bg-[#FFFFFF] border border-[#E2E4E9] p-1.5 flex flex-col justify-between">
-                              <div className="w-1/2 h-1.5 bg-[#9A6F2E] rounded-full" />
+                              <div className="w-1/2 h-1.5 bg-[#0F172A]/70 rounded-full" />
                               <div className="w-3/4 h-1 bg-[#E2E4E9] rounded-full" />
                               <div className="w-full h-2.5 bg-[#F8F9FA] rounded border border-[#E2E4E9]" />
                             </div>
@@ -2864,75 +2838,63 @@ export default function DashboardPage() {
                             <div className="flex items-center justify-between">
                               <div className="flex items-center gap-2">
                                 <Sun className="w-4 h-4 text-amber-400" />
-                                <span className="font-cinzel text-xs font-semibold text-[#E8DDC7]">
-                                  Pure White
+                                <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
+                                  Light Mode
                                 </span>
                               </div>
-                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-amber-500/40 bg-amber-500/10 text-amber-500 uppercase">
+                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-amber-500/40 bg-amber-500/10 text-amber-400 uppercase">
                                 DAYLIGHT
                               </span>
                             </div>
-                            <p className="text-[10.5px] text-[#E8DDC7]/60 leading-relaxed font-light">
-                              Luminous white canvas with crystal-clear slate typography and refined metallic borders.
+                            <p className="text-[10.5px] text-[#8E8880] leading-relaxed">
+                              Clean white canvas with high-contrast slate typography.
                             </p>
                           </div>
                         </div>
 
-                        <div className="mt-3 pt-2.5 border-t border-[#1C1C26] flex items-center justify-between w-full">
-                          <span className="text-[10px] font-mono text-[#E8DDC7]/50">Alabaster White</span>
+                        <div className="mt-3 pt-2.5 border-t border-[#2C2824] flex items-center justify-between w-full">
+                          <span className="text-[10px] font-mono text-[#78726B]">Light Slate</span>
                           {theme === "light" ? (
-                            <div className="w-4 h-4 rounded-full bg-[#C6A46A] flex items-center justify-center text-[#050508] shadow-sm">
+                            <div className="w-4 h-4 rounded-full bg-[#ECEAE6] flex items-center justify-center text-[#141210] shadow-sm">
                               <Check className="w-2.5 h-2.5 stroke-[3]" />
                             </div>
                           ) : (
-                            <div className="w-4 h-4 rounded-full border border-[#22222E] group-hover:border-[#C6A46A]/50 transition-colors" />
+                            <div className="w-4 h-4 rounded-full border border-[#332E29] transition-colors" />
                           )}
                         </div>
                       </button>
                     </div>
 
-                    {/* Feature Details Notice */}
-                    <div className="p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720] space-y-1">
-                      <div className="flex items-center gap-2 text-[#C6A46A] font-cinzel text-xs font-semibold">
-                        <Sparkles className="w-3.5 h-3.5" />
-                        <span>Sovereign Theme Synchronization</span>
+                    <div className="p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824] space-y-1">
+                      <div className="flex items-center gap-2 text-[#ECEAE6] font-sans text-xs font-semibold">
+                        <Sparkles className="w-3.5 h-3.5 text-[#E06D44]" />
+                        <span>Theme Synchronization</span>
                       </div>
-                      <p className="text-[11px] text-[#E8DDC7]/65 leading-relaxed font-light">
-                        Harpy AI preserves high-performance contrast in both modes. All autonomous capabilities including Groq inference, the Voice AI agent, Browser Automation, and Figma-style Connectors adapt instantly to your selected theme.
+                      <p className="text-[11px] text-[#8E8880] leading-relaxed">
+                        All views including Workspaces, Plugins, Version Control, and Code Preview adapt automatically to your chosen theme.
                       </p>
                     </div>
                   </div>
                 ) : (
                   <>
-                    {/* Kernel & Safety Details */}
                     <div className="space-y-3">
-                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
-                        <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block font-semibold">
+                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824]">
+                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
                           Active Inference Engine
                         </label>
-                        <div className="flex items-center justify-between text-[#E8DDC7]">
+                        <div className="flex items-center justify-between text-[#D8D3CC]">
                           <span className="font-mono text-xs">{selectedModelName} ({selectedModelId})</span>
                           <span className="text-emerald-400 font-mono text-[11px]">ACTIVE</span>
                         </div>
                       </div>
 
-                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
-                        <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block font-semibold">
-                          Safety &amp; In-App Safeguards
+                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824]">
+                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
+                          Workspace Safeguards
                         </label>
-                        <p className="text-[#E8DDC7]/80 leading-relaxed font-light">
-                          Every autonomous action inside Gmail, Notion, WhatsApp, and Code Editors is verified with deterministic invariants and cognitive auditing.
+                        <p className="text-[#9E978F] leading-relaxed">
+                          File creation, surgical edits, shell commands, and baseline preservation checks are enforced before finishing every run.
                         </p>
-                      </div>
-
-                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#0B0B10] border border-[#171720]">
-                        <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block font-semibold">
-                          Multi-Agent Swarm Concurrency
-                        </label>
-                        <div className="flex items-center justify-between text-[#E8DDC7]">
-                          <span>Swarm Workers</span>
-                          <span className="text-[#C6A46A] font-mono text-[11px]">MAX (8 WORKERS)</span>
-                        </div>
                       </div>
 
                       {/* Conversation History & Data Purge */}
@@ -2942,7 +2904,7 @@ export default function DashboardPage() {
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Trash2 className="w-4 h-4 text-red-400" />
-                            <label className="font-cinzel uppercase tracking-wider text-red-400 block font-semibold text-xs">
+                            <label className="font-sans text-red-400 block font-semibold text-xs">
                               Delete Chat History
                             </label>
                           </div>
@@ -2951,13 +2913,13 @@ export default function DashboardPage() {
                               ? "bg-red-100 text-red-600 border-red-200"
                               : "bg-red-500/10 text-red-400 border-red-500/20"
                           }`}>
-                            {sessions.length} Saved {sessions.length === 1 ? "Mission" : "Missions"}
+                            {sessions.length} Saved {sessions.length === 1 ? "Session" : "Sessions"}
                           </span>
                         </div>
-                        <p className={`text-xs leading-relaxed font-light ${
-                          isLight ? "text-slate-600" : "text-[#E8DDC7]/75"
+                        <p className={`text-xs leading-relaxed ${
+                          isLight ? "text-slate-600" : "text-[#9E978F]"
                         }`}>
-                          Permanently clear all stored conversation transcripts, agent execution checkpoints, and local workspace sessions. This action cannot be undone.
+                          Permanently clear all stored conversation transcripts and local workspace sessions. This action cannot be undone.
                         </p>
 
                         {!confirmDeleteAllHistory ? (
@@ -3010,7 +2972,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={() => setSettingsModalOpen(false)}
-                  className="px-6 py-2 rounded-xl bg-[#C6A46A] text-[#050508] font-cinzel text-xs tracking-wider uppercase font-semibold hover:bg-[#E2C99A] transition-colors shadow-md"
+                  className="px-5 py-2 rounded-xl bg-[#ECEAE6] text-[#141210] font-sans text-xs font-semibold hover:bg-white transition-colors shadow-md"
                 >
                   Done
                 </button>
@@ -3030,42 +2992,41 @@ export default function DashboardPage() {
               initial={{ opacity: 0, scale: 0.96 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-md bg-[#08080C] border border-[#1C1C26] rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl relative"
+              className="w-full max-w-md bg-[#181614] border border-[#2C2824] rounded-2xl p-6 sm:p-8 space-y-6 shadow-2xl relative font-sans"
             >
-              <div className="flex items-center justify-between border-b border-[#14141C] pb-4">
+              <div className="flex items-center justify-between border-b border-[#25221E] pb-4">
                 <div className="space-y-1">
-                  <div className="inline-flex items-center gap-2 text-xs font-cinzel text-[#C6A46A] tracking-wider uppercase">
+                  <div className="inline-flex items-center gap-2 text-xs font-medium text-[#8E8880]">
                     <User className="w-4 h-4" />
-                    <span>Operator Identity</span>
+                    <span>Account</span>
                   </div>
-                  <h3 className="font-cinzel text-xl text-[#E8DDC7]">Sovereign Profile</h3>
+                  <h3 className="font-sans font-semibold text-xl text-[#ECEAE6]">User Profile</h3>
                 </div>
                 <button
                   onClick={() => setProfileModalOpen(false)}
-                  className="p-1.5 text-[#E8DDC7]/60 hover:text-[#C6A46A] transition-colors rounded-lg hover:bg-[#12121A]"
+                  className="p-1.5 text-[#8E8880] hover:text-[#ECEAE6] transition-colors rounded-lg hover:bg-[#221F1C]"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
-              {/* Avatar & Key Stats */}
-              <div className="flex items-center gap-4 p-4 rounded-xl bg-[#0B0B10] border border-[#171720]">
+              <div className="flex items-center gap-4 p-4 rounded-xl bg-[#1E1B18] border border-[#2C2824]">
                 {authUser.avatarUrl ? (
                   <img
                     src={authUser.avatarUrl}
                     alt={authUser.fullName}
-                    className="w-14 h-14 rounded-full border-2 border-[#C6A46A]/60 object-cover shadow-md"
+                    className="w-14 h-14 rounded-full border border-[#3A3530] object-cover shadow-md"
                   />
                 ) : (
-                  <div className="w-14 h-14 rounded-full border-2 border-[#C6A46A]/60 bg-[#12121A] flex items-center justify-center font-cinzel text-xl text-[#C6A46A] font-semibold shadow-md">
+                  <div className="w-14 h-14 rounded-full border border-[#3A3530] bg-[#262320] flex items-center justify-center font-sans text-xl text-[#ECEAE6] font-semibold shadow-md">
                     {authUser.fullName.charAt(0).toUpperCase()}
                   </div>
                 )}
                 <div className="min-w-0 space-y-0.5">
-                  <h4 className="font-cinzel text-base text-[#E8DDC7] font-semibold truncate">
+                  <h4 className="font-sans text-base text-[#ECEAE6] font-semibold truncate">
                     {authUser.fullName}
                   </h4>
-                  <p className="font-mono text-xs text-[#E8DDC7]/60 truncate">
+                  <p className="font-mono text-xs text-[#8E8880] truncate">
                     {authUser.email}
                   </p>
                   <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 text-[10px] font-mono border border-emerald-500/20">
@@ -3075,63 +3036,51 @@ export default function DashboardPage() {
                 </div>
               </div>
 
-              {/* Editable Fields */}
-              <div className="space-y-4 text-xs font-inter">
+              <div className="space-y-4 text-xs font-sans">
                 <div className="space-y-1.5">
-                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
-                    Display Name / Handle
+                  <label className="text-[#D8D3CC] font-medium block">
+                    Display Name
                   </label>
                   <input
                     type="text"
                     value={newDisplayName}
                     onChange={(e) => setNewDisplayName(e.target.value)}
-                    placeholder="Enter operator handle"
-                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#0C0C12] border border-[#20202C] focus:border-[#C6A46A] focus:outline-none text-xs text-[#E8DDC7] transition-colors"
+                    placeholder="Enter display name"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-[#13110F] border border-[#2E2A25] focus:border-[#4A443E] focus:outline-none text-xs text-[#ECEAE6] transition-colors"
                   />
                 </div>
 
                 <div className="space-y-1.5">
-                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
-                    Operator UUID
+                  <label className="text-[#D8D3CC] font-medium block">
+                    User ID
                   </label>
-                  <div className="p-3 rounded-xl bg-[#0B0B10] border border-[#171720] text-[#E8DDC7]/70 font-mono text-[11px] truncate">
+                  <div className="p-3 rounded-xl bg-[#1E1B18] border border-[#2C2824] text-[#8E8880] font-mono text-[11px] truncate">
                     {authUser.id}
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="font-cinzel uppercase tracking-wider text-[#C6A46A] block">
-                    Ecosystem Privileges
-                  </label>
-                  <div className="p-3 rounded-xl bg-[#0B0B10] border border-[#171720] text-[#E8DDC7] flex items-center justify-between">
-                    <span>Autonomous Kernel v2.6 Access</span>
-                    <span className="text-emerald-400 font-mono text-[11px]">UNRESTRICTED</span>
                   </div>
                 </div>
               </div>
 
-              {/* Modal Actions */}
-              <div className="pt-2 border-t border-[#14141C] flex items-center justify-between">
+              <div className="pt-2 border-t border-[#25221E] flex items-center justify-between">
                 <button
                   onClick={() => {
                     setProfileModalOpen(false);
                     handleSignOut();
                   }}
-                  className="px-4 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 font-cinzel text-xs tracking-wider uppercase transition-colors"
+                  className="px-4 py-2 rounded-xl text-red-400 hover:text-red-300 hover:bg-red-500/10 font-sans text-xs font-medium transition-colors"
                 >
                   Sign Out
                 </button>
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setProfileModalOpen(false)}
-                    className="px-4 py-2 rounded-xl border border-[#22222E] text-[#E8DDC7]/60 hover:text-[#E8DDC7] font-cinzel text-xs tracking-wider uppercase transition-colors"
+                    className="px-4 py-2 rounded-xl border border-[#302B26] text-[#9E978F] hover:text-[#ECEAE6] font-sans text-xs font-medium transition-colors"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleUpdateProfile}
                     disabled={isSavingProfile}
-                    className="px-5 py-2 rounded-xl bg-[#C6A46A] text-[#050508] font-cinzel text-xs tracking-wider uppercase font-semibold hover:bg-[#E2C99A] transition-colors disabled:opacity-50"
+                    className="px-5 py-2 rounded-xl bg-[#ECEAE6] text-[#141210] font-sans text-xs font-semibold hover:bg-white transition-colors disabled:opacity-50"
                   >
                     {isSavingProfile ? "Saving..." : "Save Profile"}
                   </button>
@@ -3218,10 +3167,6 @@ export default function DashboardPage() {
           setInputValue(prompt);
           handleSendMessage(prompt, true);
         }}
-        onTriggerBrowserAgent={(goal) => {
-          setBrowserGoal(goal);
-          setBrowserPanelOpen(true);
-        }}
         onAddChatMessage={(text, sender) => {
           const newMsg: Message = {
             id: `msg-${Date.now()}`,
@@ -3246,10 +3191,10 @@ export default function DashboardPage() {
             initial={{ opacity: 0, y: 16, scale: 0.95 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 16, scale: 0.95 }}
-            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#14141A] border border-[#C6A46A]/50 text-[#E8DDC7] text-xs shadow-2xl backdrop-blur-md"
+            className="fixed bottom-6 right-6 z-50 flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-[#1B1917] border border-[#2E2A25] text-[#ECEAE6] text-xs shadow-2xl backdrop-blur-md"
           >
-            <CheckCircle2 className="w-4 h-4 text-[#C6A46A]" />
-            <span className="font-inter font-light">{shareToast}</span>
+            <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+            <span className="font-sans">{shareToast}</span>
           </motion.div>
         )}
       </AnimatePresence>

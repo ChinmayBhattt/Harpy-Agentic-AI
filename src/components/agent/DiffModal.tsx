@@ -43,12 +43,12 @@ export default function DiffModal({ file, onClose, onAccept, onRevert }: DiffMod
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-4xl max-h-[85vh] bg-[#09080E] border border-[#26211C] rounded-2xl shadow-2xl flex flex-col overflow-hidden">
+      <div className="w-full max-w-4xl max-h-[85vh] bg-[#161412] border border-[#2B2723] rounded-2xl shadow-2xl flex flex-col overflow-hidden font-sans">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 bg-[#111018] border-b border-[#201D28] shrink-0">
+        <div className="flex items-center justify-between px-4 py-3 bg-[#1B1917] border-b border-[#2A2622] shrink-0">
           <div className="flex items-center gap-2.5 min-w-0">
-            <FileCode className="w-4 h-4 text-[#C6A46A] shrink-0" />
-            <span className="font-mono text-sm text-[#E8DDC7] font-medium truncate">
+            <FileCode className="w-4 h-4 text-[#8E8880] shrink-0" />
+            <span className="font-mono text-sm text-[#ECEAE6] font-medium truncate">
               {file.path}
             </span>
             <div className="flex items-center gap-1.5 text-xs font-mono shrink-0">

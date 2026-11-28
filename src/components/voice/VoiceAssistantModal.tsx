@@ -11,7 +11,6 @@ import {
   Maximize2,
   Activity,
   Sparkles,
-  Compass,
   X,
   Volume2,
   GripVertical,
@@ -21,7 +20,7 @@ interface VoiceAssistantModalProps {
   isOpen: boolean;
   onClose: () => void;
   onTriggerAgentMode: (prompt: string) => void;
-  onTriggerBrowserAgent: (goal: string) => void;
+  onTriggerBrowserAgent?: (goal: string) => void;
   onAddChatMessage?: (text: string, sender: 'user' | 'harpy') => void;
   onActiveStateChange?: (isActive: boolean) => void;
   isDocked?: boolean;
@@ -161,7 +160,11 @@ export default function VoiceAssistantModal({
       if (isBrowserIntent) {
         lastTriggeredRef.current = lower;
         setActiveAction({ type: 'browser', title: text });
-        onTriggerBrowserAgent(text);
+        if (onTriggerBrowserAgent) {
+          onTriggerBrowserAgent(text);
+        } else {
+          onTriggerAgentMode(text);
+        }
         if (onAddChatMessage) {
           onAddChatMessage(`[Voice Request] ${text}`, 'user');
         }
@@ -299,7 +302,11 @@ export default function VoiceAssistantModal({
             } else if (fnName === 'trigger_browser_agent') {
               const goal = args.goal || args.prompt || 'Create a google meeting link';
               setActiveAction({ type: 'browser', title: goal });
-              onTriggerBrowserAgent(goal);
+              if (onTriggerBrowserAgent) {
+                onTriggerBrowserAgent(goal);
+              } else {
+                onTriggerAgentMode(goal);
+              }
               // AUTO-DOCK into floating plate when function call triggers
               setIsDocked(true);
               setTimeout(() => setActiveAction(null), 8000);
@@ -395,45 +402,45 @@ export default function VoiceAssistantModal({
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 30, scale: 0.9 }}
             transition={{ type: 'spring', damping: 26, stiffness: 320 }}
-            className="pointer-events-auto flex items-center gap-2.5 sm:gap-3 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-full bg-[#0A0A13]/95 backdrop-blur-2xl border border-[#C6A46A]/50 shadow-[0_12px_45px_rgba(0,0,0,0.85),0_0_25px_rgba(198,164,106,0.35)] select-none max-w-[94vw] sm:max-w-md w-auto cursor-grab active:cursor-grabbing"
+            className="pointer-events-auto flex items-center gap-2.5 sm:gap-3 px-3 sm:px-3.5 py-2 sm:py-2.5 rounded-full bg-[#181614]/95 backdrop-blur-xl border border-[#2E2A25] shadow-[0_12px_40px_rgba(0,0,0,0.7)] select-none max-w-[94vw] sm:max-w-md w-auto cursor-grab active:cursor-grabbing font-sans"
           >
             {/* Subtle Drag Handle */}
             <div
-              className="hidden sm:flex items-center cursor-grab active:cursor-grabbing text-[#8C7A6B]/50 hover:text-[#C6A46A] transition-colors pl-0.5"
+              className="hidden sm:flex items-center cursor-grab active:cursor-grabbing text-[#666059] hover:text-[#ECEAE6] transition-colors pl-0.5"
               title="Drag to reposition panel"
             >
               <GripVertical className="w-3.5 h-3.5" />
             </div>
 
-            {/* Mini Animated Glowing Audio Orb */}
+            {/* Mini Animated Audio Orb */}
             <div
               onClick={handlePanelClick}
-              className="w-8 h-8 rounded-full border border-[#C6A46A]/60 bg-[#12121C] flex items-center justify-center relative cursor-pointer flex-shrink-0 group"
+              className="w-8 h-8 rounded-full border border-[#38322D] bg-[#221F1C] flex items-center justify-center relative cursor-pointer flex-shrink-0 group"
               title="Click to Open Full Voice Assistant"
             >
               {/* Dynamic outer pulse ring */}
               <motion.div
                 animate={{
                   scale: callStatus === 'connected' ? 1 + dynamicVolume * 0.45 : [1, 1.15, 1],
-                  opacity: callStatus === 'connected' ? 0.4 + dynamicVolume * 0.5 : 0.3,
+                  opacity: callStatus === 'connected' ? 0.35 + dynamicVolume * 0.45 : 0.2,
                 }}
                 transition={{ duration: 0.2, ease: 'easeOut' }}
-                className="absolute inset-0 rounded-full bg-[#C6A46A]/30 blur-xs"
+                className="absolute inset-0 rounded-full bg-[#E06D44]/25 blur-xs"
               />
               {isSpeaking ? (
                 <div className="flex items-center gap-0.5 z-10">
-                  <span className="w-1 h-3 bg-[#C6A46A] rounded-full animate-bounce [animation-delay:-0.2s]" />
+                  <span className="w-1 h-3 bg-[#E06D44] rounded-full animate-bounce [animation-delay:-0.2s]" />
                   <span className="w-1 h-4 bg-emerald-400 rounded-full animate-bounce [animation-delay:-0.1s]" />
-                  <span className="w-1 h-2.5 bg-[#C6A46A] rounded-full animate-bounce" />
+                  <span className="w-1 h-2.5 bg-[#ECEAE6] rounded-full animate-bounce" />
                 </div>
               ) : isUserSpeaking || userMicLevel > 0.08 ? (
                 <div className="flex items-center gap-0.5 z-10">
                   <span className="w-1 h-3.5 bg-emerald-400 rounded-full animate-pulse" />
-                  <span className="w-1 h-4.5 bg-[#C6A46A] rounded-full animate-pulse [animation-delay:0.1s]" />
+                  <span className="w-1 h-4.5 bg-[#E06D44] rounded-full animate-pulse [animation-delay:0.1s]" />
                   <span className="w-1 h-3 bg-emerald-400 rounded-full animate-pulse [animation-delay:0.2s]" />
                 </div>
               ) : (
-                <Radio className="w-4 h-4 text-[#C6A46A] z-10 animate-pulse" />
+                <Radio className="w-4 h-4 text-[#E06D44] z-10 animate-pulse" />
               )}
             </div>
 
@@ -448,21 +455,17 @@ export default function VoiceAssistantModal({
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
                 </span>
-                <span className="text-[10px] font-cinzel font-semibold text-[#C6A46A] tracking-wider uppercase truncate">
+                <span className="text-[11px] font-sans font-semibold text-[#ECEAE6] truncate">
                   Harpy Voice AI
                 </span>
-                <span className="text-[9px] font-mono text-[#8C7A6B]">· Active</span>
+                <span className="text-[10px] font-mono text-[#78726B]">· Active</span>
               </div>
 
               {/* Dynamic Status / Caption */}
-              <div className="truncate text-xs font-mono mt-0.5 max-w-[140px] xs:max-w-[170px] sm:max-w-[210px]">
+              <div className="truncate text-xs font-sans mt-0.5 max-w-[140px] xs:max-w-[170px] sm:max-w-[210px]">
                 {activeAction ? (
-                  <span className="text-amber-300 font-medium flex items-center gap-1 truncate">
-                    {activeAction.type === 'agent' ? (
-                      <Sparkles className="w-3 h-3 text-[#C6A46A] shrink-0 animate-pulse" />
-                    ) : (
-                      <Compass className="w-3 h-3 text-emerald-400 shrink-0 animate-pulse" />
-                    )}
+                  <span className="text-[#ECEAE6] font-medium flex items-center gap-1 truncate">
+                    <Sparkles className="w-3 h-3 text-[#E06D44] shrink-0 animate-pulse" />
                     <span className="truncate">{activeAction.title}</span>
                   </span>
                 ) : liveTranscript ? (
@@ -470,9 +473,9 @@ export default function VoiceAssistantModal({
                     &ldquo;{liveTranscript}&rdquo;
                   </span>
                 ) : isSpeaking ? (
-                  <span className="text-[#E8DDC7]/90 truncate">Speaking...</span>
+                  <span className="text-[#D8D3CC] truncate">Speaking...</span>
                 ) : (
-                  <span className="text-[#E8DDC7]/60 text-[11px] truncate">
+                  <span className="text-[#8E8880] text-[11px] truncate">
                     Listening in background (Hindi/English)
                   </span>
                 )}
@@ -490,7 +493,7 @@ export default function VoiceAssistantModal({
                 className={`p-1.5 rounded-full border transition-all cursor-pointer ${
                   isMuted
                     ? 'bg-rose-500/20 text-rose-400 border-rose-500/40'
-                    : 'bg-[#141420] text-[#E8DDC7] border-[#222230] hover:border-[#C6A46A]/50'
+                    : 'bg-[#221F1C] text-[#ECEAE6] border-[#332E29] hover:bg-[#2C2824]'
                 }`}
                 title={isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
               >
@@ -503,7 +506,7 @@ export default function VoiceAssistantModal({
                   e.stopPropagation();
                   setIsDocked(false);
                 }}
-                className="p-1.5 rounded-full bg-[#141420] text-[#E8DDC7] border border-[#222230] hover:border-[#C6A46A] hover:text-[#C6A46A] transition-all cursor-pointer"
+                className="p-1.5 rounded-full bg-[#221F1C] text-[#ECEAE6] border border-[#332E29] hover:bg-[#2C2824] transition-all cursor-pointer"
                 title="Expand to Full Voice Modal"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
@@ -539,7 +542,7 @@ export default function VoiceAssistantModal({
               e.stopPropagation();
               setIsDocked(true);
             }}
-            className="fixed inset-0 bg-black/65 backdrop-blur-md pointer-events-auto cursor-pointer"
+            className="fixed inset-0 bg-black/65 backdrop-blur-sm pointer-events-auto cursor-pointer"
             title="Click to minimize to background panel (keeps call active)"
           />
 
@@ -549,42 +552,42 @@ export default function VoiceAssistantModal({
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.9, y: 15 }}
             transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-            className="pointer-events-auto relative bg-[#07070B] border border-[#C6A46A]/40 rounded-3xl shadow-[0_0_60px_rgba(198,164,106,0.22)] overflow-hidden flex flex-col w-full max-w-lg h-[490px]"
+            className="pointer-events-auto relative bg-[#161412] border border-[#2C2824] rounded-2xl shadow-2xl overflow-hidden flex flex-col w-full max-w-lg h-[490px] font-sans"
           >
             {/* Top Bar Header */}
-            <div className="h-12 px-5 bg-[#0B0B12] border-b border-[#1A1A26] flex items-center justify-between select-none shrink-0">
+            <div className="h-12 px-5 bg-[#1B1917] border-b border-[#272420] flex items-center justify-between select-none shrink-0">
               <div className="flex items-center gap-2.5">
-                <span className="relative flex h-2.5 w-2.5">
+                <span className="relative flex h-2 w-2">
                   <span
                     className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${
-                      callStatus === 'connected' ? 'bg-emerald-400' : 'bg-[#C6A46A]'
+                      callStatus === 'connected' ? 'bg-emerald-400' : 'bg-[#E06D44]'
                     }`}
                   />
                   <span
-                    className={`relative inline-flex rounded-full h-2.5 w-2.5 ${
-                      callStatus === 'connected' ? 'bg-emerald-500' : 'bg-[#C6A46A]'
+                    className={`relative inline-flex rounded-full h-2 w-2 ${
+                      callStatus === 'connected' ? 'bg-emerald-500' : 'bg-[#E06D44]'
                     }`}
                   />
                 </span>
                 <div className="flex items-center gap-2">
-                  <span className="font-cinzel text-xs font-semibold text-[#E8DDC7] tracking-wider uppercase">
+                  <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
                     Harpy Voice AI
                   </span>
-                  <span className="px-1.5 py-0.5 rounded text-[9px] font-mono bg-[#C6A46A]/15 text-[#C6A46A] border border-[#C6A46A]/30">
+                  <span className="px-1.5 py-0.5 rounded text-[10px] font-mono bg-[#24211E] text-[#9E978F] border border-[#332E29]">
                     Multilingual
                   </span>
                 </div>
               </div>
 
               {/* Header Actions: Minimize to dock, Close to dock (both keep call active) */}
-              <div className="flex items-center gap-1.5 text-[#E8DDC7]/60">
+              <div className="flex items-center gap-1.5 text-[#8E8880]">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     setIsDocked(true);
                   }}
-                  className="p-1.5 rounded-lg hover:text-[#C6A46A] hover:bg-white/10 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg hover:text-[#ECEAE6] hover:bg-[#262320] transition-colors cursor-pointer"
                   title="Minimize to Floating Panel (Keeps Call Active)"
                 >
                   <Minimize2 className="w-3.5 h-3.5" />
@@ -595,7 +598,7 @@ export default function VoiceAssistantModal({
                     e.stopPropagation();
                     setIsDocked(true);
                   }}
-                  className="p-1.5 rounded-lg hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg hover:text-[#ECEAE6] hover:bg-[#262320] transition-colors cursor-pointer"
                   title="Close to Background Panel (Keeps Call Active)"
                 >
                   <X className="w-4 h-4" />
@@ -603,29 +606,29 @@ export default function VoiceAssistantModal({
               </div>
             </div>
 
-            {/* Central Area: Centered Glowing Orb & Live Voice Feedback */}
-            <div className="flex-1 flex flex-col items-center justify-center p-6 relative select-none min-h-0 bg-gradient-to-b from-[#07070B] via-[#0A0A12] to-[#050508]">
-              {/* Perfectly Centered Concentric Audio Visualizer Orb */}
+            {/* Central Area: Centered Orb & Live Voice Feedback */}
+            <div className="flex-1 flex flex-col items-center justify-center p-6 relative select-none min-h-0 bg-[#13110F]">
+              {/* Centered Concentric Audio Visualizer Orb */}
               <div className="relative flex items-center justify-center my-auto">
-                {/* Outer Breathing Energy Glow */}
+                {/* Outer Breathing Glow */}
                 <motion.div
                   animate={{
-                    scale: callStatus === 'connected' ? 1 + dynamicVolume * 0.5 : [1, 1.08, 1],
-                    opacity: callStatus === 'connected' ? 0.35 + dynamicVolume * 0.45 : 0.25,
+                    scale: callStatus === 'connected' ? 1 + dynamicVolume * 0.45 : [1, 1.06, 1],
+                    opacity: callStatus === 'connected' ? 0.25 + dynamicVolume * 0.35 : 0.15,
                   }}
                   transition={{ duration: 0.25, ease: 'easeOut' }}
-                  className="absolute w-44 h-44 rounded-full bg-gradient-to-tr from-[#C6A46A]/30 via-amber-500/20 to-emerald-500/20 blur-2xl pointer-events-none"
+                  className="absolute w-44 h-44 rounded-full bg-[#E06D44]/20 blur-2xl pointer-events-none"
                 />
 
-                {/* Concentric Golden Wave Rings */}
+                {/* Concentric Wave Rings */}
                 <motion.div
                   animate={{
                     scale: callStatus === 'connected' ? 1 + dynamicVolume * 0.25 : 1,
                     borderColor: isSpeaking
                       ? 'rgba(52, 211, 153, 0.4)'
                       : isUserSpeaking
-                      ? 'rgba(198, 164, 106, 0.6)'
-                      : 'rgba(198, 164, 106, 0.25)',
+                      ? 'rgba(224, 109, 68, 0.5)'
+                      : 'rgba(236, 234, 230, 0.14)',
                   }}
                   className="absolute w-36 h-36 rounded-full border transition-colors duration-300 pointer-events-none"
                 />
@@ -633,20 +636,20 @@ export default function VoiceAssistantModal({
                   animate={{
                     scale: callStatus === 'connected' ? 1 + dynamicVolume * 0.15 : 1,
                   }}
-                  className="absolute w-28 h-28 rounded-full border border-[#C6A46A]/35 pointer-events-none"
+                  className="absolute w-28 h-28 rounded-full border border-[#38322D] pointer-events-none"
                 />
 
                 {/* Core Voice Circle Orb */}
-                <div className="relative w-24 h-24 rounded-full bg-gradient-to-b from-[#141422] to-[#0A0A12] border-2 border-[#C6A46A] flex items-center justify-center shadow-[0_0_35px_rgba(198,164,106,0.35)]">
+                <div className="relative w-24 h-24 rounded-full bg-[#1C1A17] border border-[#3D3732] flex items-center justify-center shadow-lg">
                   {callStatus === 'connecting' ? (
-                    <Activity className="w-8 h-8 text-[#C6A46A] animate-spin" />
+                    <Activity className="w-8 h-8 text-[#E06D44] animate-spin" />
                   ) : isSpeaking ? (
                     /* Assistant Speaking Wave */
                     <div className="flex items-center gap-1.5">
                       <motion.span
                         animate={{ height: [8, 26, 8] }}
                         transition={{ repeat: Infinity, duration: 0.6 }}
-                        className="w-1.5 bg-[#C6A46A] rounded-full"
+                        className="w-1.5 bg-[#E06D44] rounded-full"
                       />
                       <motion.span
                         animate={{ height: [12, 38, 12] }}
@@ -656,12 +659,12 @@ export default function VoiceAssistantModal({
                       <motion.span
                         animate={{ height: [16, 30, 16] }}
                         transition={{ repeat: Infinity, duration: 0.7, delay: 0.2 }}
-                        className="w-1.5 bg-amber-300 rounded-full"
+                        className="w-1.5 bg-[#ECEAE6] rounded-full"
                       />
                       <motion.span
                         animate={{ height: [8, 22, 8] }}
                         transition={{ repeat: Infinity, duration: 0.6, delay: 0.15 }}
-                        className="w-1.5 bg-[#C6A46A] rounded-full"
+                        className="w-1.5 bg-[#E06D44] rounded-full"
                       />
                     </div>
                   ) : isUserSpeaking || userMicLevel > 0.04 ? (
@@ -675,7 +678,7 @@ export default function VoiceAssistantModal({
                       <motion.span
                         animate={{ height: [10, Math.max(18, userMicLevel * 46), 10] }}
                         transition={{ repeat: Infinity, duration: 0.3, delay: 0.08 }}
-                        className="w-1.5 bg-[#C6A46A] rounded-full"
+                        className="w-1.5 bg-[#E06D44] rounded-full"
                       />
                       <motion.span
                         animate={{ height: [6, Math.max(14, userMicLevel * 38), 6] }}
@@ -684,7 +687,7 @@ export default function VoiceAssistantModal({
                       />
                     </div>
                   ) : (
-                    <Radio className="w-8 h-8 text-[#C6A46A] animate-pulse" />
+                    <Radio className="w-8 h-8 text-[#E06D44] animate-pulse" />
                   )}
                 </div>
               </div>
@@ -695,7 +698,7 @@ export default function VoiceAssistantModal({
                   <motion.div
                     initial={{ opacity: 0, y: 5 }}
                     animate={{ opacity: 1, y: 0 }}
-                    className="px-3.5 py-1.5 rounded-full bg-[#181824] border border-[#C6A46A]/50 text-[#E8DDC7] text-xs font-mono inline-flex items-center gap-2 shadow-lg"
+                    className="px-3.5 py-1.5 rounded-full bg-[#1D1B18] border border-[#332E29] text-[#ECEAE6] text-xs font-sans inline-flex items-center gap-2 shadow-sm"
                   >
                     <Mic className="w-3.5 h-3.5 text-emerald-400 animate-pulse shrink-0" />
                     <span className="truncate">&ldquo;{liveTranscript}&rdquo;</span>
@@ -704,26 +707,26 @@ export default function VoiceAssistantModal({
                   <motion.div
                     initial={{ opacity: 0, scale: 0.95 }}
                     animate={{ opacity: 1, scale: 1 }}
-                    className="px-3 py-1.5 rounded-full bg-[#C6A46A]/20 border border-[#C6A46A]/50 text-amber-200 text-xs font-mono inline-flex items-center gap-2 shadow-md"
+                    className="px-3 py-1.5 rounded-full bg-[#24211E] border border-[#38322D] text-[#ECEAE6] text-xs font-sans inline-flex items-center gap-2"
                   >
-                    <Sparkles className="w-3.5 h-3.5 text-[#C6A46A] animate-pulse shrink-0" />
+                    <Sparkles className="w-3.5 h-3.5 text-[#E06D44] animate-pulse shrink-0" />
                     <span>Executing: {activeAction.title}</span>
                   </motion.div>
                 ) : isSpeaking ? (
-                  <span className="text-xs font-mono text-emerald-400">
+                  <span className="text-xs font-sans text-emerald-400">
                     Harpy Voice speaking...
                   </span>
                 ) : callStatus === 'connected' ? (
                   <div>
-                    <p className="font-cinzel text-xs font-semibold text-[#E8DDC7]/80 tracking-wide">
-                      BOLIYE, MAIN SUN RAHA HU
+                    <p className="font-sans text-xs font-medium text-[#ECEAE6]">
+                      Listening — speak naturally
                     </p>
-                    <p className="text-[11px] font-mono text-[#8C7A6B] mt-1">
-                      Try: &ldquo;Make a portfolio project&rdquo; or &ldquo;Create a google meeting link&rdquo;
+                    <p className="text-[11px] font-sans text-[#8E8880] mt-1">
+                      Try: &ldquo;Create a portfolio page&rdquo; or &ldquo;Review my changes&rdquo;
                     </p>
                   </div>
                 ) : (
-                  <p className="text-xs font-mono text-[#C6A46A] animate-pulse">
+                  <p className="text-xs font-sans text-[#9E978F] animate-pulse">
                     {statusMessage}
                   </p>
                 )}
@@ -736,8 +739,8 @@ export default function VoiceAssistantModal({
                   onClick={toggleMute}
                   className={`w-12 h-12 rounded-full flex items-center justify-center border transition-all ${
                     isMuted
-                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/50 shadow-[0_0_15px_rgba(244,63,94,0.3)]'
-                      : 'bg-[#12121C] text-[#E8DDC7] border-[#222232] hover:border-[#C6A46A]/60'
+                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/50'
+                      : 'bg-[#1D1B18] text-[#ECEAE6] border-[#2E2A25] hover:bg-[#262320]'
                   }`}
                   title={isMuted ? 'Unmute Microphone' : 'Mute Microphone'}
                 >
@@ -750,7 +753,7 @@ export default function VoiceAssistantModal({
                     endCall();
                     onClose();
                   }}
-                  className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-[0_0_22px_rgba(225,29,72,0.5)] transition-all hover:scale-105 active:scale-95 cursor-pointer"
+                  className="w-14 h-14 rounded-full bg-rose-600 hover:bg-rose-700 text-white flex items-center justify-center shadow-lg transition-all hover:scale-105 active:scale-95 cursor-pointer"
                   title="Cut Call (Disconnect Call Completely)"
                 >
                   <PhoneOff className="w-6 h-6" />
@@ -762,7 +765,7 @@ export default function VoiceAssistantModal({
                     e.stopPropagation();
                     setIsDocked(true);
                   }}
-                  className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#12121C] text-[#E8DDC7] border-[#222232] hover:border-[#C6A46A]/60 hover:text-[#C6A46A] transition-all cursor-pointer"
+                  className="w-12 h-12 rounded-full flex items-center justify-center border bg-[#1D1B18] text-[#ECEAE6] border-[#2E2A25] hover:bg-[#262320] transition-all cursor-pointer"
                   title="Dock to Floating Plate"
                 >
                   <Minimize2 className="w-5 h-5" />
