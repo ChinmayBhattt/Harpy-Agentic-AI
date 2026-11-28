@@ -93,6 +93,21 @@ export default function AgentTimeline({
   const totalAdded = filesChanged.reduce((acc, f) => acc + (f.addedLines || 0), 0);
   const totalRemoved = filesChanged.reduce((acc, f) => acc + (f.removedLines || 0), 0);
   const events = runData.events || [];
+  const hasActiveThinkingStart = events.some(
+    (ev, i) =>
+      ev.type === 'thinking_start' &&
+      !events.slice(i + 1).some((next) => next.type === 'thinking_end' || next.type === 'error')
+  );
+  const hasActiveToolStart = events.some(
+    (ev, i) =>
+      ev.type === 'tool_start' &&
+      !events.slice(i + 1).some((next) => next.type === 'tool_end' && next.id === ev.id)
+  );
+  const showFallbackThinking =
+    runData.status === 'running' &&
+    !runData.finalMessage?.trim() &&
+    !hasActiveThinkingStart &&
+    !hasActiveToolStart;
 
   return (
     <div className="space-y-3 font-sans text-xs text-[#ECEAE6]">
@@ -187,7 +202,27 @@ export default function AgentTimeline({
       {/* 2. ACTIVITY TIMELINE ROWS */}
       {/* ────────────────────────────────────────────────────────── */}
       <div className="space-y-1 py-1">
+        {showFallbackThinking && (
+          <div className="flex items-center gap-2 py-0.5 text-xs text-[#A8A199]">
+            <Brain className="w-3.5 h-3.5 text-[#E06D44] animate-pulse shrink-0" />
+            <span className="font-medium animate-pulse">Thinking...</span>
+          </div>
+        )}
         {events.map((ev, idx) => {
+          // Live Thinking Indicator before thinking_end arrives
+          if (ev.type === 'thinking_start') {
+            const hasEnded = events
+              .slice(idx + 1)
+              .some((next) => next.type === 'thinking_end' || next.type === 'error');
+            if (hasEnded) return null;
+            return (
+              <div key={`think-start-${idx}`} className="flex items-center gap-2 py-0.5 text-xs text-[#A8A199]">
+                <Brain className="w-3.5 h-3.5 text-[#E06D44] animate-pulse shrink-0" />
+                <span className="font-medium animate-pulse">Thinking...</span>
+              </div>
+            );
+          }
+
           // Thinking Duration Row
           if (ev.type === 'thinking_end') {
             const isExpanded = expandedThinkingIndices.has(idx);

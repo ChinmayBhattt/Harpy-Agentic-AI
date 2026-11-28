@@ -53,12 +53,14 @@ import {
   GitPullRequest,
   Search,
   SlidersHorizontal,
+  Folder,
   FolderPlus,
   ArrowUpDown,
   Monitor,
   Lightbulb,
   ChevronsRight,
   GitFork,
+  Brain,
 } from "lucide-react";
 import MarkdownRenderer from "@/components/MarkdownRenderer";
 import AgentTimeline from "@/components/agent/AgentTimeline";
@@ -67,6 +69,12 @@ import VoiceAssistantModal from "@/components/voice/VoiceAssistantModal";
 import WorkspacesView, { WorkspaceSessionSummary } from "@/components/dashboard/WorkspacesView";
 import PluginsView from "@/components/dashboard/PluginsView";
 import VersionControlView from "@/components/dashboard/VersionControlView";
+import SettingsView, {
+  DEFAULT_HARPY_SETTINGS,
+  HarpyAppSettings,
+  SettingsSectionId,
+  playHarpyCompletionSound,
+} from "@/components/dashboard/SettingsView";
 import { AgentRunData, FileChangeRecord, AgentEvent, PlanSpecification } from "@/lib/agent/events";
 
 interface Message {
@@ -80,12 +88,23 @@ interface Message {
   agentRun?: AgentRunData;
 }
 
+interface UserProject {
+  id: string;
+  name: string;
+  branch?: string;
+  createdAt: string;
+}
+
 interface ChatSession {
   id: string;
   title: string;
   timestamp: string;
   messages: Message[];
   isPinned?: boolean;
+  isWorkspace?: boolean;
+  projectId?: string;
+  branch?: string;
+  worktreeMode?: "Worktree" | "Sandbox";
 }
 
 interface ModelItem {
@@ -204,12 +223,20 @@ export default function DashboardPage() {
   const [viewHistoryIdx, setViewHistoryIdx] = useState(0);
   const [sidebarSearch, setSidebarSearch] = useState("");
   const [projectsExpanded, setProjectsExpanded] = useState(true);
+  const [projects, setProjects] = useState<UserProject[]>([]);
+  const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
+  const [expandedProjectIds, setExpandedProjectIds] = useState<Record<string, boolean>>({});
+  const [showNewProjectInput, setShowNewProjectInput] = useState(false);
+  const [newProjectName, setNewProjectName] = useState("");
+  const [projectSortAsc, setProjectSortAsc] = useState(false);
+  const sidebarSearchRef = useRef<HTMLInputElement>(null);
   const [activeBranch, setActiveBranch] = useState("main");
   const [gitBranches, setGitBranches] = useState<string[]>(["main"]);
   const [worktreeMode, setWorktreeMode] = useState<"Worktree" | "Sandbox">("Worktree");
   const [deviceTarget, setDeviceTarget] = useState<"This device" | "Cloud">("This device");
   const [isModelMenuOpen, setIsModelMenuOpen] = useState(false);
   const [isAccessMenuOpen, setIsAccessMenuOpen] = useState(false);
+  const [activeComposerMenu, setActiveComposerMenu] = useState<"workspace" | "worktree" | "branch" | "device" | null>(null);
 
   const navigateView = (nextView: "home" | "workspaces" | "plugins" | "git") => {
     setActiveView(nextView);
@@ -253,20 +280,68 @@ export default function DashboardPage() {
   }, []);
 
   const [settingsModalOpen, setSettingsModalOpen] = useState(false);
-  const [settingsTab, setSettingsTab] = useState<"models" | "appearance" | "system">("models");
-  const [confirmDeleteAllHistory, setConfirmDeleteAllHistory] = useState(false);
+  const [settingsInitialSection, setSettingsInitialSection] = useState<SettingsSectionId>("account");
+  const [harpySettings, setHarpySettings] = useState<HarpyAppSettings>(DEFAULT_HARPY_SETTINGS);
   const [theme, setTheme] = useState<"dark" | "light">("dark");
   const isLight = theme === "light";
   const [isExecuting, setIsExecuting] = useState(false);
 
-  // Sync theme with localStorage and document classes
+  const resolveEffectiveTheme = (pref: "dark" | "light" | "system"): "dark" | "light" => {
+    if (pref === "system" && typeof window !== "undefined") {
+      return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+    }
+    return pref === "light" ? "light" : "dark";
+  };
+
+  const applyTypographyCssVars = (cfg: HarpyAppSettings) => {
+    if (typeof document === "undefined") return;
+    const root = document.documentElement;
+    root.style.setProperty("--harpy-editor-font", cfg.editorTypography.fontFamily);
+    root.style.setProperty("--harpy-editor-size", `${cfg.editorTypography.fontSize}px`);
+    root.style.setProperty("--harpy-editor-lh", String(cfg.editorTypography.lineHeight));
+  };
+
+  // Sync theme & saved Harpy settings with localStorage
   useEffect(() => {
     try {
-      const saved = (localStorage.getItem("harpy_theme") as "dark" | "light") || "dark";
-      setTheme(saved);
-      applyTheme(saved);
+      const savedSettingsRaw = localStorage.getItem("harpy_settings");
+      let merged = DEFAULT_HARPY_SETTINGS;
+      if (savedSettingsRaw) {
+        const parsed = JSON.parse(savedSettingsRaw);
+        merged = {
+          ...DEFAULT_HARPY_SETTINGS,
+          ...parsed,
+          editorTypography: { ...DEFAULT_HARPY_SETTINGS.editorTypography, ...(parsed.editorTypography || {}) },
+          terminalTypography: { ...DEFAULT_HARPY_SETTINGS.terminalTypography, ...(parsed.terminalTypography || {}) },
+        };
+      }
+      const savedTheme = localStorage.getItem("harpy_theme") as "dark" | "light" | null;
+      if (savedTheme && !savedSettingsRaw) {
+        merged = { ...merged, themePreference: savedTheme };
+      }
+      setHarpySettings(merged);
+      applyTypographyCssVars(merged);
+      const eff = resolveEffectiveTheme(merged.themePreference);
+      setTheme(eff);
+      applyTheme(eff);
     } catch {}
   }, []);
+
+  const updateHarpySettings = (patch: Partial<HarpyAppSettings>) => {
+    setHarpySettings((prev) => {
+      const next: HarpyAppSettings = {
+        ...prev,
+        ...patch,
+        editorTypography: patch.editorTypography ? { ...prev.editorTypography, ...patch.editorTypography } : prev.editorTypography,
+        terminalTypography: patch.terminalTypography ? { ...prev.terminalTypography, ...patch.terminalTypography } : prev.terminalTypography,
+      };
+      try {
+        localStorage.setItem("harpy_settings", JSON.stringify(next));
+      } catch {}
+      applyTypographyCssVars(next);
+      return next;
+    });
+  };
 
   const applyTheme = (t: "dark" | "light") => {
     if (t === "light") {
@@ -280,11 +355,13 @@ export default function DashboardPage() {
     }
   };
 
-  const handleSelectTheme = (t: "dark" | "light") => {
-    setTheme(t);
-    applyTheme(t);
+  const handleSelectThemePreference = (pref: "dark" | "light" | "system") => {
+    updateHarpySettings({ themePreference: pref });
+    const eff = resolveEffectiveTheme(pref);
+    setTheme(eff);
+    applyTheme(eff);
     try {
-      localStorage.setItem("harpy_theme", t);
+      localStorage.setItem("harpy_theme", eff);
     } catch {}
   };
   const [attachedFile, setAttachedFile] = useState<string | null>(null);
@@ -375,8 +452,7 @@ export default function DashboardPage() {
               !s.title?.toLowerCase().includes("sync client bug") &&
               !s.title?.toLowerCase().includes("discord alert") &&
               !s.title?.toLowerCase().includes("chrome competitor") &&
-              Array.isArray(s.messages) &&
-              s.messages.length > 0 &&
+              (s.isWorkspace || (Array.isArray(s.messages) && s.messages.length > 0)) &&
               !s.messages.some(
                 (m) =>
                   m.text?.includes("Check my unread Gmail") ||
@@ -399,6 +475,21 @@ export default function DashboardPage() {
         setSessions([]);
         setCurrentSessionId(`session-${Date.now()}`);
       }
+
+      try {
+        const savedProjectsRaw = localStorage.getItem("harpy_projects");
+        if (savedProjectsRaw) {
+          const parsedProjects = JSON.parse(savedProjectsRaw);
+          if (Array.isArray(parsedProjects)) {
+            setProjects(parsedProjects);
+            if (parsedProjects.length > 0) {
+              setExpandedProjectIds(
+                Object.fromEntries(parsedProjects.map((p: UserProject) => [p.id, true]))
+              );
+            }
+          }
+        }
+      } catch {}
 
       const savedKey = localStorage.getItem("harpy_user_api_key") || "";
       let savedModelId = localStorage.getItem("harpy_user_model_id") || "";
@@ -500,17 +591,41 @@ export default function DashboardPage() {
     } catch {}
   }, []);
 
-  // Keyboard shortcut: ⌘B / Ctrl+B to toggle sidebar
+  // Global Keyboard Shortcuts (respects harpySettings.keyboardShortcutsEnabled)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "b") {
+      if (e.key === "Escape" && settingsModalOpen) {
+        setSettingsModalOpen(false);
+        return;
+      }
+      if (!harpySettings.keyboardShortcutsEnabled) return;
+      const mod = e.metaKey || e.ctrlKey;
+      if (mod && e.key.toLowerCase() === "b") {
         e.preventDefault();
         setSidebarOpen((prev) => !prev);
+      } else if (mod && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setSettingsModalOpen(false);
+        handleCreateWorkspace({ openImmediately: true });
+      } else if (mod && e.key === ",") {
+        e.preventDefault();
+        setSettingsModalOpen((prev) => !prev);
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
+  }, [harpySettings.keyboardShortcutsEnabled, settingsModalOpen]);
+
+  // Warn before closing tab if agent is executing and confirmBeforeLeaving is enabled
+  useEffect(() => {
+    if (!harpySettings.confirmBeforeLeaving || !isExecuting) return;
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [harpySettings.confirmBeforeLeaving, isExecuting]);
 
   const handleSignOut = async () => {
     await supabase.auth.signOut();
@@ -648,9 +763,113 @@ export default function DashboardPage() {
     e.target.style.overflowY = scrollH > 160 ? "auto" : "hidden";
   };
 
+  const persistSessions = (next: ChatSession[]) => {
+    try {
+      const saveable = next.filter((s) => s.isWorkspace || (Array.isArray(s.messages) && s.messages.length > 0));
+      if (saveable.length === 0) {
+        localStorage.removeItem("harpy_chat_sessions");
+      } else {
+        localStorage.setItem("harpy_chat_sessions", JSON.stringify(saveable));
+      }
+    } catch {}
+  };
+
+  const persistProjects = (next: UserProject[]) => {
+    try {
+      localStorage.setItem("harpy_projects", JSON.stringify(next));
+    } catch {}
+  };
+
+  const handleCreateProject = (nameInput?: string) => {
+    const clean = (nameInput ?? newProjectName).trim();
+    if (!clean) return;
+    const newProj: UserProject = {
+      id: `proj-${Date.now()}`,
+      name: clean,
+      branch: activeBranch || "main",
+      createdAt: new Date().toISOString(),
+    };
+    setProjects((prev) => {
+      const next = [newProj, ...prev];
+      persistProjects(next);
+      return next;
+    });
+    setActiveProjectId(newProj.id);
+    setExpandedProjectIds((prev) => ({ ...prev, [newProj.id]: true }));
+    setNewProjectName("");
+    setShowNewProjectInput(false);
+    setShareToast(`Created project "${clean}"`);
+    setTimeout(() => setShareToast(null), 2200);
+  };
+
+  const handleDeleteProject = (projId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setProjects((prev) => {
+      const next = prev.filter((p) => p.id !== projId);
+      persistProjects(next);
+      return next;
+    });
+    setSessions((prev) => {
+      const next = prev.map((s) => (s.projectId === projId ? { ...s, projectId: undefined } : s));
+      persistSessions(next);
+      return next;
+    });
+    if (activeProjectId === projId) {
+      setActiveProjectId(null);
+    }
+  };
+
+  const handleCreateWorkspace = (opts?: {
+    name?: string;
+    branch?: string;
+    worktreeMode?: "Worktree" | "Sandbox";
+    projectId?: string;
+    openImmediately?: boolean;
+  }) => {
+    const existingCount = sessions.length;
+    const title = opts?.name?.trim() || `Workspace ${existingCount + 1}`;
+    const branch = opts?.branch || activeBranch || "main";
+    const mode = opts?.worktreeMode || worktreeMode;
+    const targetProjectId = opts?.projectId !== undefined ? opts.projectId : activeProjectId || undefined;
+    const newWs: ChatSession = {
+      id: `session-${Date.now()}`,
+      title,
+      timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
+      messages: [],
+      isWorkspace: true,
+      projectId: targetProjectId,
+      branch,
+      worktreeMode: mode,
+    };
+
+    setSessions((prev) => {
+      const next = [newWs, ...prev];
+      persistSessions(next);
+      return next;
+    });
+    setCurrentSessionId(newWs.id);
+    setActiveBranch(branch);
+    setWorktreeMode(mode);
+    setAttachedFile(null);
+    setInputValue("");
+    setActiveComposerMenu(null);
+
+    if (opts?.openImmediately !== false) {
+      navigateView("home");
+      setTimeout(() => textareaRef.current?.focus(), 50);
+    } else {
+      setShareToast(`Created workspace "${title}"`);
+      setTimeout(() => setShareToast(null), 2200);
+    }
+  };
+
   const handleNewChat = () => {
     if (typeof window !== "undefined" && window.innerWidth < 1024) {
       setSidebarOpen(false);
+    }
+    if (activeView === "workspaces") {
+      handleCreateWorkspace({ openImmediately: true });
+      return;
     }
     if (currentSession && currentSession.messages.length === 0) {
       if (textareaRef.current) {
@@ -688,6 +907,7 @@ export default function DashboardPage() {
     setActiveView("home");
     setIsModelMenuOpen(false);
     setIsAccessMenuOpen(false);
+    setActiveComposerMenu(null);
 
     const userMsg: Message = {
       id: `usr-${Date.now()}`,
@@ -699,10 +919,12 @@ export default function DashboardPage() {
 
     const updatedMessages = [...(currentSession?.messages || []), userMsg];
 
-    // Update session title if first message
+    // Update session title if first message (preserve explicit custom workspace names)
     const isFirst = (currentSession?.messages || []).length === 0;
     const newTitle = isFirst
-      ? textToSend.slice(0, 36) + (textToSend.length > 36 ? "..." : "")
+      ? (currentSession as ChatSession)?.isWorkspace
+        ? currentSession.title
+        : textToSend.slice(0, 36) + (textToSend.length > 36 ? "..." : "")
       : currentSession.title;
 
     setSessions((prev) => {
@@ -711,7 +933,7 @@ export default function DashboardPage() {
       if (exists) {
         next = prev.map((s) =>
           s.id === currentSessionId
-            ? { ...s, title: newTitle, messages: updatedMessages }
+            ? { ...s, title: newTitle, messages: updatedMessages, branch: s.branch || activeBranch, worktreeMode: s.worktreeMode || worktreeMode }
             : s
         );
       } else {
@@ -720,15 +942,14 @@ export default function DashboardPage() {
           title: newTitle,
           timestamp: new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }),
           messages: updatedMessages,
+          isWorkspace: true,
+          projectId: activeProjectId || undefined,
+          branch: activeBranch,
+          worktreeMode,
         };
         next = [newSessionItem, ...prev];
       }
-      try {
-        localStorage.setItem(
-          "harpy_chat_sessions",
-          JSON.stringify(next.filter((s) => s.messages.length > 0))
-        );
-      } catch {}
+      persistSessions(next);
       return next;
     });
 
@@ -782,9 +1003,7 @@ export default function DashboardPage() {
             ? { ...s, messages: [...updatedMessages, initialAgentMsg] }
             : s
         );
-        try {
-          localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
-        } catch {}
+        persistSessions(next);
         return next;
       });
 
@@ -912,6 +1131,20 @@ export default function DashboardPage() {
                 if (event.planSpec) currentRun.planSpec = event.planSpec;
                 if (event.verificationChecks) currentRun.verificationChecks = event.verificationChecks;
                 if (!currentRun.finalMessage) currentRun.finalMessage = event.summary;
+                if (harpySettings.notificationSounds) {
+                  playHarpyCompletionSound(harpySettings.notificationVolume);
+                }
+                if (
+                  harpySettings.desktopNotifications &&
+                  typeof Notification !== 'undefined' &&
+                  Notification.permission === 'granted' &&
+                  typeof document !== 'undefined' &&
+                  document.hidden
+                ) {
+                  new Notification('Harpy AI', {
+                    body: effectivePlanMode ? 'Plan is ready for review.' : 'Task completed.',
+                  });
+                }
               } else if (event.type === 'error') {
                 currentRun.status = 'failed';
                 currentRun.error = event.message;
@@ -930,9 +1163,7 @@ export default function DashboardPage() {
                     ),
                   };
                 });
-                try {
-                  localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
-                } catch {}
+                persistSessions(next);
                 return next;
               });
             } catch (parseErr) {
@@ -959,9 +1190,7 @@ export default function DashboardPage() {
               ),
             };
           });
-          try {
-            localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
-          } catch {}
+          persistSessions(next);
           return next;
         });
       } finally {
@@ -1026,9 +1255,7 @@ export default function DashboardPage() {
             ? { ...s, messages: [...updatedMessages, harpyMsg] }
             : s
         );
-        try {
-          localStorage.setItem("harpy_chat_sessions", JSON.stringify(next.filter((s) => s.messages.length > 0)));
-        } catch {}
+        persistSessions(next);
         return next;
       });
     } catch (err: unknown) {
@@ -1297,12 +1524,7 @@ export default function DashboardPage() {
       const updated = prev.map((s) =>
         s.id === id ? { ...s, isPinned: !s.isPinned } : s
       );
-      try {
-        localStorage.setItem(
-          "harpy_chat_sessions",
-          JSON.stringify(updated.filter((s) => s.messages.length > 0))
-        );
-      } catch {}
+      persistSessions(updated);
       return updated;
     });
     setActiveMenuSessionId(null);
@@ -1324,12 +1546,7 @@ export default function DashboardPage() {
       const updated = prev.map((s) =>
         s.id === id ? { ...s, title: editingTitle.trim() } : s
       );
-      try {
-        localStorage.setItem(
-          "harpy_chat_sessions",
-          JSON.stringify(updated.filter((s) => s.messages.length > 0))
-        );
-      } catch {}
+      persistSessions(updated);
       return updated;
     });
     setEditingSessionId(null);
@@ -1367,9 +1584,7 @@ export default function DashboardPage() {
       if (currentSessionId === id) {
         setCurrentSessionId(remaining[0].id);
       }
-      try {
-        localStorage.setItem("harpy_chat_sessions", JSON.stringify(remaining.filter((s) => s.messages.length > 0)));
-      } catch {}
+      persistSessions(remaining);
     }
   };
 
@@ -1382,9 +1597,34 @@ export default function DashboardPage() {
     setSessions([]);
     setCurrentSessionId(freshId);
     setReviewingDiffFile(null);
-    setConfirmDeleteAllHistory(false);
-    setSettingsModalOpen(false);
     setShareToast("All chat history has been permanently deleted.");
+    setTimeout(() => setShareToast(null), 3000);
+  };
+
+  const handleResetAllData = () => {
+    try {
+      localStorage.removeItem("harpy_chat_sessions");
+      localStorage.removeItem("harpy_todo_tasks");
+      localStorage.removeItem("harpy_projects");
+      localStorage.removeItem("harpy_workspace_views");
+      localStorage.removeItem("harpy_workspace_display");
+      localStorage.removeItem("harpy_settings");
+      localStorage.removeItem("harpy_user_api_key");
+      localStorage.removeItem("harpy_user_model_id");
+      localStorage.removeItem("harpy_user_model_name");
+      localStorage.removeItem("harpy_theme");
+    } catch {}
+    setSessions([]);
+    setProjects([]);
+    setActiveProjectId(null);
+    setCurrentSessionId(`session-${Date.now()}`);
+    setReviewingDiffFile(null);
+    setHarpySettings(DEFAULT_HARPY_SETTINGS);
+    applyTypographyCssVars(DEFAULT_HARPY_SETTINGS);
+    handleSelectThemePreference("dark");
+    handleResetToDefaultKey();
+    setSettingsModalOpen(false);
+    setShareToast("All local workspace data and settings have been reset.");
     setTimeout(() => setShareToast(null), 3000);
   };
 
@@ -1395,12 +1635,12 @@ export default function DashboardPage() {
     customModels.length > 0 ? customModels : currentEngine ? currentEngine.models : [];
 
   const workspaceSummaries: WorkspaceSessionSummary[] = (sessions || [])
-    .filter((s) => s?.messages && s.messages.length > 0)
+    .filter((s) => Boolean(s) && (s.isWorkspace || (s.messages && s.messages.length > 0)))
     .map((s) => {
       const fMap = new Map<string, FileChangeRecord>();
       let hasApproval = false;
       let isWorking = s.id === currentSessionId && isExecuting;
-      for (const m of s.messages) {
+      for (const m of s.messages || []) {
         if (m.agentRun?.status === "waiting_approval") hasApproval = true;
         if (m.agentRun?.status === "running" && s.id === currentSessionId && isExecuting) isWorking = true;
         if (m.isAgent && m.agentRun?.filesChanged) {
@@ -1414,10 +1654,16 @@ export default function DashboardPage() {
         id: s.id,
         title: s.title,
         timestamp: s.timestamp,
-        messageCount: s.messages.length,
-        status: isWorking ? "working" : hasApproval ? "needs_approval" : "completed",
+        messageCount: (s.messages || []).length,
+        status: isWorking
+          ? "working"
+          : hasApproval
+            ? "needs_approval"
+            : (s.messages || []).length === 0
+              ? "idle"
+              : "completed",
         files: Array.from(fMap.values()),
-        branch: activeBranch,
+        branch: s.branch || activeBranch,
       };
     });
 
@@ -1437,8 +1683,17 @@ export default function DashboardPage() {
     return Array.from(fileMap.values());
   })();
 
+  const activeProject =
+    projects.find((p) => p.id === (currentSession?.projectId || activeProjectId)) || null;
+
+  const filteredProjects = (projects || [])
+    .filter((p) =>
+      sidebarSearch.trim() ? p.name.toLowerCase().includes(sidebarSearch.toLowerCase()) : true
+    )
+    .sort((a, b) => (projectSortAsc ? a.name.localeCompare(b.name) : 0));
+
   const filteredSidebarSessions = (sessions || [])
-    .filter((s) => s?.messages && s.messages.length > 0)
+    .filter((s) => Boolean(s) && (s.isWorkspace || (s.messages && s.messages.length > 0)))
     .filter((s) =>
       sidebarSearch.trim()
         ? s.title.toLowerCase().includes(sidebarSearch.toLowerCase())
@@ -1447,8 +1702,13 @@ export default function DashboardPage() {
     .sort((a, b) => {
       if (a.isPinned && !b.isPinned) return -1;
       if (!a.isPinned && b.isPinned) return 1;
+      if (projectSortAsc) return a.title.localeCompare(b.title);
       return 0;
     });
+
+  const standaloneSidebarSessions = filteredSidebarSessions.filter(
+    (s) => !s.projectId || !projects.some((p) => p.id === s.projectId)
+  );
 
   const renderComposer = (isCentered = false) => (
     <div className={`${isCentered ? "max-w-[660px]" : "max-w-4xl"} mx-auto w-full space-y-2.5`}>
@@ -1511,53 +1771,223 @@ export default function DashboardPage() {
 
       {/* Top Metadata Strip Above Pill (Screenshot 6) */}
       <div className="flex flex-wrap items-center justify-between gap-2 px-1 text-xs text-[#9E978F]">
-        <div className="flex items-center gap-3 flex-wrap">
-          <button
-            type="button"
-            onClick={() => navigateView("workspaces")}
-            className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
-            title="Switch workspace"
-          >
-            <span className="w-4 h-4 rounded-full bg-[#2A2622] text-[#D8D3CC] text-[10px] font-semibold inline-flex items-center justify-center">
-              H
-            </span>
-            <span className="font-medium text-[#D8D3CC]">Harpy</span>
-            <ChevronDown className="w-3 h-3 text-[#78726B]" />
-          </button>
+        <div className="flex items-center gap-3 flex-wrap relative">
+          {/* Workspace Switcher Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setActiveComposerMenu(activeComposerMenu === "workspace" ? null : "workspace")}
+              className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
+              title="Switch or create workspace"
+            >
+              <Image
+                src={cdn("/images/harpy-logo-light.png")}
+                alt="Harpy AI"
+                width={16}
+                height={16}
+                className="w-4 h-4 rounded-full object-contain shrink-0"
+              />
+              <span className="font-medium text-[#D8D3CC] max-w-[140px] truncate">
+                {sessions.some((s) => s.id === currentSessionId)
+                  ? currentSession.title
+                  : activeProject?.name || "Workspace"}
+              </span>
+              <ChevronDown className="w-3 h-3 text-[#78726B]" />
+            </button>
 
-          <button
-            type="button"
-            onClick={() => setWorktreeMode(worktreeMode === "Worktree" ? "Sandbox" : "Worktree")}
-            className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
-            title="Toggle execution isolation mode"
-          >
-            <GitFork className="w-3.5 h-3.5 text-[#78726B]" />
-            <span>{worktreeMode}</span>
-            <ChevronDown className="w-3 h-3 text-[#78726B]" />
-          </button>
+            {activeComposerMenu === "workspace" && (
+              <div className="absolute left-0 bottom-full mb-2 w-64 rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1.5 shadow-2xl z-50">
+                <div className="px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wider text-[#78726B]">
+                  Workspaces
+                </div>
+                <div className="max-h-48 overflow-y-auto space-y-0.5">
+                  {workspaceSummaries.length === 0 ? (
+                    <div className="px-2.5 py-2 text-xs text-[#78726B]">No active workspaces yet</div>
+                  ) : (
+                    workspaceSummaries.map((ws) => (
+                      <button
+                        key={ws.id}
+                        type="button"
+                        onClick={() => {
+                          setCurrentSessionId(ws.id);
+                          if (ws.branch) setActiveBranch(ws.branch);
+                          setActiveComposerMenu(null);
+                          navigateView("home");
+                        }}
+                        className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                          ws.id === currentSessionId
+                            ? "bg-[#282420] text-[#ECEAE6]"
+                            : "text-[#A8A199] hover:bg-[#221F1C] hover:text-[#ECEAE6]"
+                        }`}
+                      >
+                        <span className="truncate">{ws.title}</span>
+                        {ws.id === currentSessionId && <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />}
+                      </button>
+                    ))
+                  )}
+                </div>
+                <div className="mt-1 pt-1 border-t border-[#282420] space-y-0.5">
+                  <button
+                    type="button"
+                    onClick={() => handleCreateWorkspace({ openImmediately: true })}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#24211E] hover:text-white transition-colors"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>New Workspace</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveComposerMenu(null);
+                      navigateView("workspaces");
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#8E8880] hover:bg-[#24211E] hover:text-[#ECEAE6] transition-colors"
+                  >
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Manage all workspaces</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-          <button
-            type="button"
-            onClick={() => navigateView("git")}
-            className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors font-mono"
-            title="Open Version Control & GitHub"
-          >
-            <GitBranch className="w-3.5 h-3.5 text-[#78726B]" />
-            <span>{activeBranch}</span>
-            <ChevronDown className="w-3 h-3 text-[#78726B]" />
-          </button>
+          {/* Worktree Mode Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setActiveComposerMenu(activeComposerMenu === "worktree" ? null : "worktree")}
+              className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
+              title="Execution isolation mode"
+            >
+              <GitFork className="w-3.5 h-3.5 text-[#78726B]" />
+              <span>{worktreeMode}</span>
+              <ChevronDown className="w-3 h-3 text-[#78726B]" />
+            </button>
+
+            {activeComposerMenu === "worktree" && (
+              <div className="absolute left-0 bottom-full mb-2 w-44 rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1 shadow-2xl z-50">
+                {(["Worktree", "Sandbox"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setWorktreeMode(mode);
+                      setSessions((prev) => {
+                        const next = prev.map((s) =>
+                          s.id === currentSessionId ? { ...s, worktreeMode: mode } : s
+                        );
+                        persistSessions(next);
+                        return next;
+                      });
+                      setActiveComposerMenu(null);
+                    }}
+                    className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                      worktreeMode === mode
+                        ? "bg-[#282420] text-[#ECEAE6]"
+                        : "text-[#A8A199] hover:bg-[#221F1C] hover:text-[#ECEAE6]"
+                    }`}
+                  >
+                    <span>{mode}</span>
+                    {worktreeMode === mode && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Branch Dropdown */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setActiveComposerMenu(activeComposerMenu === "branch" ? null : "branch")}
+              className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors font-mono"
+              title="Switch branch"
+            >
+              <GitBranch className="w-3.5 h-3.5 text-[#78726B]" />
+              <span>{activeBranch}</span>
+              <ChevronDown className="w-3 h-3 text-[#78726B]" />
+            </button>
+
+            {activeComposerMenu === "branch" && (
+              <div className="absolute left-0 bottom-full mb-2 w-52 rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1 shadow-2xl z-50">
+                <div className="max-h-44 overflow-y-auto space-y-0.5">
+                  {gitBranches.map((br) => (
+                    <button
+                      key={br}
+                      type="button"
+                      onClick={() => {
+                        setActiveBranch(br);
+                        setSessions((prev) => {
+                          const next = prev.map((s) =>
+                            s.id === currentSessionId ? { ...s, branch: br } : s
+                          );
+                          persistSessions(next);
+                          return next;
+                        });
+                        setActiveComposerMenu(null);
+                      }}
+                      className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs font-mono transition-colors ${
+                        activeBranch === br
+                          ? "bg-[#282420] text-[#ECEAE6]"
+                          : "text-[#A8A199] hover:bg-[#221F1C] hover:text-[#ECEAE6]"
+                      }`}
+                    >
+                      <span className="truncate">{br}</span>
+                      {activeBranch === br && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                    </button>
+                  ))}
+                </div>
+                <div className="mt-1 pt-1 border-t border-[#282420]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setActiveComposerMenu(null);
+                      navigateView("git");
+                    }}
+                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#8E8880] hover:bg-[#24211E] hover:text-[#ECEAE6]"
+                  >
+                    <GitPullRequest className="w-3.5 h-3.5" />
+                    <span>Open Version Control</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 relative">
           <button
             type="button"
-            onClick={() => setDeviceTarget(deviceTarget === "This device" ? "Cloud" : "This device")}
+            onClick={() => setActiveComposerMenu(activeComposerMenu === "device" ? null : "device")}
             className="inline-flex items-center gap-1.5 hover:text-[#ECEAE6] transition-colors"
           >
             <Monitor className="w-3.5 h-3.5 text-[#78726B]" />
             <span>{deviceTarget}</span>
             <ChevronDown className="w-3 h-3 text-[#78726B]" />
           </button>
+
+          {activeComposerMenu === "device" && (
+            <div className="absolute right-0 bottom-full mb-2 w-40 rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1 shadow-2xl z-50">
+              {(["This device", "Cloud"] as const).map((target) => (
+                <button
+                  key={target}
+                  type="button"
+                  onClick={() => {
+                    setDeviceTarget(target);
+                    setActiveComposerMenu(null);
+                  }}
+                  className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-xs transition-colors ${
+                    deviceTarget === target
+                      ? "bg-[#282420] text-[#ECEAE6]"
+                      : "text-[#A8A199] hover:bg-[#221F1C] hover:text-[#ECEAE6]"
+                  }`}
+                >
+                  <span>{target}</span>
+                  {deviceTarget === target && <Check className="w-3.5 h-3.5 text-emerald-400" />}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1607,22 +2037,24 @@ export default function DashboardPage() {
           style={{ overflowY: "hidden", resize: "none", scrollbarWidth: "none", msOverflowStyle: "none" }}
         />
 
-        {/* Voice Microphone */}
-        <button
-          type="button"
-          onClick={toggleRecording}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-            isRecording
-              ? "bg-red-500/20 text-red-400 animate-pulse"
-              : isLight
-                ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
-                : "text-[#9E978F] hover:bg-[#2A2622] hover:text-[#ECEAE6]"
-          }`}
-          title={isRecording ? "Stop recording" : "Voice Input"}
-          aria-label={isRecording ? "Stop voice recording" : "Start voice recording"}
-        >
-          {isRecording ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
-        </button>
+        {/* Voice Microphone (controlled by Settings -> General -> Dictation) */}
+        {harpySettings.dictationEnabled && (
+          <button
+            type="button"
+            onClick={toggleRecording}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+              isRecording
+                ? "bg-red-500/20 text-red-400 animate-pulse"
+                : isLight
+                  ? "text-slate-500 hover:bg-slate-100 hover:text-slate-900"
+                  : "text-[#9E978F] hover:bg-[#2A2622] hover:text-[#ECEAE6]"
+            }`}
+            title={isRecording ? "Stop recording" : "Voice Input"}
+            aria-label={isRecording ? "Stop voice recording" : "Start voice recording"}
+          >
+            {isRecording ? <MicOff className="w-4 h-4 text-red-400" /> : <Mic className="w-4 h-4" />}
+          </button>
+        )}
 
         {/* Stop or Send */}
         {isExecuting ? (
@@ -1656,29 +2088,31 @@ export default function DashboardPage() {
           </button>
         )}
 
-        {/* Voice AI Assistant Trigger */}
-        <button
-          type="button"
-          onClick={() => {
-            if (!isVoiceAssistantOpen) {
-              setIsVoiceAssistantOpen(true);
-              setIsVoiceAssistantDocked(false);
-            } else {
-              setIsVoiceAssistantDocked(!isVoiceAssistantDocked);
-            }
-          }}
-          className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
-            isVoiceAssistantActive
-              ? "bg-[#E06D44] text-white animate-pulse"
-              : isLight
-                ? "text-slate-500 hover:bg-slate-100"
-                : "text-[#8E8880] hover:bg-[#2A2622] hover:text-[#ECEAE6]"
-          }`}
-          title="Live Voice Assistant"
-          aria-label="Toggle Voice Assistant"
-        >
-          <Radio className="w-3.5 h-3.5" />
-        </button>
+        {/* Voice AI Assistant Trigger (controlled by Settings -> General -> Voice AI Assistant) */}
+        {harpySettings.voiceAiEnabled && (
+          <button
+            type="button"
+            onClick={() => {
+              if (!isVoiceAssistantOpen) {
+                setIsVoiceAssistantOpen(true);
+                setIsVoiceAssistantDocked(false);
+              } else {
+                setIsVoiceAssistantDocked(!isVoiceAssistantDocked);
+              }
+            }}
+            className={`w-8 h-8 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+              isVoiceAssistantActive
+                ? "bg-[#E06D44] text-white animate-pulse"
+                : isLight
+                  ? "text-slate-500 hover:bg-slate-100"
+                  : "text-[#8E8880] hover:bg-[#2A2622] hover:text-[#ECEAE6]"
+            }`}
+            title="Live Voice Assistant"
+            aria-label="Toggle Voice Assistant"
+          >
+            <Radio className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
 
       {/* Bottom Mode & Model Selector Row Below Pill (Screenshot 6) */}
@@ -1806,7 +2240,7 @@ export default function DashboardPage() {
                   type="button"
                   onClick={() => {
                     setIsModelMenuOpen(false);
-                    setSettingsTab("models");
+                    setSettingsInitialSection("models");
                     setSettingsModalOpen(true);
                   }}
                   className="w-full text-left px-3 py-1.5 rounded-lg text-[11px] text-[#9E978F] hover:text-[#ECEAE6] hover:bg-[#221F1C] flex items-center gap-1.5"
@@ -1861,11 +2295,26 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-1.5">
+          {harpySettings.showStatusBadge && (
+            <div className="hidden sm:inline-flex items-center gap-2 px-2 py-0.5 rounded-md bg-[#1D1B18] border border-[#2C2824] text-[10px] font-mono text-[#9E978F] mr-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${isExecuting ? "bg-amber-400 animate-pulse" : "bg-emerald-400"}`} />
+              <span className="truncate max-w-[120px]">{selectedModelName}</span>
+              <span className="text-[#4E4842]">·</span>
+              <span className="text-[#8E8880]">{activeBranch}</span>
+            </div>
+          )}
           <button
             type="button"
-            onClick={() => setSettingsModalOpen(true)}
-            className="p-1 rounded-md text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#24211E] transition-colors"
-            title="Settings"
+            onClick={() => {
+              setSettingsInitialSection("general");
+              setSettingsModalOpen((prev) => !prev);
+            }}
+            className={`p-1 rounded-md transition-colors ${
+              settingsModalOpen
+                ? "bg-[#282420] text-[#ECEAE6]"
+                : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#24211E]"
+            }`}
+            title="Settings (⌘,)"
           >
             <SlidersHorizontal className="w-4 h-4" />
           </button>
@@ -1885,6 +2334,58 @@ export default function DashboardPage() {
       </header>
 
       <div className="flex-1 flex min-h-0 overflow-hidden relative">
+        {settingsModalOpen ? (
+          <SettingsView
+            initialSection={settingsInitialSection}
+            settings={harpySettings}
+            onUpdateSettings={updateHarpySettings}
+            onBack={() => setSettingsModalOpen(false)}
+            theme={theme}
+            onSelectThemePreference={handleSelectThemePreference}
+            apiKey={apiKey}
+            tempKeyInput={tempKeyInput}
+            onChangeTempKeyInput={(val) => {
+              setTempKeyInput(val);
+              setKeyError(null);
+            }}
+            onSaveKey={handleSaveKey}
+            onResetToDefaultKey={handleResetToDefaultKey}
+            isValidatingKey={isValidatingKey}
+            keyError={keyError}
+            isCustomKey={isCustomKey}
+            providerName={currentEngine?.providerName || "Groq Cloud"}
+            providerColor={currentEngine?.color || "#10A37F"}
+            selectedModelId={selectedModelId}
+            selectedModelName={selectedModelName}
+            modelsList={activeModelsList}
+            onSelectModel={handleSelectModel}
+            agentExecutionMode={agentExecutionMode}
+            onChangeAgentExecutionMode={(mode) => {
+              setAgentMode(true);
+              setAgentExecutionMode(mode);
+            }}
+            worktreeMode={worktreeMode}
+            onChangeWorktreeMode={setWorktreeMode}
+            activeBranch={activeBranch}
+            branches={gitBranches}
+            onChangeBranch={setActiveBranch}
+            deviceTarget={deviceTarget}
+            onChangeDeviceTarget={setDeviceTarget}
+            authUser={authUser}
+            displayNameInput={newDisplayName}
+            onChangeDisplayNameInput={setNewDisplayName}
+            onSaveProfile={handleUpdateProfile}
+            isSavingProfile={isSavingProfile}
+            onSignOut={handleSignOut}
+            sessionsCount={sessions.length}
+            projectsCount={projects.length}
+            totalMessagesCount={sessions.reduce((acc, s) => acc + (s.messages?.length || 0), 0)}
+            totalFilesChangedCount={workspaceSummaries.reduce((acc, w) => acc + w.files.length, 0)}
+            onClearAllChatHistory={handleClearAllChatHistory}
+            onResetAllData={handleResetAllData}
+          />
+        ) : (
+        <>
         {/* Mobile Backdrop for Sidebar */}
         {sidebarOpen && (
           <div
@@ -1952,9 +2453,12 @@ export default function DashboardPage() {
           <div className="flex flex-col items-center gap-2">
             <button
               type="button"
-              onClick={() => setSettingsModalOpen(true)}
+              onClick={() => {
+                setSettingsInitialSection("account");
+                setSettingsModalOpen(true);
+              }}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-[#78726B] hover:text-[#ECEAE6] hover:bg-[#221F1C] transition-colors"
-              title="Settings & API Keys"
+              title="Settings & API Keys (⌘,)"
             >
               <Settings className="w-4 h-4" />
             </button>
@@ -2049,6 +2553,7 @@ export default function DashboardPage() {
             <div className="relative">
               <Search className="w-3.5 h-3.5 text-[#78726B] absolute left-2.5 top-1/2 -translate-y-1/2" />
               <input
+                ref={sidebarSearchRef}
                 type="text"
                 value={sidebarSearch}
                 onChange={(e) => setSidebarSearch(e.target.value)}
@@ -2060,215 +2565,297 @@ export default function DashboardPage() {
 
           {/* SESSIONS + PROJECTS List */}
           <div className="flex-1 overflow-y-auto px-2.5 py-1 space-y-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {/* SESSIONS Row */}
-            <div>
-              <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold tracking-wider uppercase text-[#78726B]">
-                <span>Sessions</span>
-                <button
-                  type="button"
-                  onClick={() => {
-                    handleNewChat();
-                    navigateView("home");
-                  }}
-                  className="hover:text-[#ECEAE6] p-0.5 rounded"
-                  title="New Session"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                </button>
-              </div>
-            </div>
+            {(() => {
+              const renderSessionRow = (s: ChatSession) => {
+                const isActive = s.id === currentSessionId && activeView === "home";
+                const isMenuOpen = activeMenuSessionId === s.id;
+                const isEditing = editingSessionId === s.id;
 
-            {/* PROJECTS Tree */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold tracking-wider uppercase text-[#78726B]">
-                <span>Projects</span>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => navigateView("workspaces")}
-                    className="hover:text-[#ECEAE6]"
-                    title="Browse Workspaces"
-                  >
-                    <Search className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProjectsExpanded(!projectsExpanded)}
-                    className="hover:text-[#ECEAE6]"
-                    title="Toggle Project List"
-                  >
-                    <ArrowUpDown className="w-3 h-3" />
-                  </button>
-                  <button
-                    type="button"
+                return (
+                  <div
+                    key={s.id}
                     onClick={() => {
-                      handleNewChat();
-                      navigateView("home");
+                      if (!isEditing) {
+                        setCurrentSessionId(s.id);
+                        if (s.projectId) setActiveProjectId(s.projectId);
+                        navigateView("home");
+                        if (typeof window !== "undefined" && window.innerWidth < 1024) {
+                          setSidebarOpen(false);
+                        }
+                      }
                     }}
-                    className="hover:text-[#ECEAE6]"
-                    title="New Project Workspace"
+                    tabIndex={0}
+                    className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
+                      isActive
+                        ? "bg-[#262320] text-[#ECEAE6]"
+                        : "text-[#9E978F] hover:bg-[#1F1C19] hover:text-[#ECEAE6]"
+                    }`}
                   >
-                    <FolderPlus className="w-3 h-3" />
-                  </button>
-                </div>
-              </div>
+                    <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
+                      {s.isPinned ? (
+                        <Pin className="w-3 h-3 shrink-0 text-[#E06D44]" />
+                      ) : (
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                            isActive ? "bg-[#ECEAE6]" : "bg-[#666059]"
+                          }`}
+                        />
+                      )}
 
-              {/* Project Header Row */}
-              <button
-                type="button"
-                onClick={() => setProjectsExpanded(!projectsExpanded)}
-                className="w-full flex items-center gap-2 px-1.5 py-1.5 rounded-lg text-xs font-medium text-[#D8D3CC] hover:bg-[#221F1C] transition-colors text-left"
-              >
-                <span className="w-4 h-4 rounded bg-[#2A2622] text-[#ECEAE6] text-[10px] font-semibold inline-flex items-center justify-center shrink-0">
-                  H
-                </span>
-                <span className="truncate flex-1">Harpy</span>
-              </button>
-
-              {projectsExpanded && (
-                <div className="space-y-0.5 pl-2">
-                  {filteredSidebarSessions.length === 0 ? (
-                    <div className="px-3 py-4 text-xs text-[#6A645D]">No active sessions</div>
-                  ) : (
-                    filteredSidebarSessions.map((s) => {
-                      const isActive = s.id === currentSessionId && activeView === "home";
-                      const isMenuOpen = activeMenuSessionId === s.id;
-                      const isEditing = editingSessionId === s.id;
-
-                      return (
+                      {isEditing ? (
                         <div
-                          key={s.id}
+                          className="flex items-center gap-1 flex-1 min-w-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="text"
+                            autoFocus
+                            value={editingTitle}
+                            onChange={(e) => setEditingTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveRenameSession(s.id);
+                              if (e.key === "Escape") setEditingSessionId(null);
+                            }}
+                            className="bg-[#13110F] border border-[#3C3732] rounded px-1.5 py-0.5 text-xs text-[#ECEAE6] w-full focus:outline-none"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => saveRenameSession(s.id)}
+                            className="p-0.5 text-emerald-400"
+                          >
+                            <Check className="w-3 h-3" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditingSessionId(null)}
+                            className="p-0.5 text-[#8E8880]"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-xs truncate">{s.title}</span>
+                      )}
+                    </div>
+
+                    {!isEditing && (
+                      <div className="flex items-center gap-0.5 shrink-0 relative">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setActiveMenuSessionId(isMenuOpen ? null : s.id);
+                          }}
+                          className={`p-1 rounded transition-colors ${
+                            isMenuOpen
+                              ? "opacity-100 text-[#ECEAE6] bg-[#302B26]"
+                              : "opacity-0 group-hover:opacity-100 text-[#8E8880] hover:text-[#ECEAE6]"
+                          }`}
+                          title="More options"
+                        >
+                          <MoreHorizontal className="w-3.5 h-3.5" />
+                        </button>
+
+                        {isMenuOpen && (
+                          <div
+                            ref={menuRef}
+                            onClick={(e) => e.stopPropagation()}
+                            className="absolute right-0 top-6 z-50 min-w-[165px] rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1 shadow-2xl space-y-0.5"
+                          >
+                            <button
+                              type="button"
+                              onClick={(e) => togglePinSession(s.id, e)}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
+                            >
+                              {s.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
+                              <span>{s.isPinned ? "Unpin" : "Pin"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => startRenameSession(s, e)}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
+                            >
+                              <Pencil className="w-3.5 h-3.5" />
+                              <span>Rename</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={(e) => shareSession(s, e)}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                              <span>Share</span>
+                            </button>
+                            <div className="my-1 border-t border-[#2A2622]" />
+                            <button
+                              type="button"
+                              onClick={(e) => deleteSession(s.id, e)}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Delete</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  {standaloneSidebarSessions.length > 0 && (
+                    <div className="space-y-0.5">{standaloneSidebarSessions.map(renderSessionRow)}</div>
+                  )}
+
+                  {/* PROJECTS Tree */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between px-1.5 py-1 text-[10px] font-semibold tracking-wider uppercase text-[#78726B]">
+                      <span>Projects</span>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => sidebarSearchRef.current?.focus()}
+                          className="hover:text-[#ECEAE6]"
+                          title="Search Projects"
+                        >
+                          <Search className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setProjectSortAsc((prev) => !prev)}
+                          className={`hover:text-[#ECEAE6] ${projectSortAsc ? "text-[#ECEAE6]" : ""}`}
+                          title={projectSortAsc ? "Sorted A-Z (click for recent)" : "Sort A-Z"}
+                        >
+                          <ArrowUpDown className="w-3 h-3" />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => {
-                            if (!isEditing) {
-                              setCurrentSessionId(s.id);
-                              navigateView("home");
-                              if (typeof window !== "undefined" && window.innerWidth < 1024) {
-                                setSidebarOpen(false);
-                              }
+                            setProjectsExpanded(true);
+                            setShowNewProjectInput((prev) => !prev);
+                          }}
+                          className={`hover:text-[#ECEAE6] ${showNewProjectInput ? "text-[#ECEAE6]" : ""}`}
+                          title="Create New Project"
+                        >
+                          <FolderPlus className="w-3 h-3" />
+                        </button>
+                      </div>
+                    </div>
+
+                    {showNewProjectInput && (
+                      <form
+                        onSubmit={(e) => {
+                          e.preventDefault();
+                          handleCreateProject();
+                        }}
+                        className="px-1.5 py-1 flex items-center gap-1"
+                      >
+                        <input
+                          type="text"
+                          autoFocus
+                          value={newProjectName}
+                          onChange={(e) => setNewProjectName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Escape") {
+                              setShowNewProjectInput(false);
+                              setNewProjectName("");
                             }
                           }}
-                          tabIndex={0}
-                          className={`group relative flex items-center justify-between px-2.5 py-1.5 rounded-lg cursor-pointer transition-colors ${
-                            isActive
-                              ? "bg-[#262320] text-[#ECEAE6]"
-                              : "text-[#9E978F] hover:bg-[#1F1C19] hover:text-[#ECEAE6]"
-                          }`}
+                          placeholder="Project name..."
+                          className="flex-1 min-w-0 px-2 py-1 rounded-md bg-[#13110F] border border-[#35302B] text-xs text-[#ECEAE6] placeholder-[#6A645D] focus:outline-none focus:border-[#575049]"
+                        />
+                        <button
+                          type="submit"
+                          disabled={!newProjectName.trim()}
+                          className="px-2 py-1 rounded-md bg-[#ECEAE6] text-[#141210] text-[11px] font-medium hover:bg-white disabled:opacity-40"
                         >
-                          <div className="flex items-center gap-2 min-w-0 pr-1 flex-1">
-                            {s.isPinned ? (
-                              <Pin className="w-3 h-3 shrink-0 text-[#E06D44]" />
-                            ) : (
-                              <span
-                                className={`w-1.5 h-1.5 rounded-full shrink-0 ${
-                                  isActive ? "bg-[#ECEAE6]" : "bg-[#666059]"
-                                }`}
-                              />
-                            )}
+                          Add
+                        </button>
+                      </form>
+                    )}
 
-                            {isEditing ? (
-                              <div
-                                className="flex items-center gap-1 flex-1 min-w-0"
-                                onClick={(e) => e.stopPropagation()}
-                              >
-                                <input
-                                  type="text"
-                                  autoFocus
-                                  value={editingTitle}
-                                  onChange={(e) => setEditingTitle(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") saveRenameSession(s.id);
-                                    if (e.key === "Escape") setEditingSessionId(null);
-                                  }}
-                                  className="bg-[#13110F] border border-[#3C3732] rounded px-1.5 py-0.5 text-xs text-[#ECEAE6] w-full focus:outline-none"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={() => saveRenameSession(s.id)}
-                                  className="p-0.5 text-emerald-400"
-                                >
-                                  <Check className="w-3 h-3" />
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setEditingSessionId(null)}
-                                  className="p-0.5 text-[#8E8880]"
-                                >
-                                  <X className="w-3 h-3" />
-                                </button>
-                              </div>
-                            ) : (
-                              <span className="text-xs truncate">{s.title}</span>
-                            )}
-                          </div>
+                    {filteredProjects.length === 0 ? (
+                      !showNewProjectInput && (
+                        <button
+                          type="button"
+                          onClick={() => setShowNewProjectInput(true)}
+                          className="w-full flex items-center gap-2 px-2 py-2 rounded-lg text-xs text-[#6A645D] hover:text-[#A8A199] hover:bg-[#1E1B18] transition-colors text-left"
+                        >
+                          <FolderPlus className="w-3.5 h-3.5 shrink-0" />
+                          <span>Create a project</span>
+                        </button>
+                      )
+                    ) : (
+                      projectsExpanded && (
+                        <div className="space-y-1">
+                          {filteredProjects.map((proj) => {
+                            const isProjActive = activeProjectId === proj.id;
+                            const isExpanded = expandedProjectIds[proj.id] !== false;
+                            const projSessions = filteredSidebarSessions.filter((s) => s.projectId === proj.id);
 
-                          {!isEditing && (
-                            <div className="flex items-center gap-0.5 shrink-0 relative">
-                              <button
-                                type="button"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveMenuSessionId(isMenuOpen ? null : s.id);
-                                }}
-                                className={`p-1 rounded transition-colors ${
-                                  isMenuOpen
-                                    ? "opacity-100 text-[#ECEAE6] bg-[#302B26]"
-                                    : "opacity-0 group-hover:opacity-100 text-[#8E8880] hover:text-[#ECEAE6]"
-                                }`}
-                                title="More options"
-                              >
-                                <MoreHorizontal className="w-3.5 h-3.5" />
-                              </button>
-
-                              {isMenuOpen && (
+                            return (
+                              <div key={proj.id} className="space-y-0.5">
                                 <div
-                                  ref={menuRef}
-                                  onClick={(e) => e.stopPropagation()}
-                                  className="absolute right-0 top-6 z-50 min-w-[165px] rounded-xl bg-[#1B1917] border border-[#2E2A25] p-1 shadow-2xl space-y-0.5"
+                                  onClick={() => {
+                                    setActiveProjectId(proj.id);
+                                    setExpandedProjectIds((prev) => ({
+                                      ...prev,
+                                      [proj.id]: !isExpanded,
+                                    }));
+                                  }}
+                                  className={`group flex items-center justify-between px-1.5 py-1.5 rounded-lg text-xs cursor-pointer transition-colors ${
+                                    isProjActive
+                                      ? "bg-[#221F1C] text-[#ECEAE6]"
+                                      : "text-[#D8D3CC] hover:bg-[#1E1B18]"
+                                  }`}
                                 >
-                                  <button
-                                    type="button"
-                                    onClick={(e) => togglePinSession(s.id, e)}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
-                                  >
-                                    {s.isPinned ? <PinOff className="w-3.5 h-3.5" /> : <Pin className="w-3.5 h-3.5" />}
-                                    <span>{s.isPinned ? "Unpin" : "Pin"}</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => startRenameSession(s, e)}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
-                                  >
-                                    <Pencil className="w-3.5 h-3.5" />
-                                    <span>Rename</span>
-                                  </button>
-                                  <button
-                                    type="button"
-                                    onClick={(e) => shareSession(s, e)}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-[#D8D3CC] hover:bg-[#262320]"
-                                  >
-                                    <Share2 className="w-3.5 h-3.5" />
-                                    <span>Share</span>
-                                  </button>
-                                  <div className="my-1 border-t border-[#2A2622]" />
-                                  <button
-                                    type="button"
-                                    onClick={(e) => deleteSession(s.id, e)}
-                                    className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-xs text-rose-400 hover:bg-rose-500/10"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                    <span>Delete</span>
-                                  </button>
+                                  <div className="flex items-center gap-2 min-w-0 flex-1">
+                                    <Folder className="w-3.5 h-3.5 text-[#8E8880] shrink-0" />
+                                    <span className="truncate font-medium">{proj.name}</span>
+                                  </div>
+                                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCreateWorkspace({
+                                          projectId: proj.id,
+                                          openImmediately: true,
+                                        });
+                                      }}
+                                      className="p-1 rounded hover:bg-[#2E2A25] text-[#A8A199] hover:text-[#ECEAE6]"
+                                      title={`New workspace in ${proj.name}`}
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => handleDeleteProject(proj.id, e)}
+                                      className="p-1 rounded hover:bg-rose-500/10 text-rose-400/70 hover:text-rose-400"
+                                      title="Delete project"
+                                    >
+                                      <Trash2 className="w-3 h-3" />
+                                    </button>
+                                  </div>
                                 </div>
-                              )}
-                            </div>
-                          )}
+
+                                {isExpanded && projSessions.length > 0 && (
+                                  <div className="space-y-0.5 pl-3">
+                                    {projSessions.map(renderSessionRow)}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
-                      );
-                    })
-                  )}
-                </div>
-              )}
-            </div>
+                      )
+                    )}
+                  </div>
+                </>
+              );
+            })()}
           </div>
         </aside>
 
@@ -2278,16 +2865,18 @@ export default function DashboardPage() {
             <WorkspacesView
               workspaces={workspaceSummaries}
               activeWorkspaceId={currentSessionId}
-              projectName="Harpy"
+              projectName={activeProject?.name || "Workspace"}
+              branches={gitBranches}
+              activeBranch={activeBranch}
               isLight={isLight}
               onSelectWorkspace={(id) => {
                 setCurrentSessionId(id);
+                const selected = sessions.find((s) => s.id === id);
+                if (selected?.branch) setActiveBranch(selected.branch);
+                if (selected?.worktreeMode) setWorktreeMode(selected.worktreeMode);
                 navigateView("home");
               }}
-              onCreateWorkspace={() => {
-                handleNewChat();
-                navigateView("home");
-              }}
+              onCreateWorkspace={(opts) => handleCreateWorkspace(opts)}
               onDeleteWorkspace={(id) => deleteSession(id)}
             />
           ) : activeView === "plugins" ? (
@@ -2339,6 +2928,17 @@ export default function DashboardPage() {
                       <div className="max-w-4xl mx-auto w-full space-y-5 pb-4">
                         {currentSession.messages.map((msg) => {
                           const isUser = msg.sender === "user";
+                          const isStaleEmptyAgent =
+                            !isUser &&
+                            msg.isAgent &&
+                            msg.agentRun &&
+                            msg.agentRun.status !== "running" &&
+                            !msg.text?.trim() &&
+                            !msg.agentRun.finalMessage?.trim() &&
+                            (msg.agentRun.plan?.length || 0) === 0 &&
+                            (msg.agentRun.events?.length || 0) === 0 &&
+                            (msg.agentRun.filesChanged?.length || 0) === 0;
+                          if (isStaleEmptyAgent) return null;
                           return (
                             <motion.div
                               key={msg.id}
@@ -2348,8 +2948,14 @@ export default function DashboardPage() {
                               className={`flex gap-3 ${isUser ? "justify-end" : "justify-start w-full"}`}
                             >
                               {!isUser && (
-                                <div className="w-7 h-7 rounded-full border border-[#2E2A25] flex items-center justify-center bg-[#1B1917] flex-shrink-0 mt-1 text-xs font-semibold text-[#ECEAE6]">
-                                  H
+                                <div className="w-7 h-7 rounded-full border border-[#2E2A25] flex items-center justify-center bg-[#1B1917] flex-shrink-0 mt-1 overflow-hidden p-1">
+                                  <Image
+                                    src={cdn("/images/harpy-logo-light.png")}
+                                    alt="Harpy AI"
+                                    width={18}
+                                    height={18}
+                                    className="w-full h-full object-contain"
+                                  />
                                 </div>
                               )}
 
@@ -2376,7 +2982,11 @@ export default function DashboardPage() {
                                   </div>
                                 )}
 
-                                <div className={`text-sm ${isLight ? "text-slate-800" : "text-[#ECEAE6]"} leading-relaxed font-normal`}>
+                                <div
+                                  className={`text-sm ${isLight ? "text-slate-800" : "text-[#ECEAE6]"} leading-relaxed font-normal ${
+                                    harpySettings.markdownStyle === "editorial" ? "font-serif" : ""
+                                  }`}
+                                >
                                   {msg.isAgent && msg.agentRun ? (
                                     <AgentTimeline
                                       runData={msg.agentRun}
@@ -2437,44 +3047,60 @@ export default function DashboardPage() {
                                   )}
                                 </div>
 
-                                <div className="flex items-center justify-between pt-1 text-[10px] text-[#78726B] font-mono">
-                                  <span>{msg.timestamp}</span>
-                                  <button
-                                    type="button"
-                                    onClick={() => copyToClipboard(msg.text, msg.id)}
-                                    className="hover:text-[#ECEAE6] transition-colors flex items-center gap-1"
-                                  >
-                                    {copiedId === msg.id ? (
-                                      <>
-                                        <Check className="w-3 h-3 text-emerald-400" />
-                                        <span className="text-emerald-400">Copied</span>
-                                      </>
-                                    ) : (
-                                      <>
-                                        <Copy className="w-3 h-3" />
-                                        <span>Copy</span>
-                                      </>
-                                    )}
-                                  </button>
-                                </div>
+                                {!(msg.isAgent && msg.agentRun?.status === "running" && !msg.text?.trim() && !msg.agentRun?.finalMessage?.trim()) && (
+                                  <div className="flex items-center justify-between pt-1 text-[10px] text-[#78726B] font-mono">
+                                    <span>{msg.timestamp}</span>
+                                    <button
+                                      type="button"
+                                      onClick={() => copyToClipboard(msg.text || msg.agentRun?.finalMessage || "", msg.id)}
+                                      className="hover:text-[#ECEAE6] transition-colors flex items-center gap-1"
+                                    >
+                                      {copiedId === msg.id ? (
+                                        <>
+                                          <Check className="w-3 h-3 text-emerald-400" />
+                                          <span className="text-emerald-400">Copied</span>
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Copy className="w-3 h-3" />
+                                          <span>Copy</span>
+                                        </>
+                                      )}
+                                    </button>
+                                  </div>
+                                )}
                               </div>
                             </motion.div>
                           );
                         })}
 
-                        {isExecuting && (
-                          <div className="flex gap-3 items-start">
-                            <div className="w-7 h-7 rounded-full border border-[#2E2A25] flex items-center justify-center bg-[#1B1917] flex-shrink-0 mt-1">
-                              <Sparkles className="w-3.5 h-3.5 text-[#E06D44] animate-pulse" />
-                            </div>
-                            <div className="bg-[#181614] border border-[#282420] rounded-2xl rounded-tl-sm px-4 py-3 space-y-1">
-                              <div className="flex items-center gap-2 text-xs font-medium text-[#ECEAE6]">
-                                <span className="w-2 h-2 rounded-full bg-[#E06D44] animate-ping" />
-                                <span>{selectedModelName} running...</span>
+                        {(() => {
+                          if (!isExecuting) return null;
+                          const lastMsg = currentSession.messages[currentSession.messages.length - 1];
+                          const hasRunningAgentCard = Boolean(
+                            lastMsg && lastMsg.isAgent && lastMsg.agentRun && lastMsg.agentRun.status === "running"
+                          );
+                          if (hasRunningAgentCard) return null;
+                          return (
+                            <div className="flex gap-3 items-start">
+                              <div className="w-7 h-7 rounded-full border border-[#2E2A25] flex items-center justify-center bg-[#1B1917] flex-shrink-0 mt-1 overflow-hidden p-1">
+                                <Image
+                                  src={cdn("/images/harpy-logo-light.png")}
+                                  alt="Harpy AI"
+                                  width={18}
+                                  height={18}
+                                  className="w-full h-full object-contain"
+                                />
+                              </div>
+                              <div className="bg-[#181614] border border-[#282420] rounded-2xl rounded-tl-sm px-4 py-3">
+                                <div className="flex items-center gap-2 text-xs font-medium text-[#A8A199]">
+                                  <Brain className="w-3.5 h-3.5 text-[#E06D44] animate-pulse" />
+                                  <span className="animate-pulse">Thinking...</span>
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         <div ref={chatBottomRef} />
                       </div>
@@ -2490,497 +3116,9 @@ export default function DashboardPage() {
             </div>
           )}
         </main>
-      </div>
-
-      {/* ──────────────────────────────────────────────────────────
-          SETTINGS MODAL: API & MODELS + SYSTEM CONFIG
-         ────────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {settingsModalOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.96 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.96 }}
-              className="w-full max-w-xl bg-[#181614] border border-[#2C2824] rounded-2xl p-6 sm:p-7 space-y-5 shadow-2xl relative max-h-[90vh] flex flex-col font-sans"
-            >
-              {/* Modal Header */}
-              <div className="flex items-center justify-between border-b border-[#25221E] pb-3.5 flex-shrink-0">
-                <div className="space-y-0.5">
-                  <div className="inline-flex items-center gap-2 text-xs font-medium text-[#8E8880]">
-                    <Settings className="w-3.5 h-3.5" />
-                    <span>Configuration &amp; System</span>
-                  </div>
-                  <h3 className="font-sans font-semibold text-xl text-[#ECEAE6]">Settings</h3>
-                </div>
-                <div className="flex items-center gap-2">
-                  {/* Quick Theme Toggle Button */}
-                  <button
-                    type="button"
-                    onClick={() => handleSelectTheme(theme === "dark" ? "light" : "dark")}
-                    className="px-2.5 py-1.5 text-[#ECEAE6] hover:text-white transition-all rounded-lg bg-[#221F1C] hover:bg-[#2A2622] border border-[#302B26] flex items-center gap-1.5 text-xs font-medium shadow-sm"
-                    title={`Switch to ${theme === "dark" ? "Light" : "Dark"} Theme`}
-                  >
-                    {theme === "dark" ? (
-                      <>
-                        <Sun className="w-3.5 h-3.5 text-amber-400" />
-                        <span className="text-[11px] font-medium">Light</span>
-                      </>
-                    ) : (
-                      <>
-                        <Moon className="w-3.5 h-3.5 text-indigo-400" />
-                        <span className="text-[11px] font-medium">Dark</span>
-                      </>
-                    )}
-                  </button>
-                  <button
-                    onClick={() => setSettingsModalOpen(false)}
-                    className="p-1.5 text-[#8E8880] hover:text-[#ECEAE6] transition-colors rounded-lg hover:bg-[#221F1C]"
-                    title="Close Settings"
-                  >
-                    <X className="w-5 h-5" />
-                  </button>
-                </div>
-              </div>
-
-              {/* Tab Selector */}
-              <div className="flex items-center gap-2 border-b border-[#25221E] pb-2 flex-shrink-0 overflow-x-auto no-scrollbar">
-                <button
-                  type="button"
-                  onClick={() => setSettingsTab("models")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all flex-shrink-0 ${
-                    settingsTab === "models"
-                      ? "bg-[#ECEAE6] text-[#141210] shadow-sm"
-                      : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
-                  }`}
-                >
-                  <Sparkles className="w-3.5 h-3.5" />
-                  <span>API &amp; Models</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSettingsTab("appearance")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all flex-shrink-0 ${
-                    settingsTab === "appearance"
-                      ? "bg-[#ECEAE6] text-[#141210] shadow-sm"
-                      : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
-                  }`}
-                >
-                  <Palette className="w-3.5 h-3.5" />
-                  <span>Appearance &amp; Theme</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setSettingsTab("system")}
-                  className={`px-3.5 py-1.5 rounded-lg text-xs font-medium flex items-center gap-2 transition-all flex-shrink-0 ${
-                    settingsTab === "system"
-                      ? "bg-[#ECEAE6] text-[#141210] shadow-sm"
-                      : "text-[#8E8880] hover:text-[#ECEAE6] hover:bg-[#221F1C]"
-                  }`}
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>System &amp; Data</span>
-                </button>
-              </div>
-
-              {/* Modal Body */}
-              <div className="flex-1 overflow-y-auto space-y-4 pr-1 [scrollbar-width:thin] text-xs font-inter">
-                {settingsTab === "models" ? (
-                  <>
-                    {/* Active Status Card */}
-                    <div className="p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824] flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <span
-                          className="w-2.5 h-2.5 rounded-full animate-pulse"
-                          style={{ backgroundColor: currentEngine?.color || "#10A37F" }}
-                        />
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
-                              {isCustomKey ? currentEngine?.providerName : "Groq Cloud (System Default)"}
-                            </span>
-                            <span className="px-2 py-0.5 rounded text-[9px] font-mono border border-emerald-500/40 text-emerald-400 bg-emerald-500/10 uppercase">
-                              {isCustomKey ? "Custom Key" : "Default Key Active"}
-                            </span>
-                          </div>
-                          <span className="text-[11px] font-mono text-[#9E978F] block mt-0.5">
-                            Active Model: {selectedModelName}
-                          </span>
-                        </div>
-                      </div>
-
-                      {isCustomKey && (
-                        <button
-                          type="button"
-                          onClick={handleResetToDefaultKey}
-                          className="px-2.5 py-1 rounded-lg bg-[#262320] hover:bg-red-500/20 text-[#A8A199] hover:text-red-400 border border-[#332E29] hover:border-red-500/30 text-[11px] font-mono transition-colors"
-                        >
-                          Reset to Default
-                        </button>
-                      )}
-                    </div>
-
-                    {/* API Key Input Section */}
-                    <div className="space-y-2 p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824]">
-                      <div className="flex items-center justify-between">
-                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
-                          Custom API Key (Optional)
-                        </label>
-                        <span className="text-[10px] text-[#78726B] font-mono">
-                          Groq · OpenAI · Anthropic
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#8E8880] leading-relaxed">
-                        Harpy runs on the default Groq API from environment. Enter your own API key below to unlock custom models:
-                      </p>
-
-                      <div className="flex gap-2 pt-1">
-                        <div className="relative flex-1">
-                          <input
-                            type={showKeySecret ? "text" : "password"}
-                            value={tempKeyInput}
-                            onChange={(e) => {
-                              setTempKeyInput(e.target.value);
-                              setKeyError(null);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") handleSaveKey();
-                            }}
-                            placeholder="Paste API key (e.g. gsk_... or sk-...)"
-                            className="w-full py-2 pl-3 pr-9 rounded-xl bg-[#13110F] border border-[#2E2A25] focus:border-[#4A443E] text-xs font-mono text-[#ECEAE6] placeholder-[#666059] focus:outline-none"
-                          />
-                          <button
-                            type="button"
-                            onClick={() => setShowKeySecret(!showKeySecret)}
-                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#78726B] hover:text-[#ECEAE6] p-0.5"
-                            title={showKeySecret ? "Hide secret" : "Show secret"}
-                          >
-                            {showKeySecret ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-                          </button>
-                        </div>
-
-                        <button
-                          type="button"
-                          onClick={handleSaveKey}
-                          disabled={isValidatingKey || !tempKeyInput.trim()}
-                          className="px-4 py-2 bg-[#ECEAE6] hover:bg-white text-[#141210] rounded-xl font-sans text-xs font-semibold transition-colors disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5 flex-shrink-0"
-                        >
-                          {isValidatingKey ? (
-                            <span className="inline-block w-3.5 h-3.5 border-2 border-[#141210] border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            "Connect"
-                          )}
-                        </button>
-                      </div>
-
-                      {keyError && (
-                        <p className="text-[11px] text-red-400 font-mono flex items-center gap-1 mt-1">
-                          <AlertCircle className="w-3.5 h-3.5 inline flex-shrink-0" />
-                          <span>{keyError}</span>
-                        </p>
-                      )}
-                    </div>
-
-                    {/* Interactive Model Selection List */}
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
-                          Choose Model ({activeModelsList.length} Available)
-                        </label>
-                        <span className="text-[10px] text-[#78726B] font-mono">
-                          Select default workspace model
-                        </span>
-                      </div>
-
-                      <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1 [scrollbar-width:thin]">
-                        {activeModelsList.map((m) => {
-                          const isSelected = selectedModelId === m.id;
-                          return (
-                            <button
-                              key={m.id}
-                              type="button"
-                              onClick={() => handleSelectModel(m.id, m.name)}
-                              className={`w-full p-3 rounded-xl border text-left flex items-center justify-between transition-all group ${
-                                isSelected
-                                  ? "bg-[#262320] border-[#4A443E] text-[#ECEAE6]"
-                                  : "bg-[#1B1917] border-[#282420] text-[#A8A199] hover:border-[#3A3530] hover:text-[#ECEAE6]"
-                              }`}
-                            >
-                              <div className="space-y-0.5">
-                                <div className="flex items-center gap-2">
-                                  <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
-                                    {m.name}
-                                  </span>
-                                  {m.id.includes("120b") && (
-                                    <span className="px-1.5 py-0.5 rounded text-[8.5px] bg-[#E06D44]/15 text-[#E06D44] font-mono border border-[#E06D44]/30 font-medium">
-                                      RECOMMENDED
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-2 font-mono text-[10px]">
-                                  <span className="text-emerald-400">{m.speed}</span>
-                                  <span className="text-[#5C564F]">·</span>
-                                  <span className="text-[#78726B] truncate max-w-[200px] sm:max-w-xs">{m.id}</span>
-                                </div>
-                              </div>
-
-                              {isSelected ? (
-                                <div className="w-5 h-5 rounded-full bg-[#ECEAE6] flex items-center justify-center text-[#141210] flex-shrink-0 shadow-sm">
-                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
-                                </div>
-                              ) : (
-                                <div className="w-5 h-5 rounded-full border border-[#332E29] flex-shrink-0 group-hover:border-[#5C564F] transition-colors" />
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </>
-                ) : settingsTab === "appearance" ? (
-                  <div className="space-y-4">
-                    {/* Header Details */}
-                    <div className="space-y-1">
-                      <div className="flex items-center justify-between">
-                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
-                          Interface Theme &amp; Appearance
-                        </label>
-                        <span className="text-[10px] text-[#D8D3CC] font-mono uppercase px-2 py-0.5 rounded bg-[#262320] border border-[#332E29]">
-                          Active: {theme === "light" ? "Light" : "Dark Charcoal"}
-                        </span>
-                      </div>
-                      <p className="text-[11px] text-[#8E8880] leading-relaxed">
-                        Switch between the default dark charcoal studio theme and light mode across all workspaces and panels.
-                      </p>
-                    </div>
-
-                    {/* Theme Cards Grid */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-1">
-                      {/* Dark Theme Card */}
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTheme("dark")}
-                        className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
-                          theme === "dark"
-                            ? "bg-[#262320] border-[#4A443E] text-[#ECEAE6]"
-                            : "bg-[#1B1917] border-[#282420] text-[#9E978F] hover:border-[#3A3530]"
-                        }`}
-                      >
-                        <div className="space-y-3 w-full">
-                          <div className="h-16 w-full rounded-lg bg-[#13110F] border border-[#282420] p-2 flex gap-1.5 items-stretch">
-                            <div className="w-1/4 rounded bg-[#181614] border border-[#25221E] flex flex-col justify-between p-1">
-                              <div className="w-2.5 h-2.5 rounded-full bg-[#E06D44]" />
-                              <div className="w-full h-1 bg-[#2C2824] rounded-full" />
-                            </div>
-                            <div className="flex-1 rounded bg-[#1B1917] border border-[#282420] p-1.5 flex flex-col justify-between">
-                              <div className="w-1/2 h-1.5 bg-[#ECEAE6]/70 rounded-full" />
-                              <div className="w-3/4 h-1 bg-[#2E2A25] rounded-full" />
-                              <div className="w-full h-2.5 bg-[#13110F] rounded border border-[#282420]" />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Moon className="w-4 h-4 text-[#ECEAE6]" />
-                                <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
-                                  Dark Charcoal
-                                </span>
-                              </div>
-                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-[#38322D] bg-[#221F1C] text-[#D8D3CC] uppercase">
-                                DEFAULT
-                              </span>
-                            </div>
-                            <p className="text-[10.5px] text-[#8E8880] leading-relaxed">
-                              Clean warm charcoal workspace canvas with crisp neutral typography.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 pt-2.5 border-t border-[#2C2824] flex items-center justify-between w-full">
-                          <span className="text-[10px] font-mono text-[#78726B]">Studio Dark</span>
-                          {theme === "dark" ? (
-                            <div className="w-4 h-4 rounded-full bg-[#ECEAE6] flex items-center justify-center text-[#141210] shadow-sm">
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
-                            </div>
-                          ) : (
-                            <div className="w-4 h-4 rounded-full border border-[#332E29] transition-colors" />
-                          )}
-                        </div>
-                      </button>
-
-                      {/* Pure White Theme Card */}
-                      <button
-                        type="button"
-                        onClick={() => handleSelectTheme("light")}
-                        className={`p-4 rounded-xl border text-left flex flex-col justify-between transition-all group relative overflow-hidden ${
-                          theme === "light"
-                            ? "bg-[#262320] border-[#4A443E] text-[#ECEAE6]"
-                            : "bg-[#1B1917] border-[#282420] text-[#9E978F] hover:border-[#3A3530]"
-                        }`}
-                      >
-                        <div className="space-y-3 w-full">
-                          <div className="h-16 w-full rounded-lg bg-[#FFFFFF] border border-[#E2E4E9] p-2 flex gap-1.5 items-stretch">
-                            <div className="w-1/4 rounded bg-[#F1F3F6] border border-[#E2E4E9] flex flex-col justify-between p-1">
-                              <div className="w-2.5 h-2.5 rounded-full bg-[#E06D44]" />
-                              <div className="w-full h-1 bg-[#CBD5E1] rounded-full" />
-                            </div>
-                            <div className="flex-1 rounded bg-[#FFFFFF] border border-[#E2E4E9] p-1.5 flex flex-col justify-between">
-                              <div className="w-1/2 h-1.5 bg-[#0F172A]/70 rounded-full" />
-                              <div className="w-3/4 h-1 bg-[#E2E4E9] rounded-full" />
-                              <div className="w-full h-2.5 bg-[#F8F9FA] rounded border border-[#E2E4E9]" />
-                            </div>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
-                                <Sun className="w-4 h-4 text-amber-400" />
-                                <span className="font-sans text-xs font-semibold text-[#ECEAE6]">
-                                  Light Mode
-                                </span>
-                              </div>
-                              <span className="px-1.5 py-0.5 rounded text-[8.5px] font-mono border border-amber-500/40 bg-amber-500/10 text-amber-400 uppercase">
-                                DAYLIGHT
-                              </span>
-                            </div>
-                            <p className="text-[10.5px] text-[#8E8880] leading-relaxed">
-                              Clean white canvas with high-contrast slate typography.
-                            </p>
-                          </div>
-                        </div>
-
-                        <div className="mt-3 pt-2.5 border-t border-[#2C2824] flex items-center justify-between w-full">
-                          <span className="text-[10px] font-mono text-[#78726B]">Light Slate</span>
-                          {theme === "light" ? (
-                            <div className="w-4 h-4 rounded-full bg-[#ECEAE6] flex items-center justify-center text-[#141210] shadow-sm">
-                              <Check className="w-2.5 h-2.5 stroke-[3]" />
-                            </div>
-                          ) : (
-                            <div className="w-4 h-4 rounded-full border border-[#332E29] transition-colors" />
-                          )}
-                        </div>
-                      </button>
-                    </div>
-
-                    <div className="p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824] space-y-1">
-                      <div className="flex items-center gap-2 text-[#ECEAE6] font-sans text-xs font-semibold">
-                        <Sparkles className="w-3.5 h-3.5 text-[#E06D44]" />
-                        <span>Theme Synchronization</span>
-                      </div>
-                      <p className="text-[11px] text-[#8E8880] leading-relaxed">
-                        All views including Workspaces, Plugins, Version Control, and Code Preview adapt automatically to your chosen theme.
-                      </p>
-                    </div>
-                  </div>
-                ) : (
-                  <>
-                    <div className="space-y-3">
-                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824]">
-                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
-                          Active Inference Engine
-                        </label>
-                        <div className="flex items-center justify-between text-[#D8D3CC]">
-                          <span className="font-mono text-xs">{selectedModelName} ({selectedModelId})</span>
-                          <span className="text-emerald-400 font-mono text-[11px]">ACTIVE</span>
-                        </div>
-                      </div>
-
-                      <div className="space-y-1.5 p-3.5 rounded-xl bg-[#1E1B18] border border-[#2C2824]">
-                        <label className="font-sans text-xs text-[#ECEAE6] block font-semibold">
-                          Workspace Safeguards
-                        </label>
-                        <p className="text-[#9E978F] leading-relaxed">
-                          File creation, surgical edits, shell commands, and baseline preservation checks are enforced before finishing every run.
-                        </p>
-                      </div>
-
-                      {/* Conversation History & Data Purge */}
-                      <div className={`space-y-3 p-4 rounded-xl border transition-all ${
-                        isLight ? "bg-red-50/70 border-red-200" : "bg-red-950/20 border-red-900/35"
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <Trash2 className="w-4 h-4 text-red-400" />
-                            <label className="font-sans text-red-400 block font-semibold text-xs">
-                              Delete Chat History
-                            </label>
-                          </div>
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded border ${
-                            isLight
-                              ? "bg-red-100 text-red-600 border-red-200"
-                              : "bg-red-500/10 text-red-400 border-red-500/20"
-                          }`}>
-                            {sessions.length} Saved {sessions.length === 1 ? "Session" : "Sessions"}
-                          </span>
-                        </div>
-                        <p className={`text-xs leading-relaxed ${
-                          isLight ? "text-slate-600" : "text-[#9E978F]"
-                        }`}>
-                          Permanently clear all stored conversation transcripts and local workspace sessions. This action cannot be undone.
-                        </p>
-
-                        {!confirmDeleteAllHistory ? (
-                          <div className="pt-1">
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeleteAllHistory(true)}
-                              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/15 hover:bg-red-500/25 text-red-400 border border-red-500/30 hover:border-red-500/50 transition-all font-semibold text-xs active:scale-95 shadow-sm"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                              <span>Delete Chat History</span>
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="pt-2 p-3 rounded-lg bg-red-500/10 border border-red-500/30 space-y-2.5 animate-in fade-in duration-150">
-                            <div className="flex items-center gap-2 text-red-400 text-xs font-semibold">
-                              <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-                              <span>Are you sure? All {sessions.length} saved sessions will be permanently erased.</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <button
-                                type="button"
-                                onClick={handleClearAllChatHistory}
-                                className="px-3.5 py-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white font-semibold text-xs shadow-md transition-all active:scale-95"
-                              >
-                                Yes, Delete All History
-                              </button>
-                              <button
-                                type="button"
-                                onClick={() => setConfirmDeleteAllHistory(false)}
-                                className={`px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
-                                  isLight
-                                    ? "bg-slate-200 hover:bg-slate-300 text-slate-700"
-                                    : "bg-[#181824] hover:bg-[#252535] text-[#8E8B99] hover:text-white"
-                                }`}
-                              >
-                                Cancel
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </>
-                )}
-              </div>
-
-              {/* Modal Footer */}
-              <div className="pt-3 border-t border-[#14141C] flex justify-end flex-shrink-0">
-                <button
-                  type="button"
-                  onClick={() => setSettingsModalOpen(false)}
-                  className="px-5 py-2 rounded-xl bg-[#ECEAE6] text-[#141210] font-sans text-xs font-semibold hover:bg-white transition-colors shadow-md"
-                >
-                  Done
-                </button>
-              </div>
-            </motion.div>
-          </div>
+        </>
         )}
-      </AnimatePresence>
+      </div>
 
       {/* ──────────────────────────────────────────────────────────
           OPERATOR PROFILE MODAL
@@ -3141,9 +3279,7 @@ export default function DashboardPage() {
                   }),
                 };
               });
-              try {
-                localStorage.setItem('harpy_chat_sessions', JSON.stringify(next.filter((s) => s.messages.length > 0)));
-              } catch {}
+              persistSessions(next);
               return next;
             });
           } catch (e) {
